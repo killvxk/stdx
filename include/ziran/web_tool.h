@@ -74,7 +74,7 @@ namespace ziran
 							pair.first = '0';
 						}
 						//将两个字符映射为byte后push_back
-						buffer.push_back(tools::map_byte(pair));
+						buffer.push_back(map_byte(pair));
 					}
 					//如果等于end 说明格式不正确
 					//使用补救措施不进行解码
@@ -112,7 +112,7 @@ namespace ziran
 					}
 					return map_ptr;
 				}
-				catch (const std::out_of_range &e)
+				catch (const std::out_of_range &)
 				{
 					throw std::invalid_argument("非法的Form Body:无法获取键值对");
 				}
@@ -216,7 +216,7 @@ namespace ziran
 								}
 							}
 						}
-						catch (const std::out_of_range &e)
+						catch (const std::out_of_range &)
 						{
 							throw std::invalid_argument("非法的Form Body:无法分割Header");
 						}
@@ -264,7 +264,7 @@ namespace ziran
 								}
 							}
 						}
-						catch (const std::out_of_range &e)
+						catch (const std::out_of_range &)
 						{
 							throw std::invalid_argument("非法的Form Body:Content-Disposition不正确");
 						}
@@ -276,7 +276,7 @@ namespace ziran
 						//设置MAP,漫长的一次循环结束了
 						(*map_ptr)[name] = temp[1];
 					}
-					catch (const std::out_of_range &e)
+					catch (const std::out_of_range &)
 					{
 						throw std::invalid_argument("非法的Form Body:无法找到\r\n\r\n(CRLF,CRLF)");
 					}

@@ -46,32 +46,137 @@ namespace ziran
 				//默认构造函数
 				task() = default;
 				//构造函数
-				explicit task(std::function<TResult(TArgs)> func, const thread_option &option);
+				explicit task(std::function<TResult(TArgs)> func, const thread_option &option)
+					:option(option)
+					, status(task_status::ready)
+					, run_func(func)
+					, call_back_event([](TResult r) {})
+				{
+				}
 				//拷贝构造函数
-				task(const task<TResult, TArgs> &other);
+				task(const task<TResult, TArgs> &other)
+					:option(other.option)
+					, status(other.status)
+					, run_func(other.run_func)
+					, call_back_event(other.call_back_event)
+					, promise_ptr(other.promise_ptr)
+					, future_ptr(other.future_ptr)
+				{
+				}
 				//move构造函数
-				task(task<TResult, TArgs> &&other);
+				task(task<TResult, TArgs> &&other)
+					:option(std::move(other.option))
+					, status(std::move(other.status))
+					, run_func(std::move(other.run_func))
+					, call_back_event(std::move(other.call_back_event))
+					, promise_ptr(std::move(other.promise_ptr))
+					, future_ptr(std::move(other.future_ptr))
+				{
+				}
 				//拷贝赋值函数
-				task<TResult, TArgs> &operator=(const task<TResult, TArgs> &other);
+				task<TResult, TArgs> &operator=(const task<TResult, TArgs> &other)
+				{
+					option = other.option;
+					status = other.status;
+					run_func = other.run_func;
+					call_back_event = other.call_back_event;
+					promise_ptr = other.promise_ptr;
+					future_ptr = other.future_ptr;
+					return *this;
+				}
 				//析构函数
 				~task() = default;
 				//启动任务
-				void start(TArgs args);
+				void start(TArgs args)
+				{
+					//将状态设置为运行中
+					status = task_status::running;
+					//初始化promise
+					this->promise_ptr = std::make_shared<std::promise<TResult>>();
+					//初始化future
+					this->future_ptr = std::make_shared<std::shared_future<TResult>>(promise_ptr->get_future());
+					//如果需要创建线程
+					if (option == thread_option::create)
+					{
+						//新建线程
+						std::thread thread([this](TArgs args)
+						{
+							exectue_func(args);
+						}, args);
+						//分离线程
+						thread.detach();
+						return;
+					}
+					//不需要创建线程
+					else if (option == thread_option::no_create)
+					{
+						//直接执行
+						exectue_func(args);
+					}
+				}
 				//设置回调
 				inline void set_call_back(call_back func)
 				{
 					call_back_event = func;
 				}
+#pragma region then_task
+
 				//延续任务
 				template<typename TOtherResult>
-				std::shared_ptr<task<TOtherResult, TResult>> then(std::function<TOtherResult(TResult)> func);
+				std::shared_ptr<task<TOtherResult, TResult>> then(std::function<TOtherResult(TResult)> func)
+				{
+					//创建task
+					std::shared_ptr<task<TOtherResult, TResult >> task_ptr = std::make_shared<task<TOtherResult, TResult>>(func, thread_option::no_create);
+					//如果任务已完成
+					if (status == task_status::done)
+					{
+						//直接启动task
+						std::thread thread([task_ptr]() {
+							task_ptr->start(future_ptr->get());
+						});
+						thread.detach();
+					}
+					//任务还没开始或运行中
+					else if (status == task_status::ready || status == task_status::running)
+					{
+						//设置回调
+						set_call_back([task_ptr](TResult result)
+						{
+							task_ptr->start(result);
+						});
+					}
+					//任务出错
+					//抛出异常
+					else if (status == task_status::error)
+					{
+						try
+						{
+							future_ptr->get();
+						}
+						catch (const std::exception &e)
+						{
+							throw e;
+						}
+					}
+					return task_ptr;
+				}
 				//延续任务(返回void)
-				std::shared_ptr<task<task_void, TResult>> then(std::function<void(TResult)> func);
+				std::shared_ptr<task<task_void, TResult>> then(std::function<void(TResult)> func)
+				{
+					return then(make_void_task<TResult>(func));
+				}
 				//延续任务(参数void)
 				template<typename TOtherResult>
-				std::shared_ptr<task<TOtherResult, TResult>> then(std::function<TOtherResult()> func);
+				std::shared_ptr<task<TOtherResult, TResult>> then(std::function<TOtherResult()> func)
+				{
+					return then(make_void_arg_task<TOtherResult, TResult>(func));
+				}
 				//延续任务(接受void,返回void)
-				std::shared_ptr<task<task_void, TResult>> then(std::function<void()> func);
+				std::shared_ptr<task<task_void, TResult>> then(std::function<void()> func)
+				{
+					return then(make_void_task(func));
+				}
+#pragma endregion
 				//获取shared_future
 				inline std::shared_future<TResult> &get_future()
 				{
@@ -133,79 +238,6 @@ namespace ziran
 					this->status = status;
 				}
 			};
-			//构造函数
-			template<typename TResult, typename TArgs>
-			task<TResult, TArgs>::task(std::function<TResult(TArgs)> func, const thread_option &option)
-				:option(option)
-				, status(task_status::ready)
-				, run_func(func)
-				, call_back_event([](TResult r) {})
-			{
-			}
-			//拷贝构造函数
-			template<typename TResult, typename TArgs>
-			task<TResult, TArgs>::task(const task<TResult, TArgs> &other)
-				:option(other.option)
-				, status(other.status)
-				, run_func(other.run_func)
-				, call_back_event(other.call_back_event)
-				, promise_ptr(other.promise_ptr)
-				, future_ptr(other.future_ptr)
-			{
-			}
-
-			//move构造函数
-			template<typename TResult, typename TArgs>
-			task<TResult, TArgs>::task(task<TResult, TArgs> &&other)
-				:option(std::move(other.option))
-				, status(std::move(other.status))
-				, run_func(std::move(other.run_func))
-				, call_back_event(std::move(other.call_back_event))
-				, promise_ptr(std::move(other.promise_ptr))
-				, future_ptr(std::move(other.future_ptr))
-			{
-			}
-			//拷贝赋值函数
-			template<typename TResult, typename TArgs>
-			task<TResult, TArgs> & task<TResult, TArgs>::operator=(const task<TResult, TArgs> &other)
-			{
-				option = other.option;
-				status = other.status;
-				run_func = other.run_func;
-				call_back_event = other.call_back_event;
-				promise_ptr = other.promise_ptr;
-				future_ptr = other.future_ptr;
-				return *this;
-			}
-			//启动任务
-			template<typename TResult, typename TArgs>
-			void task<TResult, TArgs>::start(TArgs args)
-			{
-				//将状态设置为运行中
-				status = task_status::running;
-				//初始化promise
-				this->promise_ptr = std::make_shared<std::promise<TResult>>();
-				//初始化future
-				this->future_ptr = std::make_shared<std::shared_future<TResult>>(promise_ptr->get_future());
-				//如果需要创建线程
-				if (option == thread_option::create)
-				{
-					//新建线程
-					std::thread thread([this](TArgs args)
-					{
-						exectue_func(args);
-					}, args);
-					//分离线程
-					thread.detach();
-					return;
-				}
-				//不需要创建线程
-				else if (option == thread_option::no_create)
-				{
-					//直接执行
-					exectue_func(args);
-				}
-			}
 #pragma region task_helper
 			//创建返回void的方法
 			template<typename TArgs>
@@ -273,70 +305,6 @@ namespace ziran
 			{
 				auto task_ptr = make_task(make_void_arg_task(func));
 				return task_ptr;
-			}
-#pragma endregion
-#pragma region then_task
-
-			//延续任务
-			template<typename TResult, typename TArgs>
-			template<typename TOtherResult>
-			std::shared_ptr<task<TOtherResult, TResult>> task<TResult, TArgs>::then(std::function<TOtherResult(TResult)> func)
-			{
-				//创建task
-				std::shared_ptr<task<TOtherResult, TResult >> task_ptr = std::make_shared<task<TOtherResult, TResult>>(func, thread_option::no_create);
-				//如果任务已完成
-				if (status == task_status::done)
-				{
-					//直接启动task
-					std::thread thread([task_ptr]() {
-						task_ptr->start(future_ptr->get());
-					});
-					thread.detach();
-				}
-				//任务还没开始或运行中
-				else if (status == task_status::ready || status == task_status::running)
-				{
-					//设置回调
-					set_call_back([task_ptr](TResult result)
-					{
-						task_ptr->start(result);
-					});
-				}
-				//任务出错
-				//抛出异常
-				else if (status == task_status::error)
-				{
-					try
-					{
-						future_ptr->get();
-					}
-					catch (const std::exception &e)
-					{
-						throw e;
-					}
-				}
-				return task_ptr;
-			}
-			//延续任务(返回void)
-			template<typename TResult, typename TArgs>
-			std::shared_ptr<task<task_void, TResult>> task<TResult, TArgs>::then(std::function<void(TResult)> func)
-			{
-				return then(make_void_task<TResult>(func));
-			}
-
-			//延续任务(接受void)
-			template<typename TResult, typename TArgs>
-			template<typename TOtherResult>
-			std::shared_ptr<task<TOtherResult, TResult>> task<TResult, TArgs>::then(std::function<TOtherResult()> func)
-			{
-				return then(make_void_arg_task<TOtherResult, TResult>(func));
-			}
-
-			//延续任务(接受void,返回void)
-			template<typename TResult, typename TArgs>
-			std::shared_ptr<task<task_void, TResult>> task<TResult, TArgs>::then(std::function<void()> func)
-			{
-				return then(make_void_task(func));
 			}
 #pragma endregion
 		}

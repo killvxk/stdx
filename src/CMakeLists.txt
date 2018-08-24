@@ -34,7 +34,6 @@ if(UNIX)
 	target_link_libraries(ziran PRIVATE ${PROJECT_SOURCE_DIR}/lib/mysql-connector/linux/lib64/libsqlcppconn8.so ${PROJECT_SOURCE_DIR}/lib/mysql-connector/linux/lib64/libsqlcppconn.so)
 else()
 	target_link_libraries(ziran PRIVATE ${PROJECT_SOURCE_DIR}/lib/mysql-connector/windows/lib64/vs14/libeay32.lib ${PROJECT_SOURCE_DIR}/lib/mysql-connector/windows/lib64/vs14/mysqlcppconn8.lib ${PROJECT_SOURCE_DIR}/lib/mysql-connector/windows/lib64/vs14/ssleay32.lib ${PROJECT_SOURCE_DIR}/lib/mysql-connector/windows/lib64/vs14/mysqlcppconn.lib)
-	add_custom_command(TARGET ziran POST_BUILD  COMMAND ${CMAKE_COMMAND} -E copy_directory  "${PROJECT_SOURCE_DIR}/lib/mysql-connector/windows/lib64/dll"  $<TARGET_FILE_DIR:ziran>)
 endif()
 if(UNIX)
 	#OpenSSL
