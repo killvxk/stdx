@@ -7,75 +7,75 @@ namespace ziran
 {
 	namespace async
 	{
-		//×ÔĞıËøÄ£°å
+		//è‡ªæ—‹é”æ¨¡æ¿
 		template<
-			//×ÔĞıÊ±³¤(ºÁÃë)
+			//ä¼‘çœ æ—¶é•¿(æ¯«ç§’)
 			int sleep_milliseconds
 		>
 		class spin_lock
 		{
 		public:
-			//Ä¬ÈÏ¹¹Ôìº¯Êı
+			//é»˜è®¤æ„é€ å‡½æ•°
 			spin_lock()
 				:is_using(false)
 			{
 			}
-			//Îö¹¹º¯Êı
+			//ææ„å‡½æ•°
 			~spin_lock() = default;
-			//½øÈëËø
+			//è¿›å…¥é”
 			void enter()
 			{
-				//Èç¹û±»Õ¼ÓÃ
+				//å¦‚æœè¢«å ç”¨
 				while (is_using)
 				{
-					//×ÔĞı²¢ĞİÃß
+					//è‡ªæ—‹å¹¶ä¼‘çœ 
 					std::this_thread::sleep_for(std::chrono::milliseconds(sleep_milliseconds));
 				}
-				//»ñµÃËø
-				//½«×´Ì¬ÉèÖÃÎª±»Õ¼ÓÃ
+				//è·å¾—é”
+				//å°†çŠ¶æ€è®¾ç½®ä¸ºè¢«å ç”¨
 				is_using = true;
 			}
-			//ÍË³öËø
+			//é€€å‡ºé”
 			void exit()
 			{
-				//½«×´Ì¬ÉèÖÃÎª²»±»Õ¼ÓÃ
+				//å°†çŠ¶æ€è®¾ç½®ä¸ºä¸è¢«å ç”¨
 				is_using = false;
 			}
 		private:
-			//ËøµÄ×´Ì¬
+			//é”çš„çŠ¶æ€
 			std::atomic_bool is_using;
 		};
-		//ÌØ»¯Ä£°å
-		//×ÔĞıËø ²»ĞİÃß
+		//ç‰¹åŒ–æ¨¡æ¿
+		//è‡ªæ—‹é” ä¸ä¼‘çœ 
 		template<>
 		class spin_lock<0>
 		{
 		public:
-			//Ä¬ÈÏ¹¹Ôìº¯Êı
+			//é»˜è®¤æ„é€ å‡½æ•°
 			spin_lock()
 				:is_using(false)
 			{
 			}
 			~spin_lock() = default;
-			//½øÈëËø
+			//è¿›å…¥é”
 			void enter()
 			{
-				//Èç¹û±»Õ¼ÓÃ
+				//å¦‚æœè¢«å ç”¨
 				while (is_using)
 				{
 				}
-				//»ñµÃËø
-				//½«×´Ì¬ÉèÖÃÎª±»Õ¼ÓÃ
+				//è·å¾—é”
+				//å°†çŠ¶æ€è®¾ç½®ä¸ºè¢«å ç”¨
 				is_using = true;
 			}
-			//ÍË³öËø
+			//é€€å‡ºé”
 			void exit()
 			{
-				//½«×´Ì¬ÉèÖÃÎª²»±»Õ¼ÓÃ
+				//å°†çŠ¶æ€è®¾ç½®ä¸ºä¸è¢«å ç”¨
 				is_using = false;
 			}
 		private:
-			//ËøµÄ×´Ì¬
+			//é”çš„çŠ¶æ€
 			std::atomic_bool is_using;
 		};
 	}
