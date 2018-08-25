@@ -1,7 +1,7 @@
-#include "ziran/async.h"
 #include "ziran/mysql_tool.h"
 #include "ziran/web_tool.h"
-#include "ziran/object_pool.h"
+#include "ziran/memory/object_pool.h"
+#include "ziran/memory/pool_ptr.h"
 int main()
 {
 	/*auto task = ziran::tools::async::make_task([]() 
@@ -18,11 +18,9 @@ int main()
 	ziran::tools::async::start_task(task);
 	auto fut = task->get_future();
 	fut.wait();*/
-	ziran::tools::object_pool pool;
-	
-	int *a = pool.make_object<int>(1);
-	std::cout << *a << std::endl;
-	pool.destroy_object(a);
+	ziran::memory::object_pool pool;
+	auto ptr = pool.make_pool_ptr<double>(pool.make_object<double>(1.23));
+	std::cout << *ptr <<std::endl;
 	system("pause");
 	return 0;
 }
