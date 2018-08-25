@@ -2,25 +2,22 @@
 #include "ziran/web_tool.h"
 #include "ziran/memory/object_pool.h"
 #include "ziran/memory/pool_ptr.h"
+#include "ziran/async/spin_lock.h"
 int main()
 {
-	/*auto task = ziran::tools::async::make_task([]() 
-	{
-		return 1 + 1;
-	});
-	task->then([](int r) 
-	{
-		return r + 1;
-	})->then([](int r) 
-	{
-		std::cout << "½á¹ûÊÇ:" << r << std::endl;
-	});
-	ziran::tools::async::start_task(task);
-	auto fut = task->get_future();
-	fut.wait();*/
 	ziran::memory::object_pool pool;
 	auto ptr = pool.make_pool_ptr<double>(pool.make_object<double>(1.23));
-	std::cout << *ptr <<std::endl;
+	ziran::async::spin_lock<20> lock;
+	lock.enter();
+	std::cout << "1" << std::endl;
+	std::thread thread([ptr,&lock]() 
+	{
+		lock.enter();
+		std::cout << "2" << std::endl;
+		lock.exit();
+	});
+	thread.detach();
+	lock.exit();
 	system("pause");
 	return 0;
 }

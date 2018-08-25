@@ -42,6 +42,18 @@ namespace ziran
 			{
 				return TPtr(ptr, *this);
 			}
+			//创建池指针
+			template<
+				//类型
+				typename T
+				//参数类型
+				typename ...TArgs
+			>
+			ziran::memory::pool_ptr<T> make_object_ptr(TArgs &&...args)
+			{
+				return make_pool_ptr<T>(make_object<T>(args...));
+			}
+
 			//销毁对象
 			template <typename T>
 			void destroy_object(T* ptr)
