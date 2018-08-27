@@ -9,7 +9,7 @@ namespace ziran
 	{
 		//自旋锁模板
 		template<
-			//自旋时长(毫秒)
+			//休眠时长(毫秒)
 			int sleep_milliseconds
 		>
 		class spin_lock
