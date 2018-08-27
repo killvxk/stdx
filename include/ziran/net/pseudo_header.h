@@ -1,25 +1,25 @@
-#pragma once
+ï»¿#pragma once
 
 namespace ziran
 {
 	namespace net
 	{
-		//Î±Ê×²¿
+		//ä¼ªé¦–éƒ¨
 		struct pseudo_header
 		{
-			//Ô´µØÖ·
+			//æºåœ°å€
 			unsigned int src;
 
-			//Ä¿µÄµØÖ·
+			//ç›®çš„åœ°å€
 			unsigned int des;
 
-			//ÎŞÒâÒåÌî³ä
+			//æ— æ„ä¹‰å¡«å……
 			unsigned char placeholder;
 
-			//Ğ­Òé
+			//åè®®
 			unsigned char protocol;
 
-			//TCP/UDPÊ×²¿³¤¶È
+			//TCP/UDPé¦–éƒ¨é•¿åº¦
 			unsigned short tcp_udp_header_length;
 		};
 	}
