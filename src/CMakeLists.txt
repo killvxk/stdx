@@ -28,6 +28,7 @@ find_package(Boost REQUIRED COMPONENTS
 )
 include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(ziran PRIVATE ${Boost_LIBRARIES})
+
 #Mysql
 include_directories(${PROJECT_SOURCE_DIR}/lib/mysql-connector/include)
 if(UNIX)
