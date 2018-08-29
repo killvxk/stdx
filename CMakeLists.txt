@@ -3,9 +3,9 @@
 #
 cmake_minimum_required (VERSION 3.8)
 project ("ziran")
-if(UNIX)
-	add_definitions(-std=c++11)
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 #OpenMP
 FIND_PACKAGE(OpenMP REQUIRED)
