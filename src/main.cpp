@@ -4,15 +4,15 @@
 #include "ziran/net/pseudo_header.h"
 #include <iostream>
 #include "ziran/async/parallel.h"
-#include "ziran/inject/injector.h"
+#include "ziran/inject/service.h"
 #include "ziran/event/event.h"
 #include <thread>
 
 int main()
 {
-	ziran::injector::service_collection services;
+	ziran::inject::service_collection services;
 	services.register_type<int>()
-		.register_type<std::string, ziran::injector::singleton<std::string>>([]() 
+		.register_type<std::string, ziran::inject::singleton<std::string>>([]() 
 		{
 			return "abc";
 		});

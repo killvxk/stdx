@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include <memory>
-#include <any>
+#include <boost/any.hpp>
 #include <unordered_map>
 #include <stdexcept>
 namespace ziran
 {
-	namespace injector
+	namespace inject
 	{
 		//短暂生命周期
 		//每一次都创建
@@ -94,12 +94,12 @@ namespace ziran
 					throw std::invalid_argument("该类型没有被注册");
 				}
 				//获取方法
-				std::function<T()> maker = std::any_cast<std::function<T()>>(itera->second);
+				std::function<T()> maker = boost::any_cast<std::function<T()>>(itera->second);
 				//执行方法后返回
 				return maker();
 			}
 		private:
-			std::unordered_map<std::string, std::any> map;
+			std::unordered_map<std::string,boost::any> map;
 		};
 	}
 }
