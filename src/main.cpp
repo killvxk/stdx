@@ -5,6 +5,7 @@
 #include <iostream>
 #include "ziran/async/parallel.h"
 #include "ziran/inject/injector.h"
+#include "ziran/event/event.h"
 #include <thread>
 
 int main()
@@ -17,6 +18,12 @@ int main()
 		});
 	int v1 = services.resolve_type<int>();
 	auto v2 = services.resolve_type<std::string>();
+	ziran::event::event<int, std::string> event;
+	event.register_listener([](int i,std::string str) 
+	{
+		std::cout << i << str << std::endl;
+	});
+	event.pulish(v1, v2);
 	//ziran::inject::service<int, ziran::inject::life_time::singleton>::value = 10;
 	//std::cout << sizeof(ziran::net::ip_header) << std::endl
 	//	<< sizeof(ziran::net::tcp_header) << std::endl

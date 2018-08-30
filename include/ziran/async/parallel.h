@@ -66,7 +66,7 @@ namespace ziran
 				//容器类型
 				,typename TContainer = std::vector<T>
 			>
-			void for_each(const TContainer &container,std::function<void(T&)> &&func)
+			void for_each(const TContainer &container,std::function<void(T)> &&func)
 			{
 				//获取大小
 				size_t size = container.size();
