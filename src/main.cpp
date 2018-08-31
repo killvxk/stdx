@@ -7,10 +7,10 @@
 #include "ziran/inject/service.h"
 #include "ziran/event/event.h"
 #include <thread>
-
+#include "ziran/quicksort.h"
 int main()
 {
-	ziran::inject::service_collection services;
+	/*ziran::inject::service_collection services;
 	services.register_type<int>()
 		.register_type<std::string, ziran::inject::singleton<std::string>>([]() 
 		{
@@ -23,7 +23,7 @@ int main()
 	{
 		std::cout << i << str << std::endl;
 	});
-	event.pulish(v1, v2);
+	event.pulish(v1, v2);*/
 	//ziran::inject::service<int, ziran::inject::life_time::singleton>::value = 10;
 	//std::cout << sizeof(ziran::net::ip_header) << std::endl
 	//	<< sizeof(ziran::net::tcp_header) << std::endl
@@ -35,6 +35,14 @@ int main()
 	//, []() {return 3; }
 	//, []() {return 4; } 
 	//	});
+	std::vector<int> vector;
+	for (size_t i = 0; i < 4; i++)
+	{
+		int temp;
+		std::cin >> temp;
+		vector.push_back(temp);
+	}
+	ziran::quicksort_bigger<int>(vector, 0,vector.size());
 	system("pause");
 	return 0;
 }

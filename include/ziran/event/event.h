@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <ziran/async/parallel.h>
+#include <thread>
 
 namespace ziran
 {
@@ -38,10 +39,14 @@ namespace ziran
 			//发布事件
 			void pulish(const TArgs &...args)
 			{
-				ziran::async::parallel::for_each<std::function<void(TArgs...)>>(listeners, [&args...](const std::function<void(TArgs...)> &listener)
+				std::thread thread([&args]()
 				{
-					listener(args...);
+					ziran::async::parallel::for_each<std::function<void(TArgs...)>>(listeners, [&args...](const std::function<void(TArgs...)> &listener)
+					{
+						listener(args...);
+					});
 				});
+				thread.detach();
 			}
 		private:
 			//监听器容器
