@@ -3,46 +3,22 @@
 #include "ziran/net/udp_header.h"
 #include "ziran/net/pseudo_header.h"
 #include <iostream>
-#include "ziran/async/parallel.h"
+#include "ziran/async/task.h"
 #include "ziran/inject/service.h"
 #include "ziran/event/event.h"
 #include <thread>
 #include "ziran/quicksort.h"
+#include "ziran/function.h"
+#include "ziran/async/thread_pool.h"
 int main()
 {
-	/*ziran::inject::service_collection services;
-	services.register_type<int>()
-		.register_type<std::string, ziran::inject::singleton<std::string>>([]() 
-		{
-			return "abc";
-		});
-	int v1 = services.resolve_type<int>();
-	auto v2 = services.resolve_type<std::string>();
-	ziran::event::event<int, std::string> event;
-	event.register_listener([](int i,std::string str) 
-	{
-		std::cout << i << str << std::endl;
-	});
-	event.pulish(v1, v2);*/
-	//ziran::inject::service<int, ziran::inject::life_time::singleton>::value = 10;
-	//std::cout << sizeof(ziran::net::ip_header) << std::endl
-	//	<< sizeof(ziran::net::tcp_header) << std::endl
-	//	<< sizeof(ziran::net::udp_header) << std::endl
-	//	<< sizeof(ziran::net::pseudo_header) << std::endl;
-	//auto res = ziran::async::parallel::invoke<int>({ 
-	//	[]() { std::this_thread::sleep_for(std::chrono::seconds(2));  return 1; }
-	//,[]() {return 2; }
-	//, []() {return 3; }
-	//, []() {return 4; } 
-	//	});
-	std::vector<int> vector;
-	for (size_t i = 0; i < 4; i++)
-	{
-		int temp;
-		std::cin >> temp;
-		vector.push_back(temp);
-	}
-	ziran::quicksort_bigger<int>(vector, 0,vector.size());
-	system("pause");
+	ziran::async::thread_pool pool;
+	pool.run_task([]() {std::cout << std::this_thread::get_id()<<std::endl; });
+	pool.run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	pool.run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	pool.run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	pool.run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	pool.run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	std::cin.get();
 	return 0;
 }

@@ -201,7 +201,7 @@ public:
     A new iterator is obtained from begin() method.
 
     @note Only one instance of an iterator can be used at a time (not
-    thread safe!).
+    thread_pool safe!).
   */
 
   class Iterator;

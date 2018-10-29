@@ -39,14 +39,14 @@ namespace ziran
 			//发布事件
 			void pulish(const TArgs &...args)
 			{
-				std::thread thread([&args]()
+				std::thread_pool thread_pool([&args]()
 				{
 					ziran::async::parallel::for_each<std::function<void(TArgs...)>>(listeners, [&args...](const std::function<void(TArgs...)> &listener)
 					{
 						listener(args...);
 					});
 				});
-				thread.detach();
+				thread_pool.detach();
 			}
 		private:
 			//监听器容器
