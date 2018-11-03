@@ -33,7 +33,7 @@ namespace ziran
 			{
 			}
 			//进入锁
-			void enter()
+			void lock()
 			{
 				//如果被占用
 				while (is_using)
@@ -46,7 +46,7 @@ namespace ziran
 				is_using = true;
 			}
 			//退出锁
-			void exit()
+			void unlock()
 			{
 				//将状态设置为不被占用
 				is_using = false;
@@ -67,7 +67,7 @@ namespace ziran
 			}
 			~spin_lock() = default;
 			//进入锁
-			void enter()
+			void lock()
 			{
 				//如果被占用
 				while (is_using)
@@ -78,7 +78,7 @@ namespace ziran
 				is_using = true;
 			}
 			//退出锁
-			void exit()
+			void unlock()
 			{
 				//将状态设置为不被占用
 				is_using = false;
@@ -97,9 +97,10 @@ namespace ziran
 				:is_using(false)
 			{
 			}
+			//析构函数
 			~spin_lock() = default;
 			//进入锁
-			void enter()
+			void lock()
 			{
 				//如果被占用
 				while (is_using)
@@ -111,7 +112,7 @@ namespace ziran
 				is_using = true;
 			}
 			//退出锁
-			void exit()
+			void unlock()
 			{
 				//将状态设置为不被占用
 				is_using = false;

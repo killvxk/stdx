@@ -5,6 +5,7 @@
 #include <ziran/async/barrier.h>
 #include <vector>
 #include <initializer_list>
+#include <ziran/async/spin_lock.h>
 namespace ziran
 {
 	namespace async
@@ -22,16 +23,16 @@ namespace ziran
 			close,
 		};
 		//线程
-		class thread
+		class loop_thread
 		{
 		public:
 			//默认构造函数
-			thread()
-				:task_queue()
+			loop_thread()
+				:task_queue(std::make_shared<std::queue<std::function<void()>>>())
 				,status(ziran::async::thread_status::creating)
-				,barrier()
+				,barrier(std::make_shared<ziran::async::barrier>())
 				,keep_alive(true)
-				, thread_ptr(std::make_shared<std::thread>([this]() {private_run(); }))
+				,thread_ptr(std::make_shared<std::thread>([this]() {private_run(); }))
 				,id(thread_ptr->get_id())
 			{
 				if (thread_ptr->joinable())
@@ -40,11 +41,11 @@ namespace ziran
 				}
 			}
 			//构造函数
-			thread(std::initializer_list<std::function<void()>> &&tasks)
-				:task_queue()
-				,status(ziran::async::thread_status::creating)
-				,barrier()
-				,keep_alive(true)
+			loop_thread(const std::shared_ptr<std::queue<std::function<void()>>> &task_queue_ptr,const ziran::async::shared_barrier &barrier_ptr)
+				:task_queue(task_queue_ptr)
+				, status(ziran::async::thread_status::creating)
+				, barrier(barrier_ptr)
+				, keep_alive(true)
 				, thread_ptr(std::make_shared<std::thread>([this]() {private_run(); }))
 				, id(thread_ptr->get_id())
 			{
@@ -52,17 +53,9 @@ namespace ziran
 				{
 					thread_ptr->detach();
 				}
-				if (tasks.size())
-				{
-					for (auto begin = tasks.begin(), end = tasks.end(); begin != end; begin++)
-					{
-						task_queue.push(*begin);
-					}
-					barrier.pass();
-				}
 			}
 			//析构函数
-			~thread()
+			~loop_thread()
 			{
 				if (!thread_ptr)
 				{
@@ -73,51 +66,45 @@ namespace ziran
 					shutdown();
 				}	
 			}
-
 			//不要调用
 			void private_run()
 			{
 				while (keep_alive)
 				{
 					status = ziran::async::thread_status::free;
-					barrier.wait();
-					status = ziran::async::thread_status::working;
-					bool i = task_queue.size();
-					while (i)
+					barrier->wait();
+					bool i = task_queue->empty();
+					if(!i)
 					{
 						if (!keep_alive)
 						{
 							status = ziran::async::thread_status::close;
 							return;
 						}
-						std::function<void()> task = task_queue.front();
-						task_queue.pop();
+						status = ziran::async::thread_status::working;
+						std::function<void()> task = task_queue->front();
+						task_queue->pop();
 						task();
-						if (!keep_alive)
-						{
-							status = ziran::async::thread_status::close;
-							return;
-						}
-						i = task_queue.size();
 					}	
 				}
 				status = ziran::async::thread_status::close;
 			}
 			//运行任务
-			void run(std::function<void()> task)
+			template<typename _Fn,typename ..._Args>
+			void run(_Fn task,_Args &&...args)
 			{
 				if (!keep_alive)
 				{
 					return;
 				}
-				task_queue.push(task);
-				barrier.pass();
+				task_queue->push(std::bind(task,args...));
+				barrier->pass();
 			}
 			//关闭
 			void shutdown()
 			{
 				keep_alive = false;
-				barrier.pass();
+				barrier->pass();
 			}
 			//获取状态
 			const ziran::async::thread_status &get_status() const
@@ -134,58 +121,59 @@ namespace ziran
 			{
 				return keep_alive;
 			}
+
 		private:
-			std::queue<std::function<void()>> task_queue;
+			std::shared_ptr<std::queue<std::function<void()>>> task_queue;
 			ziran::async::thread_status status;
-			ziran::async::barrier barrier;
+			ziran::async::shared_barrier barrier;
 			std::atomic_bool keep_alive;
 			std::shared_ptr<std::thread> thread_ptr;
 			std::thread::id id;
 		};
 
-		using shared_thread = std::shared_ptr<ziran::async::thread>;
-		using unique_thread = std::unique_ptr<ziran::async::thread>;
-
-
+		using shared_loop_thread = std::shared_ptr<ziran::async::loop_thread>;
+		using unique_loop_thread = std::unique_ptr<ziran::async::loop_thread>;
 
 		//线程池
 		class thread_pool
 		{
 		public:
 			thread_pool(const int& initializ_thread_count = std::thread::hardware_concurrency())
-				:initializ_thread_count(initializ_thread_count)
+				:task_queue(std::make_shared<std::queue<std::function<void()>>>())
+				,initializ_thread_count(initializ_thread_count)
 				,barrier(std::move(std::make_shared<ziran::async::barrier>()))
 			{
 
 			}
 			~thread_pool()
 			{
-
+				std::for_each(std::begin(threads), std::end(threads), [](shared_loop_thread ptr) 
+				{
+					ptr->shutdown();
+				});
 			}
 			thread_pool(const thread_pool&) = delete;
-			void run_task(std::function<void()> &&task,const bool &long_running=false)
+
+			template<typename _Fn, typename ..._Args>
+			void run_task(_Fn task, _Args &&...args)
 			{
-				if (long_running)
+				if (threads.size() < initializ_thread_count || task_queue->size() > initializ_thread_count)
 				{
 					add_thread();
 				}
-				if (threads.size() < initializ_thread_count)
-				{
-					add_thread();
-				}
-				task_queue.push(task);
+				task_queue->push(std::bind(task, args...));
 				barrier->pass();
 			}
 
 			const bool has_task() const
 			{
-				return !task_queue.empty();
+				return !task_queue->empty();
 			}
 
 			std::function<void()> pop_task()
 			{
-				std::function<void()> task = task_queue.front();
-				task_queue.pop();
+				std::function<void()> task = task_queue->front();
+				task_queue->pop();
 				return task;
 			}
 
@@ -196,26 +184,23 @@ namespace ziran
 
 			void add_thread()
 			{
-				auto ptr = std::make_shared<ziran::async::thread>();
-				ptr->run([this,ptr]() 
-				{
-					while (ptr->is_alive())
-					{
-						wait_for_task();
-						if (has_task())
-						{
-							auto task = pop_task();
-							task();
-						}
-					}
-				});
+				auto ptr = std::make_shared<ziran::async::loop_thread>(task_queue,barrier);
 				threads.push_back(ptr);
 			}
+			
+			const static std::shared_ptr<ziran::async::thread_pool> get()
+			{
+				return default;
+			}
+
 		private:
+			std::shared_ptr<std::queue<std::function<void()>>> task_queue;
 			int initializ_thread_count;
 			ziran::async::shared_barrier barrier;
-			std::vector<ziran::async::shared_thread> threads;
-			std::queue<std::function<void()>> task_queue;
+			std::vector<ziran::async::shared_loop_thread> threads;
+			static ziran::async::spin_lock<-1> lock;
+			static std::shared_ptr<ziran::async::thread_pool> default;
 		};
+		std::shared_ptr<ziran::async::thread_pool> ziran::async::thread_pool::default = std::make_shared<ziran::async::thread_pool>();
 	}
 }
