@@ -47,7 +47,15 @@ namespace ziran
 				cv->notify_one();
 				notify_count += 1;
 			}
-				
+			template<class _Rep,
+				class _Period>
+			bool wait_for(const std::chrono::duration<_Rep, _Period> &time)
+			{
+				std::unique_lock<std::mutex> lock(*mutex);
+				auto &n = notify_count;
+				cv->wait_for(lock,time,[&n]() { return (int)n; });
+				notify_count -= 1;
+			}
 		private:
 			std::shared_ptr<std::mutex> mutex;
 			std::atomic_int notify_count;

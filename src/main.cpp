@@ -1,25 +1,22 @@
-ï»¿#include "ziran/net/ip_header.h"
-#include "ziran/net/tcp_header.h"
-#include "ziran/net/udp_header.h"
-#include "ziran/net/pseudo_header.h"
 #include <iostream>
-#include "ziran/async/task.h"
-#include "ziran/inject/service.h"
-#include "ziran/event/event.h"
-#include <thread>
-#include "ziran/quicksort.h"
-#include "ziran/function.h"
-#include "ziran/async/thread_pool.h"
-
+#include <ziran/cmder.h>
+#include <ziran/windows/device.h>
+#include <ziran/async/task.h>
 int main()
 {
-	auto pool = ziran::async::thread_pool::get();
-	pool->run_task([]() {std::cout << std::this_thread::get_id()<<std::endl; });
-	pool->run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
-	pool->run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
-	pool->run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
-	pool->run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
-	pool->run_task([]() {std::cout << std::this_thread::get_id() << std::endl; });
+	std::cout << "Ê¹ÓÃÇ°ÇëÏÈ´ò¿ªUSB!"<<std::endl;
+	std::cout << "ÇëÊäÈëÒªĞ¶ÔØµÄÅÌ·û(Èç: H: ):" << std::endl;
+	std::string str;
+	std::cin >> str;
+	try
+	{
+		ziran::win::uninstall_usb(str);
+	}
+	catch (const std::exception& e)
+	{
+		std::cout << e.what()<<std::endl;
+	}
+	ziran::cmder::pause();
 	std::cin.get();
 	return 0;
 }
