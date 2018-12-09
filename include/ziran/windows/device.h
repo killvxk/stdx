@@ -23,6 +23,11 @@ namespace ziran
 				throw std::invalid_argument("ÎÞÐ§µÄÅÌ·û");
 			}
 			DWORD junk;
+			if (!DeviceIoControl(device,FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &junk, (LPOVERLAPPED)NULL))
+			{
+				throw ziran::fail_exception("Ð¶ÔØUSBÊ§°Ü");
+			}
+			junk = NULL;
 			if (!DeviceIoControl(device, IOCTL_STORAGE_EJECT_MEDIA,NULL,0,NULL,0,&junk,(LPOVERLAPPED)NULL))
 			{
 				throw ziran::fail_exception("Ð¶ÔØUSBÊ§°Ü");
