@@ -12,24 +12,24 @@ namespace ziran
 {
 	namespace async
 	{
-		//Ïß³Ì×´Ì¬
+		//çº¿ç¨‹çŠ¶æ€
 		enum thread_status
 		{
-			//¿ÕÏĞ
+			//ç©ºé—²
 			free = 0,
-			//´´½¨ÖĞ
+			//åˆ›å»ºä¸­
 			creating,
-			//ÔËĞĞ»ò¹Ø±ÕÖĞ
+			//è¿è¡Œæˆ–å…³é—­ä¸­
 			working,
-			//¹Ø±Õ
+			//å…³é—­
 			close,
 		};
-		//Ïß³Ì
+		//çº¿ç¨‹
 		class loop_thread
 		{
 			using runable = std::shared_ptr<ziran::runable<void>>;
 		public:
-			//Ä¬ÈÏ¹¹Ôìº¯Êı
+			//é»˜è®¤æ„é€ å‡½æ•°
 			loop_thread()
 				:task_queue(std::make_shared<std::queue<runable>>())
 				,status(ziran::async::thread_status::creating)
@@ -43,7 +43,7 @@ namespace ziran
 					thread_ptr->detach();
 				}
 			}
-			//¹¹Ôìº¯Êı
+			//æ„é€ å‡½æ•°
 			loop_thread(const std::shared_ptr<std::queue<runable>> &task_queue_ptr,const ziran::async::shared_barrier &barrier_ptr)
 				:task_queue(task_queue_ptr)
 				, status(ziran::async::thread_status::creating)
@@ -57,7 +57,7 @@ namespace ziran
 					thread_ptr->detach();
 				}
 			}
-			//Îö¹¹º¯Êı
+			//ææ„å‡½æ•°
 			~loop_thread()
 			{
 				if (!thread_ptr)
@@ -69,7 +69,7 @@ namespace ziran
 					shutdown();
 				}	
 			}
-			//²»Òªµ÷ÓÃ
+			//ä¸è¦è°ƒç”¨
 			void private_run()
 			{
 				while (keep_alive)
@@ -104,7 +104,7 @@ namespace ziran
 				}
 				status = ziran::async::thread_status::close;
 			}
-			//ÔËĞĞÈÎÎñ
+			//è¿è¡Œä»»åŠ¡
 			template<typename _Fn,typename ..._Args>
 			void run(_Fn task,_Args &&...args)
 			{
@@ -115,13 +115,13 @@ namespace ziran
 				task_queue->push(std::bind(task,args...));
 				barrier->pass();
 			}
-			//¹Ø±Õ
+			//å…³é—­
 			void shutdown()
 			{
 				keep_alive = false;
 				barrier->pass();
 			}
-			//»ñÈ¡×´Ì¬
+			//è·å–çŠ¶æ€
 			const ziran::async::thread_status &get_status() const
 			{
 				return status;
@@ -149,7 +149,7 @@ namespace ziran
 		using shared_loop_thread = std::shared_ptr<ziran::async::loop_thread>;
 		using unique_loop_thread = std::unique_ptr<ziran::async::loop_thread>;
 
-		//Ïß³Ì³Ø
+		//çº¿ç¨‹æ± 
 		class thread_pool
 		{
 			using runable_ptr = std::shared_ptr<ziran::runable<void>>;
@@ -178,14 +178,14 @@ namespace ziran
 					add_thread();
 				}
 				runable_ptr c = ziran::make_action<void>(task, args...);
-				auto f = std::bind([](runable_ptr call)
+				auto f = std::bind([this](runable_ptr call)
 				{
-					//deduct_free();
+					deduct_free();
 					if (call)
 					{
 						call->run();
 					}
-					//add_free();
+					add_free();
 				},c);
 				task_queue->push(ziran::make_action(f));
 				barrier->pass();
