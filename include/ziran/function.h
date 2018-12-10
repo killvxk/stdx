@@ -38,10 +38,30 @@ namespace ziran
 			m_func = other.m_func;
 			return *this;
 		}
+
+		template<typename _t,typename _fn>
+		struct runner
+		{
+			static _t run(_fn &fn)
+			{
+				return fn();
+			}
+		};
+
+		template<typename _fn>
+		struct runner<void,_fn>
+		{
+			static void run(_fn &fn)
+			{
+				fn();
+				return;
+			}
+		};
+
 		// Í¨¹ı runable ¼Ì³Ğ
 		virtual R run() override
 		{
-			return m_func();
+			return runner<R,_Fn>::run(m_func);
 		}
 
 		operator bool()

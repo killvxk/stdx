@@ -85,7 +85,7 @@ namespace ziran
 					{
 						i = task_queue->empty();
 					}
-					catch (const std::exception&)
+					catch (...)
 					{
 						return;
 					}

@@ -19,6 +19,7 @@ namespace ziran
 				, m_promise(std::make_shared<std::promise<R>>())
 				, m_future(m_promise->get_future())
 				, m_next()
+				,m_started(std::make_shared<std::atomic_bool>(false))
 
 			{
 			}
@@ -30,7 +31,7 @@ namespace ziran
 				, m_promise(std::make_shared<std::promise<R>>())
 				, m_future(m_promise->get_future())
 				, m_next()
-
+				, m_started(std::make_shared<std::atomic_bool>(false))
 			{
 			}
 
@@ -63,11 +64,15 @@ namespace ziran
 
 			void run() override
 			{
-			if(!m_action){return;}
-			auto r =m_action;
-			m_action.reset();
-			
-			auto f = [](runable_ptr r
+				if (!(*m_started))
+				{
+					*m_started = true;
+				}
+				else
+				{
+					return;
+				}
+				auto f = [](runable_ptr r
 					, std::shared_ptr<std::promise<R>> promise
 					,std::shared_ptr<ziran::runable<void>> next)
 				{
@@ -80,7 +85,7 @@ namespace ziran
 						promise->set_exception(std::current_exception());
 					}
 				};
-				m_pool->run_task(std::bind(f, r, m_promise, m_next));
+				m_pool->run_task(std::bind(f, m_action, m_promise, m_next));
 			}
 
 			void wait()
@@ -95,7 +100,7 @@ namespace ziran
 
 			bool valid()
 			{
-				return m_future.valid();
+				return (future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready);
 			}
 
 			template<typename _Fn, typename ..._Args>
@@ -114,9 +119,10 @@ namespace ziran
 					{
 						return std::bind(fn, future.get())();
 					}, fn,future);
-					if(future.vaild()){t.run();}
-		
-					
+					if (future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+					{
+						t->run();
+					}
 					return t;
 	
 				}
@@ -132,7 +138,10 @@ namespace ziran
 					{
 						return fn();
 					}, fn, future);
-					if(future.vaild()){t.run();}
+					if(future.wait_for(std::chrono::milliseconds(1))== std::future_status::ready)
+					{
+						t->run();
+					}
 					return t;
 				}
 			};
@@ -166,6 +175,7 @@ namespace ziran
 			std::shared_ptr<std::promise<R>> m_promise;
 			std::shared_future<R> m_future;
 			std::shared_ptr<ziran::runable<void>> m_next;
+			std::shared_ptr<std::atomic_bool> m_started;
 		};
 		template<typename T>
 		using shared_task = std::shared_ptr<ziran::async::_Task<T>>;
@@ -173,7 +183,9 @@ namespace ziran
 		template<typename _R,typename _Fn,typename ..._Args>
 		TASK<_R> make_task(_Fn &fn, _Args &...args)
 		{
-			return _Task<_R>::make(fn, args...);
+			auto t = _Task<_R>::make(fn, args...);
+			t->run();
+			return t;
 		}
 #define MAKE_TASK ziran::async::make_task
 	}
