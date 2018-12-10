@@ -63,6 +63,9 @@ namespace ziran
 
 			void run() override
 			{
+			if(!m_action){return;}
+			auto r =m_action;
+			m_action.reset();
 			
 			auto f = [](runable_ptr r
 					, std::shared_ptr<std::promise<R>> promise
@@ -77,7 +80,7 @@ namespace ziran
 						promise->set_exception(std::current_exception());
 					}
 				};
-				m_pool->run_task(std::bind(f, m_action, m_promise, m_next));
+				m_pool->run_task(std::bind(f, r, m_promise, m_next));
 			}
 
 			void wait()
@@ -107,10 +110,15 @@ namespace ziran
 				template<typename _fn>
 				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_t> &future)
 				{
-					return _Task<_r>::make([](_Fn &&fn, std::shared_future<_t> &future)
+					auto t = _Task<_r>::make([](_Fn &&fn, std::shared_future<_t> &future)
 					{
 						return std::bind(fn, future.get())();
 					}, fn,future);
+					if(future.vaild()){t.run();}
+		
+					
+					return t;
+	
 				}
 			};
 
@@ -120,10 +128,12 @@ namespace ziran
 				template<typename _fn>
 				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<void> &future)
 				{
-					return _Task<_r>::make([](_fn &&fn, std::shared_future<void> &future)
+					auto t= _Task<_r>::make([](_fn &&fn, std::shared_future<void> &future)
 					{
 						return fn();
 					}, fn, future);
+					if(future.vaild()){t.run();}
+					return t;
 				}
 			};
 
