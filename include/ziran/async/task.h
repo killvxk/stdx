@@ -63,7 +63,8 @@ namespace ziran
 
 			void run() override
 			{
-				auto f = [](runable_ptr r
+			
+			auto f = [](runable_ptr r
 					, std::shared_ptr<std::promise<R>> promise
 					,std::shared_ptr<ziran::runable<void>> next)
 				{
@@ -146,14 +147,6 @@ namespace ziran
 			std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 			{
 				auto t = next_builder<R, _R>::build(fn, m_future);
-				if (valid())
-				{
-					t->run();
-				}
-				else
-				{
-					m_next = t;
-				}
 				return t;
 			}
 
