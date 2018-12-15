@@ -1,7 +1,7 @@
 #pragma once
 #include <functional>
 
-namespace ziran
+namespace stdx
 {
 	template<typename R = void>
 	class runable

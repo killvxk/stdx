@@ -7,7 +7,7 @@
 #include <pthread.h>
 #endif // UNIX
 
-namespace ziran
+namespace stdx
 {
 	namespace async 
 	{

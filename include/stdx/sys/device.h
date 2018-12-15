@@ -6,12 +6,12 @@
 #include <memory>
 #include <stdexcept>
 #include <exception>
-#include <ziran/exception.h>
+#include <stdx/exception.h>
 template<typename T>
 using ptr = std::shared_ptr<T>;
-namespace ziran
+namespace stdx
 {
-	namespace win
+	namespace sys
 	{
 		void uninstall_usb(const std::string &str)
 		{
@@ -25,12 +25,12 @@ namespace ziran
 			DWORD junk;
 			if (!DeviceIoControl(device,FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &junk, (LPOVERLAPPED)NULL))
 			{
-				throw ziran::fail_exception("Ð¶ÔØUSBÊ§°Ü");
+				throw stdx::fail_exception("Ð¶ÔØUSBÊ§°Ü");
 			}
 			junk = NULL;
 			if (!DeviceIoControl(device, IOCTL_STORAGE_EJECT_MEDIA,NULL,0,NULL,0,&junk,(LPOVERLAPPED)NULL))
 			{
-				throw ziran::fail_exception("Ð¶ÔØUSBÊ§°Ü");
+				throw stdx::fail_exception("Ð¶ÔØUSBÊ§°Ü");
 			}
 			CloseHandle(device);
 		}

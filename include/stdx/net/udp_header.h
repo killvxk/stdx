@@ -1,7 +1,7 @@
 #pragma once
 #include <bitset>
 
-namespace ziran
+namespace stdx
 {
 	namespace net
 	{

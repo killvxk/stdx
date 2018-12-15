@@ -4,7 +4,7 @@
 #include <initializer_list>
 #include <functional>
 #include <omp.h>
-namespace ziran
+namespace stdx
 {
 	namespace async
 	{

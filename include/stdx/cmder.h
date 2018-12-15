@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
-#include <ziran/converter.h>
-namespace ziran
+#include <stdx/converter.h>
+namespace stdx
 {
 	struct cmder
 	{
@@ -45,7 +45,7 @@ namespace ziran
 		{
 			if (secound)
 			{
-				execute("showdown /s /t " + ziran::converter::to_string(secound));
+				execute("showdown /s /t " + stdx::converter::to_string(secound));
 			}
 			else 
 			{
@@ -57,7 +57,7 @@ namespace ziran
 		{
 			if (secound)
 			{
-				execute("shutdown /r /t "+ziran::converter::to_string(secound));
+				execute("shutdown /r /t "+ stdx::converter::to_string(secound));
 			}
 			else
 			{

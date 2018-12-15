@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-namespace ziran
+namespace stdx
 {
 	namespace net
 	{

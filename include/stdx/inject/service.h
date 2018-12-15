@@ -3,7 +3,7 @@
 #include <boost/any.hpp>
 #include <unordered_map>
 #include <stdexcept>
-namespace ziran
+namespace stdx
 {
 	namespace inject
 	{

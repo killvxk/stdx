@@ -2,7 +2,7 @@
 #include<exception>
 #include <string>
 
-namespace ziran
+namespace stdx
 {
 	class fail_exception:public std::exception
 	{

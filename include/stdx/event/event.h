@@ -5,7 +5,7 @@
 #include <ziran/async/parallel.h>
 #include <thread>
 
-namespace ziran
+namespace stdx
 {
 	namespace event
 	{

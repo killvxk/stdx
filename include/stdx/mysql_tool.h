@@ -1,7 +1,7 @@
 #pragma once
 #ifdef ENABLE_MYSQL
 
-#include <ziran/encode_tool.h>
+#include <stdx/encode_tool.h>
 #include <jdbc/mysql_driver.h>
 #include <jdbc/mysql_connection.h>
 namespace ziran

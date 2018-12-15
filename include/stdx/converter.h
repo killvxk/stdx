@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace ziran
+namespace stdx
 {
 	struct converter
 	{
