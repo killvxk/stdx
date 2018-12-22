@@ -156,20 +156,18 @@ namespace stdx
 		{
 			using runable_ptr = std::shared_ptr<stdx::runable<void>>;
 		public:
-			thread_pool(const int& initializ_thread_count = std::thread::hardware_concurrency())
+			thread_pool()
 				:free_count(0)
 				,task_queue(std::make_shared<std::queue<runable_ptr>>())
 				,barrier(std::move(std::make_shared<stdx::async::barrier>()))
 			{
 
 			}
+
 			~thread_pool()
 			{
-				std::for_each(std::begin(threads), std::end(threads), [](loop_thread_ptr ptr) 
-				{
-					ptr->shutdown();
-				});
 			}
+
 			thread_pool(const thread_pool&) = delete;
 
 			template<typename _Fn,typename ..._Args>
@@ -191,14 +189,47 @@ namespace stdx
 				},c);
 				task_queue->push(stdx::make_action(f));
 				barrier->pass();
+				if ((free_count > (std::thread::hardware_concurrency())) && (task_queue->empty()))
+				{
+					deduct_thread();
+				}
 			}
 
 
 			void add_thread()
 			{
-				free_count += 1;
-				auto ptr = std::make_shared<stdx::async::loop_thread>(task_queue,barrier);
-				threads.push_back(ptr);
+				add_free();
+				std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks,stdx::async::barrier_ptr barrier)
+				{
+					try
+					{
+						while (1)
+						{
+							barrier->wait();
+							if (!(tasks->empty()))
+							{
+								runable_ptr t = tasks->front();
+								tasks->pop();
+								t->run();
+							}
+							else
+							{
+								return;
+							}
+						}
+					}
+					catch (const std::exception&)
+					{
+
+					}
+				}, task_queue, barrier);
+				t.detach();
+			}
+
+			void deduct_thread()
+			{
+				deduct_free();
+				barrier->pass();
 			}
 			
 			const static std::shared_ptr<stdx::async::thread_pool> get()
@@ -220,7 +251,6 @@ namespace stdx
 			std::atomic_int free_count;
 			std::shared_ptr<std::queue<runable_ptr>> task_queue;
 			stdx::async::barrier_ptr barrier;
-			std::vector<stdx::async::loop_thread_ptr> threads;
 			static std::shared_ptr<stdx::async::thread_pool> default;
 		};
 		std::shared_ptr<stdx::async::thread_pool> stdx::async::thread_pool::default = std::make_shared<stdx::async::thread_pool>();

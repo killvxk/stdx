@@ -18,14 +18,15 @@ int main()
 		->then([]() {
 		std::cout << "3";
 	});*/
-	TASK<void> t = RUN_TASK<void>([]() 
+	TASK<void> t = (RUN_TASK<void>([]() 
 	{
 		throw std::exception("error");
 	})
 		->then([]() 
 	{
-		std::cout << "1";
-	});
+		printf("2");
+	}));
+
 	//std::cout << "使用前请先打开USB!"<<std::endl;
 	//std::cout << "请输入要卸载的盘符(如: H: ):" << std::endl;
 	//std::string str;
