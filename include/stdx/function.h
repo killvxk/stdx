@@ -83,4 +83,15 @@ namespace stdx
 	{
 		return std::make_shared<action<R, _Fn>>(std::move(std::bind(func,args...)));
 	}
+
+	//template<typename _R,typename ..._Args>
+	//class function
+	//{
+	//public:
+	//	function();
+	//	~function();
+
+	//private:
+
+	//};
 }

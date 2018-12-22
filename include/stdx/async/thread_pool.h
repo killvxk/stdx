@@ -47,7 +47,7 @@ namespace stdx
 				}
 			}
 			//构造函数
-			loop_thread(const std::shared_ptr<std::queue<runable>> &task_queue_ptr,const stdx::async::shared_barrier &barrier_ptr)
+			loop_thread(const std::shared_ptr<std::queue<runable>> &task_queue_ptr,const stdx::async::barrier_ptr &barrier_ptr)
 				:task_queue(task_queue_ptr)
 				, status(stdx::async::thread_status::creating)
 				, barrier(barrier_ptr)
@@ -143,14 +143,13 @@ namespace stdx
 		private:
 			std::shared_ptr<std::queue<runable>> task_queue;
 			int status;
-			stdx::async::shared_barrier barrier;
+			stdx::async::barrier_ptr barrier;
 			std::atomic_bool keep_alive;
 			std::shared_ptr<std::thread> thread_ptr;
 			std::thread::id id;
 		};
 
-		using shared_loop_thread = std::shared_ptr<stdx::async::loop_thread>;
-		using unique_loop_thread = std::unique_ptr<stdx::async::loop_thread>;
+		using loop_thread_ptr = std::shared_ptr<stdx::async::loop_thread>;
 
 		//线程池
 		class thread_pool
@@ -166,7 +165,7 @@ namespace stdx
 			}
 			~thread_pool()
 			{
-				std::for_each(std::begin(threads), std::end(threads), [](shared_loop_thread ptr) 
+				std::for_each(std::begin(threads), std::end(threads), [](loop_thread_ptr ptr) 
 				{
 					ptr->shutdown();
 				});
@@ -220,8 +219,8 @@ namespace stdx
 		private:
 			std::atomic_int free_count;
 			std::shared_ptr<std::queue<runable_ptr>> task_queue;
-			stdx::async::shared_barrier barrier;
-			std::vector<stdx::async::shared_loop_thread> threads;
+			stdx::async::barrier_ptr barrier;
+			std::vector<stdx::async::loop_thread_ptr> threads;
 			static std::shared_ptr<stdx::async::thread_pool> default;
 		};
 		std::shared_ptr<stdx::async::thread_pool> stdx::async::thread_pool::default = std::make_shared<stdx::async::thread_pool>();

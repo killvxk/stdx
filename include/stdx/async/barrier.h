@@ -61,7 +61,6 @@ namespace stdx
 			std::atomic_int notify_count;
 			std::shared_ptr<std::condition_variable> cv;
 		};
-		using shared_barrier = std::shared_ptr<stdx::async::barrier>;
-		using unique_barrier = std::unique_ptr<stdx::async::barrier>;
+		using barrier_ptr = std::shared_ptr<stdx::async::barrier>;
 	}
 }

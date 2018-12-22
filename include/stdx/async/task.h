@@ -61,7 +61,7 @@ namespace stdx
 			{
 				//如果发生错误在析构时抛出
 				//如果在运行则等待它完成(因为此时析构会发生异常)
-				if ((*m_state == task_state::error)||(*m_state == task_state::running))
+				if (*m_state == task_state::error)
 				{
 					m_future.get();
 				}
@@ -72,10 +72,32 @@ namespace stdx
 			{
 				static void set_value(runable_ptr &call, std::shared_ptr<std::promise<R>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next, stdx::async::spin_lock_ptr lock,std::shared_ptr<int> state)
 				{
-					//调用方法
-					auto value = call->run();
-					//设置promise
-					promise->set_value(value);
+					try 
+					{
+						//调用方法
+						auto &value = call->run();
+						//设置promise
+						promise->set_value(value);
+					}
+					catch (const std::exception&)
+					{
+						//加锁
+						lock->lock();
+						//如果有callback
+						if (*next)
+						{
+							//解锁
+							lock->unlock();
+							//运行callback
+							(*next)->run();
+						}
+						//设置状态为错误
+						*state = task_state::error;
+						promise->set_exception(std::current_exception());
+						//解锁
+						lock->unlock();
+						return;
+					}
 					//加锁
 					lock->lock();
 					//如果有callback
@@ -85,12 +107,12 @@ namespace stdx
 						lock->unlock();
 						//运行callback
 						(*next)->run();
-						return;
 					}
 					//设置状态为完成
 					*state = task_state::complete;
 					//解锁
 					lock->unlock();
+					return;
 				}
 			};
 
@@ -99,10 +121,32 @@ namespace stdx
 			{
 				static void set_value(runable_ptr &call, std::shared_ptr<std::promise<R>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next,stdx::async::spin_lock_ptr lock, std::shared_ptr<int> state)
 				{
-					//调用方法
-					call->run();
-					//设置promise
-					promise->set_value();
+					try
+					{
+						//调用方法
+						call->run();
+						//设置promise
+						promise->set_value();
+					}
+					catch (const std::exception&)
+					{
+						//加锁
+						lock->lock();
+						//如果有callback
+						if (*next)
+						{
+							//解锁
+							lock->unlock();
+							//运行callback
+							(*next)->run();
+						}
+						//设置状态为错误
+						*state = task_state::error;
+						promise->set_exception(std::current_exception());
+						//解锁
+						lock->unlock();
+						return;
+					}
 					//加锁
 					lock->lock();
 					//如果有callback
@@ -112,12 +156,12 @@ namespace stdx
 						lock->unlock();
 						//运行callback
 						(*next)->run();
-						return;
 					}
 					//设置状态为完成
 					*state = task_state::complete;
 					//解锁
 					lock->unlock();
+					return;
 				}
 			};
 
@@ -148,18 +192,7 @@ namespace stdx
 					, stdx::async::spin_lock_ptr lock
 					, std::shared_ptr<int> state)
 				{
-					try
-					{
-						//尝试运行
-						completer<R>::set_value(r, promise,next,lock,state);
-					}
-					catch (const std::exception&)
-					{
-						//抛出异常则设置异常
-						//并将状态设置为错误
-						promise->set_exception(std::current_exception());
-						*state = task_state::error;
-					}
+					completer<R>::set_value(r, promise, next, lock, state);
 				};
 				//放入线程池
 				m_pool->run_task(std::bind(f, m_action, m_promise, m_next,m_lock,m_state));
@@ -171,17 +204,36 @@ namespace stdx
 				m_future.wait();
 			}
 
+			//结果类型
+			template<typename _t>
+			struct result_t
+			{
+				using type = _t&;
+			};
+
+			template<typename _t>
+			struct result_t<_t&>
+			{
+				using type = _t &;
+			};
+
+			template<>
+			struct result_t<void>
+			{
+				using type =void;
+			};
+
 			//等待当前Task(不包括后续)完成并获得结果
 			//发生异常则抛出异常
-			R get()
+			typename result_t<R>::type get()
 			{
 				return m_future.get();
 			}
 
 			//询问Task是否完成
-			bool is_complete()
+			bool is_complete() const
 			{
-				auto c = (*m_state == task_state::complete);
+				auto c = (*m_state == task_state::complete)||(*m_state == task_state::error);
 				return c;
 			}
 			
@@ -232,7 +284,8 @@ namespace stdx
 				{
 					//创建回调Task
 					auto t= _Task<_r>::make([](_fn &&fn, std::shared_future<void> &future)
-					{
+					{	
+						future.get();
 						return fn();
 					}, fn, future);
 					//加锁
