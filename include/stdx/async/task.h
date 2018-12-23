@@ -103,10 +103,12 @@ namespace stdx
 					//如果有callback
 					if (*next)
 					{
+					        *stats＝ task_state::complete;
 						//解锁
 						lock->unlock();
 						//运行callback
 						(*next)->run();
+						return;
 					}
 					//设置状态为完成
 					*state = task_state::complete;
@@ -152,10 +154,12 @@ namespace stdx
 					//如果有callback
 					if (*next)
 					{
+				                *state ＝task_state::complete;
 						//解锁
 						lock->unlock();
 						//运行callback
 						(*next)->run();
+						return;
 					}
 					//设置状态为完成
 					*state = task_state::complete;
