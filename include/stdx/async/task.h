@@ -59,12 +59,6 @@ namespace stdx
 			//析构函数
 			~_Task()
 			{
-				//如果发生错误在析构时抛出
-				//如果在运行则等待它完成(因为此时析构会发生异常)
-				if (*m_state == task_state::error)
-				{
-					m_future.get();
-				}
 			}
 			//完成者元函数
 			template<typename _t>
@@ -154,7 +148,7 @@ namespace stdx
 					//如果有callback
 					if (*next)
 					{
-				                *state ＝task_state::complete;
+						*state = task_state::complete;
 						//解锁
 						lock->unlock();
 						//运行callback
@@ -341,6 +335,7 @@ namespace stdx
 			std::shared_ptr<std::shared_ptr<stdx::runable<void>>> m_next;
 			std::shared_ptr<int> m_state;
 			stdx::async::spin_lock_ptr m_lock;
+			std::shared_ptr<std::atomic_bool> m_geted;
 		};
 		//_Task指针别名
 		template<typename _T>
