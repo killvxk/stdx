@@ -304,6 +304,36 @@ namespace stdx
 					return t;
 				}
 			};
+			template<typename _t,typename _r>
+			struct next_builder<_t,std::share_future<_r>>
+			{
+			    template<typename _fn>
+				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_t> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
+				{
+					//创建回调Task
+					auto t = _Task<_r>::make([](_fn &&fn, std::shared_future<_t> &future)
+					{
+						return std::bind(fn, future)();
+					}, fn,future);
+					//加锁
+					lock->lock();
+					//如果已经完成
+					if ((*state == task_state::complete)||(*state == task_state::error))
+					{
+						//解锁
+						lock->unlock();
+						//运行
+						t->run();
+						return t;
+					}
+					//未完成则设置回调
+					*next = t;
+					//解锁
+					lock->unlock();
+					return t;
+	
+				}
+			}
 
 			//用于实现返回Task的Task回调
 			template<typename _t, typename _r>
