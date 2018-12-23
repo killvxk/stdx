@@ -335,7 +335,6 @@ namespace stdx
 			std::shared_ptr<std::shared_ptr<stdx::runable<void>>> m_next;
 			std::shared_ptr<int> m_state;
 			stdx::async::spin_lock_ptr m_lock;
-			std::shared_ptr<std::atomic_bool> m_geted;
 		};
 		//_Task指针别名
 		template<typename _T>
