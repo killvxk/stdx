@@ -18,11 +18,11 @@ int main()
 		->then([]() {
 		std::cout << "3";
 	});*/
-	TASK<void> t = (RUN_TASK<void>([]() 
+	Task<void> t = (RunTask<void>([]() 
 	{
-		throw std::exception("error");
+		
 	})
-		->then([]() 
+		->then([](TaskResult<void>) 
 	{
 		printf("2");
 	}));

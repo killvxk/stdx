@@ -3,6 +3,7 @@
 #include<stdx/async/spin_lock.h>
 #include <memory>
 #include <future>
+#include <stdx/traits/ref_type.h>
 namespace stdx
 {
 	namespace async
@@ -21,6 +22,232 @@ namespace stdx
 				//错误
 				error = 3
 			};
+		};
+
+
+		template<typename _T>
+		class task_result
+		{
+			using result_t = stdx::traits::ref_t<_T>;
+		public:
+			task_result(std::shared_future<_T> future)
+				:m_future(future)
+			{
+
+			}
+
+			~task_result() = default;
+			task_result(const task_result<_T> &other)
+				:m_future(other.m_future)
+			{
+
+			}
+
+			task_result(task_result<_T> &&other)
+				:m_future(std::move(other.m_future))
+			{
+
+			}
+
+			task_result<_T> &operator=(const task_result<_T> &other)
+			{
+				m_future = other.m_future;
+			}
+
+			operator result_t()
+			{
+				return get();
+			}
+
+			result_t get()
+			{
+				return m_future.get();
+			}
+		private:
+			std::shared_future<_T> m_future;
+		};
+#define TaskResult stdx::async::task_result
+		//完成者元函数
+		template<typename _t>
+		struct _Task_Completer
+		{
+			static void set_value(std::shared_ptr<stdx::runable<_t>> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next, stdx::async::spin_lock_ptr lock, std::shared_ptr<int> state)
+			{
+				try
+				{
+					//调用方法
+					auto &value = call->run();
+					//设置promise
+					promise->set_value(value);
+				}
+				catch (const std::exception&)
+				{
+					//加锁
+					lock->lock();
+					//如果有callback
+					if (*next)
+					{
+						//解锁
+						lock->unlock();
+						//运行callback
+						(*next)->run();
+					}
+					//设置状态为错误
+					*state = task_state::error;
+					promise->set_exception(std::current_exception());
+					//解锁
+					lock->unlock();
+					return;
+				}
+				//加锁
+				lock->lock();
+				//如果有callback
+				if (*next)
+				{
+					*stats＝ task_state::complete;
+					//解锁
+					lock->unlock();
+					//运行callback
+					(*next)->run();
+					return;
+				}
+				//设置状态为完成
+				*state = task_state::complete;
+				//解锁
+				lock->unlock();
+				return;
+			}
+		};
+
+		template<>
+		struct _Task_Completer<void>
+		{
+			static void set_value(std::shared_ptr<stdx::runable<void>> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next, stdx::async::spin_lock_ptr lock, std::shared_ptr<int> state)
+			{
+				try
+				{
+					//调用方法
+					call->run();
+					//设置promise
+					promise->set_value();
+				}
+				catch (const std::exception&)
+				{
+					//加锁
+					lock->lock();
+					//如果有callback
+					if (*next)
+					{
+						//解锁
+						lock->unlock();
+						//运行callback
+						(*next)->run();
+					}
+					//设置状态为错误
+					*state = task_state::error;
+					promise->set_exception(std::current_exception());
+					//解锁
+					lock->unlock();
+					return;
+				}
+				//加锁
+				lock->lock();
+				//如果有callback
+				if (*next)
+				{
+					*state = task_state::complete;
+					//解锁
+					lock->unlock();
+					//运行callback
+					(*next)->run();
+					return;
+				}
+				//设置状态为完成
+				*state = task_state::complete;
+				//解锁
+				lock->unlock();
+				return;
+			}
+		};
+
+		template<typename R>
+		class _Task;
+
+		//_Task_Next_Builder元函数
+		template<typename _t, typename  _r>
+		struct _Task_Next_Builder
+		{
+			template<typename _fn>
+			static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_t> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
+			{
+				//创建回调Task
+				auto t = _Task<_r>::make([](_fn &&fn, std::shared_future<_t> &future)
+				{
+					return std::bind(fn, task_result<_t>(future))();
+				}, fn, future);
+				//加锁
+				lock->lock();
+				//如果已经完成
+				if ((*state == task_state::complete) || (*state == task_state::error))
+				{
+					//解锁
+					lock->unlock();
+					//运行
+					t->run();
+					return t;
+				}
+				//未完成则设置回调
+				*next = t;
+				//解锁
+				lock->unlock();
+				return t;
+
+			}
+		};
+
+		//template<typename _r>
+		//struct _Task_Next_Builder<void, _r>
+		//{
+		//	template<typename _fn>
+		//	static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<void> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
+		//	{
+		//		//创建回调Task
+		//		auto t = _Task<_r>::make([](_fn &&fn, std::shared_future<void> &future)
+		//		{
+		//			future.get();
+		//			return fn();
+		//		}, fn, future);
+		//		//加锁
+		//		lock->lock();
+		//		//如果已经完成
+		//		if ((*state == task_state::complete) || (*state == task_state::error))
+		//		{
+		//			//解锁
+		//			lock->unlock();
+		//			//运行
+		//			t->run();
+		//			return t;
+		//		}
+		//		//未完成则设置回调
+		//		*next = t;
+		//		//解锁
+		//		lock->unlock();
+		//		return t;
+		//	}
+		//};
+
+		//用于实现返回Task的Task回调
+		template<typename _t, typename _r>
+		struct _Task_Next_Builder<std::shared_ptr<_Task<_t>>, _r>
+		{
+			template<typename _fn>
+			static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_Task<_t>> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
+			{
+				//获取Task
+				std::shared_ptr<_Task<_t>> t = future.get();
+				//调用then
+				return	t->then(fn);
+			}
 		};
 
 		//Task模板
@@ -60,108 +287,7 @@ namespace stdx
 			~_Task()
 			{
 			}
-			//完成者元函数
-			template<typename _t>
-			struct completer
-			{
-				static void set_value(runable_ptr &call, std::shared_ptr<std::promise<R>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next, stdx::async::spin_lock_ptr lock,std::shared_ptr<int> state)
-				{
-					try 
-					{
-						//调用方法
-						auto &value = call->run();
-						//设置promise
-						promise->set_value(value);
-					}
-					catch (const std::exception&)
-					{
-						//加锁
-						lock->lock();
-						//如果有callback
-						if (*next)
-						{
-							//解锁
-							lock->unlock();
-							//运行callback
-							(*next)->run();
-						}
-						//设置状态为错误
-						*state = task_state::error;
-						promise->set_exception(std::current_exception());
-						//解锁
-						lock->unlock();
-						return;
-					}
-					//加锁
-					lock->lock();
-					//如果有callback
-					if (*next)
-					{
-					        *stats＝ task_state::complete;
-						//解锁
-						lock->unlock();
-						//运行callback
-						(*next)->run();
-						return;
-					}
-					//设置状态为完成
-					*state = task_state::complete;
-					//解锁
-					lock->unlock();
-					return;
-				}
-			};
-
-			template<>
-			struct completer<void>
-			{
-				static void set_value(runable_ptr &call, std::shared_ptr<std::promise<R>> &promise, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next,stdx::async::spin_lock_ptr lock, std::shared_ptr<int> state)
-				{
-					try
-					{
-						//调用方法
-						call->run();
-						//设置promise
-						promise->set_value();
-					}
-					catch (const std::exception&)
-					{
-						//加锁
-						lock->lock();
-						//如果有callback
-						if (*next)
-						{
-							//解锁
-							lock->unlock();
-							//运行callback
-							(*next)->run();
-						}
-						//设置状态为错误
-						*state = task_state::error;
-						promise->set_exception(std::current_exception());
-						//解锁
-						lock->unlock();
-						return;
-					}
-					//加锁
-					lock->lock();
-					//如果有callback
-					if (*next)
-					{
-						*state = task_state::complete;
-						//解锁
-						lock->unlock();
-						//运行callback
-						(*next)->run();
-						return;
-					}
-					//设置状态为完成
-					*state = task_state::complete;
-					//解锁
-					lock->unlock();
-					return;
-				}
-			};
+			
 
 			//启动一个Task
 			void run() override
@@ -190,7 +316,7 @@ namespace stdx
 					, stdx::async::spin_lock_ptr lock
 					, std::shared_ptr<int> state)
 				{
-					completer<R>::set_value(r, promise, next, lock, state);
+					_Task_Completer<R>::set_value(r, promise, next, lock, state);
 				};
 				//放入线程池
 				m_pool->run_task(std::bind(f, m_action, m_promise, m_next,m_lock,m_state));
@@ -202,30 +328,11 @@ namespace stdx
 				m_future.wait();
 			}
 
-			//结果类型
-			template<typename _t>
-			struct result_t
-			{
-				using type = _t&;
-			};
-
-			template<typename _t>
-			struct result_t<_t&>
-			{
-				using type = _t &;
-			};
-
-			template<>
-			struct result_t<void>
-			{
-				using type =void;
-			};
-
 			//等待当前Task(不包括后续)完成并获得结果
 			//发生异常则抛出异常
-			typename result_t<R>::type get()
+			task_result<R> get()
 			{
-				return m_future.get();
+				return m_future;
 			}
 
 			//询问Task是否完成
@@ -242,88 +349,11 @@ namespace stdx
 				return std::make_shared<_Task<R>>(fn,args...);
 			}
 
-			//next_builder元函数
-			template<typename _t,typename  _r>
-			struct next_builder
-			{
-				template<typename _fn>
-				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_t> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
-				{
-					//创建回调Task
-					auto t = _Task<_r>::make([](_fn &&fn, std::shared_future<_t> &future)
-					{
-						return std::bind(fn, future.get())();
-					}, fn,future);
-					//加锁
-					lock->lock();
-					//如果已经完成
-					if ((*state == task_state::complete)||(*state == task_state::error))
-					{
-						//解锁
-						lock->unlock();
-						//运行
-						t->run();
-						return t;
-					}
-					//未完成则设置回调
-					*next = t;
-					//解锁
-					lock->unlock();
-					return t;
-	
-				}
-			};
-
-			template<typename _r>
-			struct next_builder<void,_r>
-			{
-				template<typename _fn>
-				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<void> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
-				{
-					//创建回调Task
-					auto t= _Task<_r>::make([](_fn &&fn, std::shared_future<void> &future)
-					{	
-						future.get();
-						return fn();
-					}, fn, future);
-					//加锁
-					lock->lock();
-					//如果已经完成
-					if ((*state == task_state::complete) || (*state == task_state::error))
-					{
-						//解锁
-						lock->unlock();
-						//运行
-						t->run();
-						return t;
-					}
-					//未完成则设置回调
-					*next = t;
-					//解锁
-					lock->unlock();
-					return t;
-				}
-			};
-
-			//用于实现返回Task的Task回调
-			template<typename _t, typename _r>
-			struct next_builder<std::shared_ptr<_Task<_t>>, _r>
-			{
-				template<typename _fn>
-				static std::shared_ptr<_Task<_r>> build(_fn &&fn, std::shared_future<_Task<_t>> &future, std::shared_ptr<int> state, stdx::async::spin_lock_ptr lock, std::shared_ptr<std::shared_ptr<stdx::runable<void>>> next)
-				{
-					//获取Task
-					std::shared_ptr<_Task<_t>> t = future.get();
-					//调用then
-					return	t->then(fn);
-				}
-			};
-
 			//延续Task
 			template<typename _R = void,typename _Fn>
 			std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 			{
-				std::shared_ptr<_Task<_R>> t = next_builder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
+				std::shared_ptr<_Task<_R>> t = _Task_Next_Builder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
 				return t;
 			}
 
@@ -339,26 +369,26 @@ namespace stdx
 		//_Task指针别名
 		template<typename _T>
 		using task_ptr = std::shared_ptr<stdx::async::_Task<_T>>;
-		//定义宏TASK
-#define TASK stdx::async::task_ptr
+		//定义宏Task
+#define Task stdx::async::task_ptr
 		//创造Task
 		template<typename _R,typename _Fn,typename ..._Args>
-		TASK<_R> make_task(_Fn &fn, _Args &...args)
+		Task<_R> make_task(_Fn &fn, _Args &...args)
 		{
 			return  _Task<_R>::make(fn, args...);
 		}
-		//定义宏MAKE_TASK
-#define MAKE_TASK stdx::async::make_task
+		//定义宏MakeTask
+#define MakeTask stdx::async::make_task
 		template<typename _R, typename _Fn, typename ..._Args>
 		//创造并运行TASK
-		TASK<_R> run_task(_Fn &fn, _Args &...args)
+		Task<_R> async(_Fn &fn, _Args &...args)
 		{
-			auto t = MAKE_TASK<_R>(fn, args...);
+			auto t = MakeTask<_R>(fn, args...);
 			t->run();
 			return t;
 		}
-		//定义宏RUN_TASK
-#define RUN_TASK stdx::async::run_task
+		//定义宏async
+#define RunTask stdx::async::async
 	}
 }
 
