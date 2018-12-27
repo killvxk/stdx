@@ -9,18 +9,19 @@ int main()
 		std::cout << "1";
 		return;
 	});
-	t.then([](stdx::task_result<void>) 
+	t.then([](stdx::task_result<void> r) 
 	{
-		std::cout << "2";
+		try
+		{
+			r.get();
+			std::cout << "2";
+		}
+		catch (const std::exception&)
+		{
+
+		}
+
 	});
-	try
-	{
-		t.get();
-	}
-	catch (const std::exception&)
-	{
-		std::cout << "error";
-	}
 	std::cin.get();
 	return 0;
 }

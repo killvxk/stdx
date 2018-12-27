@@ -105,7 +105,6 @@ namespace stdx
 		{
 			free_count--;
 		}
-
 	private:
 		std::atomic_int free_count;
 		std::shared_ptr<std::queue<runable_ptr>> task_queue;

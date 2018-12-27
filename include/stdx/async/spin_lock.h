@@ -5,21 +5,13 @@
 
 namespace stdx
 {
-	class spin_lock
+	class _SpinLock
 	{
 	public:
-		spin_lock()
+		_SpinLock()
 			:m_locked(false)
 		{}
-		spin_lock(const spin_lock &other)
-			:m_locked(other.m_locked)
-		{}
-		spin_lock &operator=(const spin_lock &other)
-		{
-			m_locked = other.m_locked;
-			return *this;
-		}
-		~spin_lock() = default;
+		~_SpinLock() = default;
 
 		void lock()
 		{
@@ -36,5 +28,5 @@ namespace stdx
 	private:
 		std::atomic_bool m_locked;
 	};
-	using spin_lock_ptr = std::shared_ptr<spin_lock>;
+	using spin_lock_ptr = std::shared_ptr<_SpinLock>;
 }

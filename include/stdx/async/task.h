@@ -227,7 +227,7 @@ namespace stdx
 			, m_future(m_promise->get_future())
 			, m_next(std::make_shared<std::shared_ptr<stdx::runable<void>>>(nullptr))
 			, m_state(std::make_shared<int>(task_state::ready))
-			, m_lock(std::make_shared<stdx::spin_lock>())
+			, m_lock(std::make_shared<stdx::_SpinLock>())
 
 		{
 		}
@@ -240,7 +240,7 @@ namespace stdx
 			, m_future(m_promise->get_future())
 			, m_next(std::make_shared<std::shared_ptr<stdx::runable<void>>>(nullptr))
 			, m_state(std::make_shared<int>(task_state::ready))
-			, m_lock(std::make_shared<stdx::spin_lock>())
+			, m_lock(std::make_shared<stdx::_SpinLock>())
 		{
 		}
 
