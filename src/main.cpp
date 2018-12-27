@@ -3,46 +3,19 @@
 #include <stdx/sys/device.h>
 #include <stdx/async/task.h>
 int main()
-{/*
-	TASK<void> t = RUN_TASK<void>([]() {});
-	t->then([]() 
+{
+	stdx::task<void> t = stdx::async<void>([]() 
 	{
 		std::cout << "1";
-	})->then([]() 
+		return;
+	});
+	t.then([](stdx::task_result<void>) 
 	{
-		auto t =RUN_TASK<void>([]() {
-			std::cout << "2";
-		});
-		return t;
-	})
-		->then([]() {
-		std::cout << "3";
-	});*/
-	Task<void> t = (RunTask<void>([]() 
-	{
-		
-	})
-		->then([](TaskResult<void>) 
-	{
-		printf("2");
-	}));
-
-	//std::cout << "使用前请先打开USB!"<<std::endl;
-	//std::cout << "请输入要卸载的盘符(如: H: ):" << std::endl;
-	//std::string str;
-	//std::cin >> str;
-	//try
-	//{
-	//	ziran::win::uninstall_usb(str);
-	//})处有未经处理的异常: 0xC0000005: 读取位置 0x00000005 时发生访问冲突。
-
-	//catch (const std::exception& e)
-	//{
-	//	std::cout << e.what()<<std::endl;
-	//}
+		std::cout << "2";
+	});
 	try
 	{
-		t->get();
+		t.get();
 	}
 	catch (const std::exception&)
 	{

@@ -6,8 +6,5 @@
 #include <omp.h>
 namespace stdx
 {
-	namespace async
-	{
-		
-	}
+
 }
