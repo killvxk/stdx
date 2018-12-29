@@ -8,7 +8,6 @@ int main()
 {
 	stdx::task<void> t = stdx::async<void>([]() 
 	{
-		std::cout << "1";
 		return;
 	});
 	t.then([](stdx::task_result<void> r) 
@@ -16,7 +15,11 @@ int main()
 		try
 		{
 			r.get();
-			std::cout << stdx::type_list<int,double,char>::include<int>::value;
+			using tl =stdx::type_list<int, double,char>;
+			std::wcout  << u8"TypeList Size: " << tl::size <<std::endl
+						<< u8"First Type: "<<typeid(stdx::type_at<0,tl>).name() <<std::endl
+						<< u8"Secound Type: " << typeid(stdx::type_at<1, tl>).name() <<std::endl
+						<< u8"Thrid Type: " << typeid(stdx::type_at<2, tl>).name()<<std::endl;
 		}
 		catch (const std::exception&)
 		{
