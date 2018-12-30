@@ -3,7 +3,7 @@
 #include <memory>
 namespace stdx
 {
-	//变参元组模板
+	//Tuple模板实现
 	template<typename _First,typename ..._More>
 	class _Tuple;
 
@@ -138,6 +138,7 @@ namespace stdx
 		stdx::_Tuple<_More...> m_more;
 	};
 
+	//Tuple模板
 	template<typename ..._T>
 	class tuple
 	{
@@ -151,6 +152,10 @@ namespace stdx
 		tuple(const tuple<_T...> &other)
 			:m_imp(other.m_imp)
 		{}
+		enum
+		{
+			size = type_list::size
+		};
 		tuple(tuple<_T...> &&other)
 			:m_imp(std::move(other.m_imp))
 		{}

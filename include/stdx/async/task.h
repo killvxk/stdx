@@ -1,9 +1,10 @@
 ﻿#pragma once
 #include <stdx/async/thread_pool.h>
-#include<stdx/async/spin_lock.h>
+#include <stdx/async/spin_lock.h>
 #include <memory>
 #include <future>
 #include <stdx/traits/ref_type.h>
+#include <stdx/tuple.h>
 namespace stdx
 {
 	//Task状态
@@ -160,6 +161,11 @@ namespace stdx
 			return m_impl->is_complete();
 		}
 
+		template<typename __R>
+		task<_Task<stdx::tuple<stdx::task_result<_R>, stdx::task_result<__R>>>> with(task<__R> other)
+		{
+			return task<_Task<stdx::tuple<stdx::task_result<_R>, stdx::task_result<__R>>>>(m_impl->with(other.m_impl));
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -426,6 +432,38 @@ namespace stdx
 			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
 			return t;
 		}
+
+		////合并Task
+		//template<typename _R>
+		//std::shared_ptr<_Task<stdx::tuple<stdx::task_result<R>, stdx::task_result<_R>>>> with(std::shared_ptr<_Task<_R>> other)
+		//{
+		//	/*stdx::tuple<stdx::task_result<R>, stdx::task_result<_R>> t;
+		//	return then<std::shared_ptr<_Task<void>>>([t,other](stdx::task_result<R> r)mutable 
+		//	{
+		//		t.set<0>(r);
+		//		return other->then([t](stdx::task_result<_R> r)mutable
+		//		{
+		//			t.set<1>(r);
+		//		});
+		//	})->then<stdx::tuple<stdx::task_result<R>, stdx::task_result<_R>>>([t](stdx::task_result<void>)
+		//	{
+		//		return t;
+		//	});	*/
+		//	stdx::tuple<stdx::task_result<R>, stdx::task_result<_R>> t;
+		//	return (then<std::shared_ptr<_Task<void>>>(
+		//	[other,t](stdx::task_result<R> r) mutable
+		//	{
+		//		return other->then([r,t](stdx::task_result<_R> _r) mutable
+		//		{
+		//			t.set<0>(r);
+		//			t.set<1>(_r);
+		//		});
+		//	}
+		//		)->then<stdx::tuple<stdx::task_result<R>, stdx::task_result<_R>>>([t](stdx::task_result<void>)
+		//	{
+		//		return t;
+		//	}));
+		//}
 
 	private:
 		runable_ptr m_action;

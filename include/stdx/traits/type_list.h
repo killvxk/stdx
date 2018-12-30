@@ -1,5 +1,5 @@
-#pragma once
-#include <stdx/traits/same_type.h>
+﻿#pragma once
+#include <stdx/traits/is_same.h>
 
 namespace stdx
 {

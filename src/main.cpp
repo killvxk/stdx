@@ -2,14 +2,13 @@
 #include <stdx/cmder.h>
 #include <stdx/sys/device.h>
 #include <stdx/async/task.h>
-#include <stdx/traits/same_type.h>
+#include <stdx/traits/is_same.h>
 #include <stdx/traits/type_list.h>
 #include <stdx/tuple.h>
 
-class a;
 int main()
 {
-	auto t = stdx::async<stdx::tuple<int, double, char>>([]()
+	/*auto t = stdx::async<stdx::tuple<int, double, char>>([]()
 	{
 		stdx::tuple<int, double, char> t(10, 10, 'a');
 		return t;
@@ -18,7 +17,6 @@ int main()
 		try
 		{
 			auto t = r.get();
-			
 			std::cout << t.get<0>() << t.get<1>()<<t.get<2>();
 		}
 		catch (const std::exception&)
@@ -32,14 +30,16 @@ int main()
 	}).then([](stdx::task_result<void>)
 	{
 
-	});
-	//auto t = stdx::async<int>([]() 
-	//{
-	//	return 1;
-	//}).then([](stdx::task_result<int> r) 
-	//{
-	//	auto i = r.get();
-	//});
+	}).with(stdx::async([]() 
+	{
+	}));*/
+	auto t = stdx::async<int>([]() 
+	{
+		return 1;
+	}).then([](stdx::task_result<int> r) 
+	{
+		auto i = r.get();
+	}).with(stdx::async<void>([]() {}));
 	std::cin.get();
 	return 0;
 }
