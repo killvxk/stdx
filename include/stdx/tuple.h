@@ -1,13 +1,13 @@
-#pragma once
+ï»¿#pragma once
 #include <stdx/traits/type_list.h>
 #include <memory>
 namespace stdx
 {
-	//±ä²ÎÔª×éÄ£°å
+	//å˜å‚å…ƒç»„æ¨¡æ¿
 	template<typename _First,typename ..._More>
 	class _Tuple;
 
-	//Ò»¸öÔªËØÌØ»¯
+	//ä¸€ä¸ªå…ƒç´ ç‰¹åŒ–
 	template<typename _First>
 	class _Tuple<_First>
 	{
@@ -38,7 +38,7 @@ namespace stdx
 	private:
 		_First m_first;
 	};
-	//Á½¸öÔªËØÌØ»¯
+	//ä¸¤ä¸ªå…ƒç´ ç‰¹åŒ–
 	template<typename _First,typename _Secound>
 	class _Tuple<_First, _Secound>
 	{
@@ -84,7 +84,7 @@ namespace stdx
 		_Secound m_secound;
 	};
 
-	//¶à¸öÔªËØÌØ»¯
+	//å¤šä¸ªå…ƒç´ ç‰¹åŒ–
 	template<typename _First, typename _Secound,typename ..._More>
 	class _Tuple<_First, _Secound,_More...>
 	{
@@ -144,7 +144,8 @@ namespace stdx
 		using impl_t = std::shared_ptr<stdx::_Tuple<_T...>>;
 	public:
 		using type_list = stdx::type_list<_T...>;
-		tuple(const _T &...args)
+		tuple() = default;
+		explicit tuple(const _T &...args)
 			:m_imp(std::make_shared<stdx::_Tuple<_T...>>(args...))
 		{}
 		tuple(const tuple<_T...> &other)
@@ -156,6 +157,7 @@ namespace stdx
 		tuple<_T...> operator=(const tuple<_T...> &other)
 		{
 			m_imp = other.m_imp;
+			return *this;
 		}
 		template<int index>
 		stdx::type_at<index, type_list> &get()

@@ -5,21 +5,20 @@
 #include <stdx/traits/same_type.h>
 #include <stdx/traits/type_list.h>
 #include <stdx/tuple.h>
+
+class a;
 int main()
 {
-	stdx::task<void> t = stdx::async<void>([]() 
+	auto t = stdx::async<stdx::tuple<int, double, char>>([]()
 	{
-		return;
-	});
-	t.then([](stdx::task_result<void> r) 
+		stdx::tuple<int, double, char> t(10, 10, 'a');
+		return t;
+	}).then([](stdx::task_result<stdx::tuple<int, double, char>> r)
 	{
 		try
 		{
-			r.get();
-			stdx::tuple<int, double, char> t(1,1,1);
-			t.set<0>(10);
-			t.set<1>(10);
-			t.set<2>('a');
+			auto t = r.get();
+			
 			std::cout << t.get<0>() << t.get<1>()<<t.get<2>();
 		}
 		catch (const std::exception&)
@@ -27,7 +26,20 @@ int main()
 			
 		}
 
+	}).then<stdx::task<void>>([](stdx::task_result<void> t) 
+	{
+		return stdx::async<void>([]() {});
+	}).then([](stdx::task_result<void>)
+	{
+
 	});
+	//auto t = stdx::async<int>([]() 
+	//{
+	//	return 1;
+	//}).then([](stdx::task_result<int> r) 
+	//{
+	//	auto i = r.get();
+	//});
 	std::cin.get();
 	return 0;
 }
