@@ -1,6 +1,6 @@
 ﻿写给自己的STL扩展库
 ---
-###Task模板:
+Task模板:
 ```c++
 #include <stdx/async/task.h>
 #include <iostream>
@@ -43,7 +43,7 @@ int main()
 }
 ```
 ---
-###TypeList模板
+TypeList模板
 ```c++
 #include <stdx/traits/type_list.h>
 #include <iostream>
