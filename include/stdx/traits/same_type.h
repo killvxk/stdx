@@ -3,7 +3,7 @@
 namespace stdx
 {
 	template<typename _T,typename _U>
-	struct same_type
+	struct _IsSame
 	{
 		enum
 		{
@@ -11,13 +11,13 @@ namespace stdx
 		};
 	};
 	template<typename _T>
-	struct same_type<_T,_T>
+	struct _IsSame<_T,_T>
 	{
 		enum
 		{
 			value = true;
 		};
 	};
-#define is_same(t,u) stdx::same_type<t,u>::value
+#define is_same(t,u) stdx::_IsSame<t,u>::value
 
 }

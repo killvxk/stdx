@@ -4,6 +4,7 @@
 #include <stdx/async/task.h>
 #include <stdx/traits/same_type.h>
 #include <stdx/traits/type_list.h>
+#include <stdx/tuple.h>
 int main()
 {
 	stdx::task<void> t = stdx::async<void>([]() 
@@ -15,15 +16,15 @@ int main()
 		try
 		{
 			r.get();
-			using tl =stdx::type_list<int, double,char>;
-			std::wcout  << u8"TypeList Size: " << tl::size <<std::endl
-						<< u8"First Type: "<<typeid(stdx::type_at<0,tl>).name() <<std::endl
-						<< u8"Secound Type: " << typeid(stdx::type_at<1, tl>).name() <<std::endl
-						<< u8"Thrid Type: " << typeid(stdx::type_at<2, tl>).name()<<std::endl;
+			stdx::tuple<int, double, char> t(1,1,1);
+			t.set<0>(10);
+			t.set<1>(10);
+			t.set<2>('a');
+			std::cout << t.get<0>() << t.get<1>()<<t.get<2>();
 		}
 		catch (const std::exception&)
 		{
-
+			
 		}
 
 	});
