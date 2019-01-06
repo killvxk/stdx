@@ -54,7 +54,18 @@ namespace stdx
 		barrier()
 			:m_impl(std::make_shared<_Barrier>())
 		{}
+		barrier(const barrier &other)
+			:m_impl(other.m_impl)
+		{}
+		barrier(barrier &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
 		~barrier() = default;
+		barrier &operator=(const barrier &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
 		void wait()
 		{
 			return m_impl->wait();
