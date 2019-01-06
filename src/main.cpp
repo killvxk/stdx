@@ -35,11 +35,16 @@ int main()
 	}));*/
 	auto t = stdx::async<int>([]() 
 	{
+		printf("1");
 		return 1;
-	}).then([](stdx::task_result<int> r) 
+	})/*.then([](stdx::task_result<int> r) 
 	{
 		auto i = r.get();
-	}).with(stdx::async<void>([]() {}));
+	}).with(stdx::async<void>([]() {}))
+		.then([](stdx::task_result<void> r) 
+	{
+		std::cout << "1";
+	})*/;
 	std::cin.get();
 	return 0;
 }

@@ -10,10 +10,10 @@
 
 namespace stdx
 {
-	//线程池
+	//�̳߳�
 	class thread_pool
 	{
-		using runable_ptr = std::shared_ptr<stdx::runable<void>>;
+		using runable_ptr = std::shared_ptr<stdx::_BasicAction<void>>;
 	public:
 		thread_pool()
 			:free_count(0)
@@ -36,7 +36,7 @@ namespace stdx
 			{
 				add_thread();
 			}
-			runable_ptr c = stdx::make_action<void>(task, args...);
+			runable_ptr c = stdx::_MakeAction<void>(task, args...);
 			auto f = std::bind([this](runable_ptr call)
 			{
 				deduct_free();
@@ -46,7 +46,7 @@ namespace stdx
 				}
 				add_free();
 			}, c);
-			task_queue->push(stdx::make_action(f));
+			task_queue->push(stdx::_MakeAction(f));
 			m_barrier.pass();
 			if ((free_count > (std::thread::hardware_concurrency())) && (task_queue->empty()))
 			{

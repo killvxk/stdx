@@ -4,64 +4,64 @@
 namespace stdx
 {
 	template<typename R = void>
-	class runable
+	class _BasicAction
 	{
 	public:
-		virtual ~runable() = default;
+		virtual ~_BasicAction() = default;
 		virtual R run() = 0;
 	};
 
+	template<typename _t, typename _fn>
+	struct _ActionRunner
+	{
+		static _t run(_fn &fn)
+		{
+			return fn();
+		}
+	};
+
+	template<typename _fn>
+	struct _ActionRunner<void, _fn>
+	{
+		static void run(_fn &fn)
+		{
+			fn();
+			return;
+		}
+	};
+
 	template<typename R,typename _Fn>
-	class action:public runable<R>
+	class _Action:public _BasicAction<R>
 	{
 	public:
-		action()
-			:runable()
+		_Action()
+			:_BasicAction()
 		{}
-		action(_Fn &&fn)
-			:runable()
+		_Action(_Fn &&fn)
+			:_BasicAction()
 			, m_func(fn)
 		{}
-		~action()=default;
+		~_Action()=default;
 
-		action(action<R,_Fn> &&other)
+		_Action(_Action<R,_Fn> &&other)
 			:m_func(std::move(other.m_func))
 		{
 		}
 
-		action(const action<R,_Fn> &other)
+		_Action(const _Action<R,_Fn> &other)
 			:m_func(other.m_func)
 		{}
 
-		action<R,_Fn> &operator=(const action<R,_Fn> &other)
+		_Action<R,_Fn> &operator=(const _Action<R,_Fn> &other)
 		{
 			m_func = other.m_func;
 			return *this;
 		}
 
-		template<typename _t,typename _fn>
-		struct runner
-		{
-			static _t run(_fn &fn)
-			{
-				return fn();
-			}
-		};
-
-		template<typename _fn>
-		struct runner<void,_fn>
-		{
-			static void run(_fn &fn)
-			{
-				fn();
-				return;
-			}
-		};
-
-		// 通过 runable 继承
+		// 通过 _BasicAction 继承
 		virtual R run() override
 		{
-			return runner<R,_Fn>::run(m_func);
+			return _ActionRunner<R,_Fn>::run(m_func);
 		}
 
 		operator bool()
@@ -72,16 +72,55 @@ namespace stdx
 		_Fn m_func;
 	};
 
-	template<typename R = void,typename _Fn>
-	std::shared_ptr<action<R,_Fn>> make_action(_Fn &func)
+	template<typename _R>
+	class action
 	{
-		return std::make_shared<action<R,_Fn>>(std::move(func));
+		using impl_t = std::shared_ptr<_BasicAction<_R>>;
+	public:
+		template<typename _Fn>
+		action(_Fn &&fn)
+			:m_impl(std::make_shared<_Action<_R,_Fn>>(fn))
+		{}
+		action(const action<_R> &other)
+			:m_impl(other.m_impl)
+		{}
+		action(action<_R> &&other)
+			:m_impl(other.m_impl)
+		{}
+		~action() = default;
+		action<_R> &operator=(const action<_R> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		_R operator()()
+		{
+			return m_impl->run();
+		}
+		operator bool()
+		{
+			return (bool)m_impl;
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	template<typename R = void,typename _Fn>
+	action<R> make_action(_Fn &&func)
+	{
+		return action<R>(func);
 	}
 
 	template<typename R = void, typename _Fn,typename ..._Args>
-	std::shared_ptr<action<R, _Fn>> make_action(_Fn &func,_Args &...args)
+	action<R> make_action(_Fn &&func,_Args &...args)
 	{
-		return std::make_shared<action<R, _Fn>>(std::move(std::bind(func,args...)));
+		return action<R>(std::bind(func,args...));
+	}
+
+	template<typename R = void, typename _Fn>
+	std::shared_ptr<_Action<R, _Fn>> _MakeAction(_Fn &func)
+	{
+		return std::make_shared<_Action<R, _Fn>>(std::move(func));
 	}
 
 	//template<typename _R,typename ..._Args>
