@@ -113,7 +113,7 @@ namespace stdx
 	public:
 		thread_pool()
 			:m_free_count()
-			, task_queue(std::make_shared<std::queue<runable_ptr>>())
+			, m_task_queue(std::make_shared<std::queue<runable_ptr>>())
 			, m_barrier()
 			, m_lock()
 		{
@@ -129,12 +129,13 @@ namespace stdx
 		template<typename _Fn, typename ..._Args>
 		void run_task(_Fn &task, _Args &...args)
 		{
-			if (_FreeCount == 0)
+			if (m_free_count == 0)
 			{
 				add_thread();
+				m_free_count.add();
 			}
 			runable_ptr c = stdx::_MakeAction<void>(task, args...);
-			task_queue->push(c);
+			m_task_queue->push(c);
 			m_barrier.pass();
 		}
 
@@ -146,14 +147,13 @@ namespace stdx
 
 	private:
 		stdx::free_count m_free_count;
-		std::shared_ptr<std::queue<runable_ptr>> task_queue;
+		std::shared_ptr<std::queue<runable_ptr>> m_task_queue;
 		stdx::barrier m_barrier;
 		stdx::spin_lock m_lock;
 		void add_thread()
 		{
 			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count)
 			{
-				count.add();
 				while (1)
 				{
 					if (!barrier.wait_for(std::chrono::minutes(10)))
@@ -176,7 +176,7 @@ namespace stdx
 						continue;
 					}
 				}
-			}, task_queue, m_barrier, m_lock, m_free_count);
+			}, m_task_queue, m_barrier, m_lock, m_free_count);
 			t.detach();
 		}
 		void init_threads()
@@ -184,6 +184,7 @@ namespace stdx
 			for (unsigned int i = 0, cores = std::thread::hardware_concurrency() * 2; i < cores; i++)
 			{
 				add_thread();
+				m_free_count.add(cores);
 			}
 		}
 
