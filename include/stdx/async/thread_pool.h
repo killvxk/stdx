@@ -139,50 +139,6 @@ namespace stdx
 		}
 
 
-		void add_thread()
-		{
-			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count)
-			{
-				count.add();
-				try
-				{
-					while (1)
-					{
-						if (!barrier.wait_for(std::chrono::minutes(10)))
-						{
-							count.deduct();
-							return;
-						}
-						if (!(tasks->empty()))
-						{
-							count.deduct();
-							lock.lock();
-							runable_ptr t = tasks->front();
-							tasks->pop();
-							lock.unlock();
-							t->run();
-							count.add();
-						}
-						else
-						{
-							continue;
-						}
-					}
-				}
-				catch (const std::exception&)
-				{
-					count.deduct();
-					return;
-				}
-			}, task_queue, m_barrier, m_lock, m_free_count);
-			t.detach();
-		}
-
-		void deduct_thread()
-		{
-			m_barrier.pass();
-		}
-
 		const static std::shared_ptr<stdx::thread_pool> get()
 		{
 			return default;
@@ -193,6 +149,36 @@ namespace stdx
 		std::shared_ptr<std::queue<runable_ptr>> task_queue;
 		stdx::barrier m_barrier;
 		stdx::spin_lock m_lock;
+		void add_thread()
+		{
+			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count)
+			{
+				count.add();
+				while (1)
+				{
+					if (!barrier.wait_for(std::chrono::minutes(10)))
+					{
+						count.deduct();
+						return;
+					}
+					if (!(tasks->empty()))
+					{
+						count.deduct();
+						lock.lock();
+						runable_ptr t = tasks->front();
+						tasks->pop();
+						lock.unlock();
+						t->run();
+						count.add();
+					}
+					else
+					{
+						continue;
+					}
+				}
+			}, task_queue, m_barrier, m_lock, m_free_count);
+			t.detach();
+		}
 		void init_threads()
 		{
 			for (unsigned int i = 0, cores = std::thread::hardware_concurrency() * 2; i < cores; i++)
@@ -200,6 +186,7 @@ namespace stdx
 				add_thread();
 			}
 		}
+
 		static std::shared_ptr<stdx::thread_pool> default;
 	};
 	std::shared_ptr<stdx::thread_pool> stdx::thread_pool::default = std::make_shared<stdx::thread_pool>();
