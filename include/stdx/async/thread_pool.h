@@ -181,11 +181,12 @@ namespace stdx
 		}
 		void init_threads()
 		{
-			for (unsigned int i = 0, cores = std::thread::hardware_concurrency() * 2; i < cores; i++)
+			unsigned int cores = std::thread::hardware_concurrency() * 2;
+			for (unsigned int i = 0; i < cores; i++)
 			{
 				add_thread();
-				m_free_count.add(cores);
 			}
+			m_free_count.add(cores);
 		}
 
 		static std::shared_ptr<stdx::thread_pool> default;
