@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include <stdx/async/thread_pool.h>
+#include <stdx/async/threadpool.h>
 #include <stdx/async/spin_lock.h>
 #include <memory>
 #include <future>
@@ -97,7 +97,7 @@ namespace stdx
 	template<typename _R>
 	class task
 	{
-		using impl_t = std::shared_ptr<_Task<_R>>;
+		using impl_t = std::shared_ptr<stdx::_Task<_R>>;
 	public:
 		task() = default;
 		template<typename _Fn, typename ..._Args>
@@ -342,11 +342,10 @@ namespace stdx
 		template<typename _Fn, typename ..._Args>
 		explicit _Task(_Fn &&f, _Args ...args)
 			:m_action(stdx::make_action<R>(std::bind(f, args...)))
-			, m_pool(GET_THREAD_POOL())
 			, m_promise(std::make_shared<std::promise<R>>())
 			, m_future(m_promise->get_future())
 			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicAction<void>>>(nullptr))
-			, m_state(std::make_shared<int>(task_state::ready))
+			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
 
 		{
@@ -355,11 +354,10 @@ namespace stdx
 		template<typename _Fn>
 		explicit _Task(_Fn &&f)
 			:m_action(stdx::make_action<R>(f))
-			, m_pool(GET_THREAD_POOL())
 			, m_promise(std::make_shared<std::promise<R>>())
 			, m_future(m_promise->get_future())
 			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicAction<void>>>(nullptr))
-			, m_state(std::make_shared<int>(task_state::ready))
+			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
 		{
 		}
@@ -373,10 +371,10 @@ namespace stdx
 			//加锁
 			m_lock.lock();
 			//如果不在运行
-			if (*m_state != task_state::running)
+			if (*m_state != stdx::task_state::running)
 			{
 				//设置状态运行中
-				*m_state = task_state::running;
+				*m_state = stdx::task_state::running;
 			}
 			else
 			{
@@ -394,10 +392,10 @@ namespace stdx
 				, stdx::spin_lock lock
 				, std::shared_ptr<int> state)
 			{
-				_TaskCompleter<R>::set_value(r, promise, next, lock, state);
+				stdx::_TaskCompleter<R>::set_value(r, promise, next, lock, state);
 			};
 			//放入线程池
-			m_pool->run_task(std::bind(f, m_action, m_promise, m_next, m_lock, m_state));
+			stdx::threadpool::run(std::bind(f, m_action, m_promise, m_next, m_lock, m_state));
 		}
 
 		//等待当前Task(不包括后续)完成
@@ -430,7 +428,7 @@ namespace stdx
 		template<typename _R = void, typename _Fn>
 		std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 		{
-			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
+			std::shared_ptr<_Task<_R>> t = stdx::_TaskNextBuilder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
 			return t;
 		}
 
@@ -446,7 +444,6 @@ namespace stdx
 
 	private:
 		stdx::action<R> m_action;
-		THREAD_POOL m_pool;
 		std::shared_ptr<std::promise<R>> m_promise;
 		std::shared_future<R> m_future;
 		std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> m_next;

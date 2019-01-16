@@ -56,7 +56,7 @@ namespace stdx
 	};
 	class barrier
 	{
-		using impl_t = std::shared_ptr<_Barrier>;
+		using impl_t = std::shared_ptr<stdx::_Barrier>;
 	public:
 		barrier()
 			:m_impl(std::make_shared<_Barrier>())

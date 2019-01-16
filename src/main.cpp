@@ -8,15 +8,11 @@
 
 int main()
 {
-	stdx::function<void,int> action([](int i) 
+	stdx::task<void> t = stdx::async([]() 
 	{
-		std::cout << 1 <<std::endl;
+		using namespace std;
+		cout << "1" << endl;
 	});
-	std::queue<stdx::function<void, int>> queue;
-	queue.push(action);
-	action = queue.front();
-	queue.pop();
-	action(1);
 	std::cin.get();
 	return 0;
 }

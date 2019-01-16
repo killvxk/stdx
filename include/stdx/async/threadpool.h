@@ -107,25 +107,33 @@ namespace stdx
 		impl_t m_impl;
 	};
 	//线程池
-	class thread_pool
+	class _Threadpool
 	{
 		using runable_ptr = std::shared_ptr<stdx::_BasicAction<void>>;
 	public:
-		thread_pool()
+		//构造函数
+		_Threadpool()
 			:m_free_count()
+			, m_alive(std::make_shared<bool>(true))
 			, m_task_queue(std::make_shared<std::queue<runable_ptr>>())
 			, m_barrier()
 			, m_lock()
 		{
+			//初始化线程池
 			init_threads();
 		}
 
-		~thread_pool()
+		//析构函数
+		~_Threadpool()
 		{
+			//终止时设置状态
+			*m_alive = false;
 		}
 
-		thread_pool(const thread_pool&) = delete;
+		//删除复制构造函数
+		_Threadpool(const _Threadpool&) = delete;
 
+		//执行任务
 		template<typename _Fn, typename ..._Args>
 		void run_task(_Fn &task, _Args &...args)
 		{
@@ -139,36 +147,54 @@ namespace stdx
 			m_barrier.pass();
 		}
 
-
-		const static std::shared_ptr<stdx::thread_pool> get()
-		{
-			return default;
-		}
-
 	private:
 		stdx::free_count m_free_count;
+		std::shared_ptr<bool> m_alive;
 		std::shared_ptr<std::queue<runable_ptr>> m_task_queue;
 		stdx::barrier m_barrier;
 		stdx::spin_lock m_lock;
+
+		//添加线程
 		void add_thread()
 		{
-			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count)
+			//创建线程
+			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count,std::shared_ptr<bool> alive)
 			{
-				while (1)
+				//如果存活
+				while (*alive)
 				{
+					//等待通知
 					if (!barrier.wait_for(std::chrono::minutes(10)))
 					{
+						//如果10分钟后未通知
+						//退出线程
 						count.deduct();
 						return;
 					}
 					if (!(tasks->empty()))
 					{
+						//如果任务列表不为空
+						//减去一个计数
 						count.deduct();
+						//进入自旋锁
 						lock.lock();
+						//获取任务
 						runable_ptr t = tasks->front();
+						//从queue中pop
 						tasks->pop();
+						//解锁
 						lock.unlock();
-						t->run();
+						//执行任务
+						try
+						{
+							t->run();
+						}
+						catch (const std::exception &)
+						{
+							//忽略出现的错误
+						}
+						//完成或终止后
+						//添加计数
 						count.add();
 					}
 					else
@@ -176,9 +202,12 @@ namespace stdx
 						continue;
 					}
 				}
-			}, m_task_queue, m_barrier, m_lock, m_free_count);
+			}, m_task_queue, m_barrier, m_lock, m_free_count,m_alive);
+			//分离线程
 			t.detach();
 		}
+		
+		//初始化线程池
 		void init_threads()
 		{
 			unsigned int cores = std::thread::hardware_concurrency() * 2;
@@ -188,10 +217,23 @@ namespace stdx
 			}
 			m_free_count.add(cores);
 		}
-
-		static std::shared_ptr<stdx::thread_pool> default;
 	};
-	std::shared_ptr<stdx::thread_pool> stdx::thread_pool::default = std::make_shared<stdx::thread_pool>();
+
+	//线程池静态类
+	class threadpool
+	{
+	public:
+		~threadpool() = default;
+		using impl_t = std::shared_ptr<stdx::_Threadpool>;
+		//执行任务
+		template<typename _Fn,typename ..._Args>
+		static void run(_Fn &fn,_Args &...args)
+		{
+			m_impl->run_task(fn,args...);
+		}
+	private:
+		threadpool() = default;
+		const static impl_t m_impl;
+	};
+	const stdx::threadpool::impl_t stdx::threadpool::m_impl = std::make_shared <stdx::_Threadpool>();
 }
-#define THREAD_POOL std::shared_ptr<stdx::thread_pool>
-#define GET_THREAD_POOL() stdx::thread_pool::get()
