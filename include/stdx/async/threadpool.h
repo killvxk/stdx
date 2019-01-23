@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <thread>
 #include <queue>
 #include <stdx/async/barrier.h>
@@ -8,7 +8,7 @@
 
 namespace stdx
 {
-	//×ÔÓÉÏß³Ì¼ÆÊıÆ÷ÊµÏÖ
+	//è‡ªç”±çº¿ç¨‹è®¡æ•°å™¨å®ç°
 	class _FreeCount
 	{
 	public:
@@ -39,7 +39,7 @@ namespace stdx
 	private:
 		std::atomic_uint m_count;
 	};
-	//×ÔÓÉÏß³Ì¼ÆÊıÆ÷
+	//è‡ªç”±çº¿ç¨‹è®¡æ•°å™¨
 	class free_count
 	{
 		using impl_t = std::shared_ptr<stdx::_FreeCount>;
@@ -106,12 +106,12 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	//Ïß³Ì³Ø
+	//çº¿ç¨‹æ± 
 	class _Threadpool
 	{
 		using runable_ptr = std::shared_ptr<stdx::_BasicAction<void>>;
 	public:
-		//¹¹Ôìº¯Êı
+		//æ„é€ å‡½æ•°
 		_Threadpool()
 			:m_free_count()
 			, m_alive(std::make_shared<bool>(true))
@@ -119,21 +119,21 @@ namespace stdx
 			, m_barrier()
 			, m_lock()
 		{
-			//³õÊ¼»¯Ïß³Ì³Ø
+			//åˆå§‹åŒ–çº¿ç¨‹æ± 
 			init_threads();
 		}
 
-		//Îö¹¹º¯Êı
+		//ææ„å‡½æ•°
 		~_Threadpool()
 		{
-			//ÖÕÖ¹Ê±ÉèÖÃ×´Ì¬
+			//ç»ˆæ­¢æ—¶è®¾ç½®çŠ¶æ€
 			*m_alive = false;
 		}
 
-		//É¾³ı¸´ÖÆ¹¹Ôìº¯Êı
+		//åˆ é™¤å¤åˆ¶æ„é€ å‡½æ•°
 		_Threadpool(const _Threadpool&) = delete;
 
-		//Ö´ĞĞÈÎÎñ
+		//æ‰§è¡Œä»»åŠ¡
 		template<typename _Fn, typename ..._Args>
 		void run_task(_Fn &task, _Args &...args)
 		{
@@ -154,47 +154,47 @@ namespace stdx
 		stdx::barrier m_barrier;
 		stdx::spin_lock m_lock;
 
-		//Ìí¼ÓÏß³Ì
+		//æ·»åŠ çº¿ç¨‹
 		void add_thread()
 		{
-			//´´½¨Ïß³Ì
+			//åˆ›å»ºçº¿ç¨‹
 			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, stdx::free_count count,std::shared_ptr<bool> alive)
 			{
-				//Èç¹û´æ»î
+				//å¦‚æœå­˜æ´»
 				while (*alive)
 				{
-					//µÈ´ıÍ¨Öª
+					//ç­‰å¾…é€šçŸ¥
 					if (!barrier.wait_for(std::chrono::minutes(10)))
 					{
-						//Èç¹û10·ÖÖÓºóÎ´Í¨Öª
-						//ÍË³öÏß³Ì
+						//å¦‚æœ10åˆ†é’Ÿåæœªé€šçŸ¥
+						//é€€å‡ºçº¿ç¨‹
 						count.deduct();
 						return;
 					}
 					if (!(tasks->empty()))
 					{
-						//Èç¹ûÈÎÎñÁĞ±í²»Îª¿Õ
-						//¼õÈ¥Ò»¸ö¼ÆÊı
+						//å¦‚æœä»»åŠ¡åˆ—è¡¨ä¸ä¸ºç©º
+						//å‡å»ä¸€ä¸ªè®¡æ•°
 						count.deduct();
-						//½øÈë×ÔĞıËø
+						//è¿›å…¥è‡ªæ—‹é”
 						lock.lock();
-						//»ñÈ¡ÈÎÎñ
+						//è·å–ä»»åŠ¡
 						runable_ptr t = tasks->front();
-						//´ÓqueueÖĞpop
+						//ä»queueä¸­pop
 						tasks->pop();
-						//½âËø
+						//è§£é”
 						lock.unlock();
-						//Ö´ĞĞÈÎÎñ
+						//æ‰§è¡Œä»»åŠ¡
 						try
 						{
 							t->run();
 						}
 						catch (const std::exception &)
 						{
-							//ºöÂÔ³öÏÖµÄ´íÎó
+							//å¿½ç•¥å‡ºç°çš„é”™è¯¯
 						}
-						//Íê³É»òÖÕÖ¹ºó
-						//Ìí¼Ó¼ÆÊı
+						//å®Œæˆæˆ–ç»ˆæ­¢å
+						//æ·»åŠ è®¡æ•°
 						count.add();
 					}
 					else
@@ -203,14 +203,14 @@ namespace stdx
 					}
 				}
 			}, m_task_queue, m_barrier, m_lock, m_free_count,m_alive);
-			//·ÖÀëÏß³Ì
+			//åˆ†ç¦»çº¿ç¨‹
 			t.detach();
 		}
 		
-		//³õÊ¼»¯Ïß³Ì³Ø
+		//åˆå§‹åŒ–çº¿ç¨‹æ± 
 		void init_threads()
 		{
-			unsigned int cores = std::thread::hardware_concurrency() * 2;
+			unsigned int cores = (std::thread::hardware_concurrency()+1)<<1;
 			for (unsigned int i = 0; i < cores; i++)
 			{
 				add_thread();
@@ -219,13 +219,13 @@ namespace stdx
 		}
 	};
 
-	//Ïß³Ì³Ø¾²Ì¬Àà
+	//çº¿ç¨‹æ± é™æ€ç±»
 	class threadpool
 	{
 	public:
 		~threadpool() = default;
 		using impl_t = std::shared_ptr<stdx::_Threadpool>;
-		//Ö´ĞĞÈÎÎñ
+		//æ‰§è¡Œä»»åŠ¡
 		template<typename _Fn,typename ..._Args>
 		static void run(_Fn &fn,_Args &...args)
 		{

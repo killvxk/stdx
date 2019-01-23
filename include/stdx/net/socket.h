@@ -2,11 +2,16 @@
 #include <stdx/exception.h>
 #include <stdx/async/task.h>
 #include <stdx/buffer.h>
+#include <stdx/async/spin_lock.h>
+#include <stdx/io.h>
+#ifdef WIN32
+#include <WinSock2.h>
+#include <MSWSock.h>
+#pragma comment(lib,"Ws2_32.lib ")
+#endif 
 namespace stdx
 {
 #ifdef WIN32
-#include <WinSock2.h>
-#pragma comment(lib,"Ws2_32.lib ")
 	struct _WSAStarter
 	{
 		WSAData wsa;
@@ -94,21 +99,81 @@ namespace stdx
 	private:
 		SOCKADDR_IN m_handle;
 	};
-	class socket
+	struct socket_io_context
+	{
+		OVERLAPPED m_ol;
+		WSABUF m_wsabuf;
+		SOCKET m_socket;
+		SOCKADDR_IN m_addr;
+		char m_buffer[4096];
+		int m_io_type;
+		DWORD m_send;
+		DWORD m_recv;
+	};
+	struct socket_io_type
+	{
+		enum
+		{
+			idle = 0,
+			accept = 1,
+			send = 2,
+			recv = 3
+		};
+	};
+	using socket_io_service = stdx::io_service<stdx::socket_io_context>;
+
+	struct task_ol
+	{
+
+	};
+	class _Socket
 	{
 	public:
-		socket(int addr_family,int sock_type,int protocl)
-		{
-			m_handle = WSASocket(addr_family, sock_type, protocl, NULL, 0, WSAOVERLAPPED);
-		}
-		~socket()
+		_Socket(int addr_family,int sock_type,int protocl)
+			:_Socket(WSASocket(addr_family, sock_type, protocl, NULL, 0, WSAOVERLAPPED))
+		{}
+		~_Socket()
 		{
 			closesocket(handle);
 		}
-
+		SOCKET accept()
+		{
+			if (accept_ex==NULL)
+			{
+				_GetAcceptEx(m_handle, &accept_ex);
+			}
+			SOCKET new_socket = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+			std::shared_ptr<std::vector<char>> buf = std::make_shared<std::vector<char>>(4096);
+			DWORD size;
+			WSAOVERLAPPED ol;
+			memset(&ol, 0, sizeof(ol));
+			accept_ex(m_handle, new_socket, buf->data(), buf->size() - ((sizeof(sockaddr_in) + 16) * 2), sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &size, &ol);
+			return new_socket;
+		}
+		void use_io_service(const stdx::socket_io_service &io_service)
+		{
+			io_service.bind(m_handle);
+		}
 	private:
-		WSASocket m_handle;
+		SOCKET m_handle;
+		_Socket(SOCKET handle)
+			:m_handle(handle)
+		{
+		}
+		static LPFN_ACCEPTEX accept_ex;
 	};
+	void _GetAcceptEx(const SOCKET &s, LPFN_ACCEPTEX *ptr)
+	{
+		GUID id = WSAID_ACCEPTEX;
+		DWORD buf;
+		WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
+	}
+	void _GetAcceptExSockaddr(const SOCKET &s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
+	{
+		GUID id = WSAID_GETACCEPTEXSOCKADDRS;
+		DWORD buf;
+		WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
+	}
 #endif //Win32
 #ifdef UNIX
 
