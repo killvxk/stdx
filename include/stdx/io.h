@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <memory>
 #ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 namespace stdx
 {
@@ -22,7 +23,7 @@ namespace stdx
 		{
 			return *m_parm;
 		}
-		_IOContext &operator->()
+		_IOContext *operator->()
 		{
 			return get();
 		}

@@ -1,16 +1,9 @@
 ﻿#include <iostream>
-#include <stdx/cmder.h>
-#include <stdx/sys/device.h>
-#include <stdx/async/task.h>
-#include <stdx/traits/is_same.h>
-#include <stdx/traits/type_list.h>
-#include <stdx/tuple.h>
 #include <stdx/io.h>
-
+#include <stdx/async/task.h>
 #include <WinSock2.h>
+#include <Mswsock.h>
 #pragma comment(lib,"Ws2_32.lib ")
-#include <MSWSock.h>
-#include <ws2tcpip.h>
 
 struct socket_io_context
 {
@@ -66,5 +59,14 @@ int main()
 	memset(&ol, 0, sizeof(ol));
 	accept_ex(s, new_socket, buf->data(), buf->size() - ((sizeof(sockaddr_in) + 16) * 2), sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &size, &ol);
 	io_service.bind((HANDLE)new_socket);
+	stdx::threadpool::run([](stdx::io_service<socket_io_context> io) 
+	{
+		while (1)
+		{
+			auto context = io.get();
+			std::cout << "get!";
+		}
+	},io_service);
+	std::cin.get();
 	return 0;
 }
