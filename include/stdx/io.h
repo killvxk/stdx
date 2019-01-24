@@ -300,7 +300,7 @@ namespace stdx
 			DWORD size = 0;
 			OVERLAPPED *ol= nullptr;
 			ULONG_PTR key = 0;
-			bool r = GetQueuedCompletionStatus(m_iocp, &size,&key,(LPOVERLAPPED*)ol, INFINITE);
+			bool r = GetQueuedCompletionStatus(m_iocp, &size,&key,&ol, INFINITE);
 			if (!r)
 			{
 				//处理错误

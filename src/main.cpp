@@ -75,15 +75,15 @@ int main()
 	}
 	io.bind(file);
 	stdx::file_iocontext context(file);
-	bool r= ReadFile(file,context.get().get_buffer(),1,NULL,&context.m_ol);
-	if (!r)
-	{
-		//处理错误
-		auto code = GetLastError();
-		std::string str("windows system error:");
-		str.append(std::to_string(code));
-		std::cerr << str;
-	}
+	bool r= ReadFile(file,context.get().get_buffer(),100,NULL,&context.m_ol);
+	//if (!r)
+	//{
+	//	//处理错误
+	//	auto code = GetLastError();
+	//	std::string str("windows system error:");
+	//	str.append(std::to_string(code));
+	//	std::cerr << str;
+	//}
 	stdx::threadpool::run([](stdx::file_ioservice io)
 	{
 		using namespace std;
