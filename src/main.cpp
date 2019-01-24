@@ -40,7 +40,7 @@ void _GetAcceptExSockaddr(const SOCKET &s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
 }
 int main()
 {
-	stdx::io_service<socket_io_context> io_service;
+	/*stdx::io_service<socket_io_context> io_service;
 	SOCKET s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	sockaddr_in addr;
 	addr.sin_family = AF_INET;
@@ -66,7 +66,39 @@ int main()
 			auto context = io.get();
 			std::cout << "get!";
 		}
-	},io_service);
+	},io_service);*/
+	stdx::file_ioservice io;
+	HANDLE file = CreateFile("E:\\test.txt", GENERIC_ALL, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		printf("error\n");
+	}
+	io.bind(file);
+	stdx::file_iocontext context(file);
+	bool r= ReadFile(file,context.get().get_buffer(),1,NULL,&context.m_ol);
+	if (!r)
+	{
+		//处理错误
+		auto code = GetLastError();
+		std::string str("windows system error:");
+		str.append(std::to_string(code));
+		std::cerr << str;
+	}
+	stdx::threadpool::run([](stdx::file_ioservice io)
+	{
+		using namespace std;
+		try
+		{
+			stdx::file_iocontext context(io.get());
+			cout << "ok:"
+				<< endl
+				<< (char*)context.get().get_buffer();
+		}
+		catch (const std::exception&e)
+		{
+			cerr << e.what();
+		}
+	}, io);
 	std::cin.get();
 	return 0;
 }

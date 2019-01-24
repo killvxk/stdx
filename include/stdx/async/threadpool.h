@@ -142,7 +142,7 @@ namespace stdx
 				add_thread();
 				m_free_count.add();
 			}
-			runable_ptr c = stdx::_MakeAction<void>(task, args...);
+			runable_ptr c = stdx::_MakeAction<void>(std::bind(task,args...));
 			m_task_queue->push(c);
 			m_barrier.pass();
 		}
@@ -179,7 +179,7 @@ namespace stdx
 						//进入自旋锁
 						lock.lock();
 						//获取任务
-						runable_ptr t = tasks->front();
+						runable_ptr t(tasks->front());
 						//从queue中pop
 						tasks->pop();
 						//解锁
