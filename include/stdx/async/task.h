@@ -168,6 +168,10 @@ namespace stdx
 			return task<void>(m_impl->with(other.m_impl));
 		}
 
+		operator bool() const
+		{
+			return m_impl;
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -340,7 +344,7 @@ namespace stdx
 	public:
 		//构造函数
 		template<typename _Fn, typename ..._Args>
-		explicit _Task(_Fn &&f, _Args ...args)
+		explicit _Task(_Fn &&f, _Args &&...args)
 			:m_action(stdx::make_action<R>(std::bind(f, args...)))
 			, m_promise(std::make_shared<std::promise<R>>())
 			, m_future(m_promise->get_future())
@@ -363,10 +367,10 @@ namespace stdx
 		}
 
 		//析构函数
-		~_Task() = default;
+		virtual ~_Task() = default;
 
 		//启动一个Task
-		void run() override
+		virtual void run() override
 		{
 			//加锁
 			m_lock.lock();
@@ -457,4 +461,70 @@ namespace stdx
 	{
 		return task<_R>::start(fn, args...);
 	}
+	template<typename _R>
+	class _BlockingTask:public _Task<_R>
+	{
+	public:
+		template<typename _Fn,typename ..._Args>
+		_BlockingTask(_Fn &&fn,_Args &&...args)
+			:_Task<_R>(std::move(fn),args...)
+		{}
+		_BlockingTask() = default;
+		void run() override
+		{
+			_TaskCompleter<_R>::set_value(m_action,m_promise,m_next,m_lock,m_state);
+		}
+	private:
+
+	};
+	template<typename _R>
+	class _TaskCompeleteSource
+	{
+	public:
+		_TaskCompeleteSource() = default;
+		~_TaskCompeleteSource() = default;
+		void set_value(_R &&value)
+		{
+			m_task = stdx::task<_R>(_BlockingTask<_R>([](_R &&value) 
+			{
+				return value;
+			},std::move(value)));
+		}
+		task<_R> &get_task() const
+		{
+			return m_task;
+		}
+	private:
+		stdx::task<_R> m_task;
+	};
+	template<typename _R>
+	class task_complete_source
+	{
+		using impl_t = std::shared_ptr<_TaskCompeleteSource<_R>>;
+	public:
+		task_complete_source()
+			:m_impl(std::make_shared<_TaskCompeleteSource<_R>>())
+		{}
+		task_complete_source(const task_complete_source<_R> &other)
+			:m_impl(other.m_impl)
+		{}
+		task_complete_source(task_complete_source<_R> &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		~task_complete_source() = default;
+		task_complete_source<_R> &operator=(const task_complete_source<_R> &other)
+		{
+			m_impl = other.m_impl;
+		}
+		task<_R> &get_task() const
+		{
+			return m_impl->get_task();
+		}
+		void set_value(_R &&value)
+		{
+			return m_impl->set_value(std::move(value));
+		}
+	private:
+		impl_t m_impl;
+	};
 }

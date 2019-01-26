@@ -109,37 +109,6 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	//class _BasicIOContext
-	//{
-	//public:
-	//	OVERLAPPED m_ol;
-	//	_BasicIOContext(HANDLE file_handle)
-	//		:m_file_handle(file_handle)
-	//		,m_buffer()
-	//	{
-	//	}
-	//	_BasicIOContext(HANDLE file_handle, const buffer &buffer)
-	//		:m_file_handle(file_handle)
-	//		,m_buffer(buffer)
-	//	{
-	//	}
-	//	virtual ~_BasicIOContext() = default;
-	//	HANDLE get_file_handle() const
-	//	{
-	//		return m_file_handle;
-	//	}
-	//	buffer get_buffer() const
-	//	{
-	//		return m_buffer;
-	//	}
-	//	operator OVERLAPPED*()
-	//	{
-	//		return &m_ol;
-	//	}
-	//private:
-	//	HANDLE m_file_handle;
-	//	buffer m_buffer;
-	//};
 	class file_iodata
 	{
 	public:
@@ -164,55 +133,6 @@ namespace stdx
 		buffer m_buffer;
 		unsigned int m_offset;
 	};
-
-	//template<typename _IOContext>
-	//class io_context
-	//{};
-	//template<>
-	//class io_context<_FileIOContext>
-	//{
-	//	using impl_t = std::shared_ptr<_FileIOContext>;
-	//public:
-	//	io_context(HANDLE file_handle)
-	//		:m_impl(std::make_shared< _FileIOContext>(file_handle))
-	//	{}
-	//	io_context(HANDLE file_handle, const buffer &buffer)
-	//		:m_impl(std::make_shared< _FileIOContext>(file_handle,buffer))
-	//	{}
-	//	io_context(_FileIOContext *ptr)
-	//		:m_impl(ptr)
-	//	{}
-	//	io_context(const io_context<_FileIOContext> &other)
-	//		:m_impl(other.m_impl)
-	//	{}
-	//	io_context(io_context<_FileIOContext> &&other)
-	//		:m_impl(std::move(other.m_impl))
-	//	{}
-	//	~io_context()=default;
-	//	io_context<_FileIOContext> &operator=(const io_context<_FileIOContext> &other)
-	//	{
-	//		m_impl = other.m_impl;
-	//	}
-	//	buffer get_buffer() const
-	//	{
-	//		return m_impl->get_buffer();
-	//	}
-	//	HANDLE get_file_handle() const
-	//	{
-	//		return m_impl->get_file_handle();
-	//	}
-	//	unsigned int get_offset()
-	//	{
-	//		return m_impl->get_offset();
-	//	}
-	//	operator OVERLAPPED*()
-	//	{
-	//		return *m_impl;
-	//	}
-	//private:
-	//	impl_t m_impl;
-	//};
-
 	template<typename _Parm>
 	class io_context
 	{
