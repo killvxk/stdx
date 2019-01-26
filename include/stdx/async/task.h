@@ -180,7 +180,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void set_value(stdx::action<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::action<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -230,7 +230,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void set_value(stdx::action<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::action<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -396,7 +396,7 @@ namespace stdx
 				, stdx::spin_lock lock
 				, std::shared_ptr<int> state)
 			{
-				stdx::_TaskCompleter<R>::set_value(r, promise, next, lock, state);
+				stdx::_TaskCompleter<R>::call(r, promise, next, lock, state);
 			};
 			//放入线程池
 			stdx::threadpool::run(std::bind(f, m_action, m_promise, m_next, m_lock, m_state));
@@ -472,57 +472,63 @@ namespace stdx
 		_BlockingTask() = default;
 		void run() override
 		{
-			_TaskCompleter<_R>::set_value(m_action,m_promise,m_next,m_lock,m_state);
+			_TaskCompleter<_R>::call(m_action,m_promise,m_next,m_lock,m_state);
 		}
 	private:
 
 	};
 	template<typename _R>
-	class _TaskCompeleteSource
+	class _TaskCallbacker
 	{
 	public:
-		_TaskCompeleteSource() = default;
-		~_TaskCompeleteSource() = default;
-		void set_value(_R &&value)
-		{
-			m_task = stdx::task<_R>(_BlockingTask<_R>([](_R &&value) 
+		template<typename ..._Args>
+		_TaskCallbacker(const _Args &...args)
+			:m_value(args...)
+			,m_task([](const _R &value) 
 			{
 				return value;
-			},std::move(value)));
+			},m_value)
+		{}
+		~_TaskCallbacker() = default;
+		void call()
+		{
+			m_task.run();
 		}
-		task<_R> &get_task() const
+		task<_R> get_task() const
 		{
 			return m_task;
 		}
 	private:
+		_R m_value;
 		stdx::task<_R> m_task;
 	};
 	template<typename _R>
-	class task_complete_source
+	class task_callbacker
 	{
-		using impl_t = std::shared_ptr<_TaskCompeleteSource<_R>>;
+		using impl_t = std::shared_ptr<_TaskCallbacker<_R>>;
 	public:
-		task_complete_source()
-			:m_impl(std::make_shared<_TaskCompeleteSource<_R>>())
+		template<typename ..._Args>
+		task_callbacker(const _Args &...args)
+			:m_impl(std::make_shared<_TaskCallbacker<_R>>(args...))
 		{}
-		task_complete_source(const task_complete_source<_R> &other)
+		task_callbacker(const task_callbacker<_R> &other)
 			:m_impl(other.m_impl)
 		{}
-		task_complete_source(task_complete_source<_R> &&other)
+		task_callbacker(task_callbacker<_R> &&other)
 			:m_impl(std::move(other.m_impl))
 		{}
-		~task_complete_source() = default;
-		task_complete_source<_R> &operator=(const task_complete_source<_R> &other)
+		~task_callbacker() = default;
+		task_callbacker<_R> &operator=(const task_callbacker<_R> &other)
 		{
 			m_impl = other.m_impl;
 		}
-		task<_R> &get_task() const
+		task<_R> get_task() const
 		{
 			return m_impl->get_task();
 		}
-		void set_value(_R &&value)
+		void call()
 		{
-			return m_impl->set_value(std::move(value));
+			return m_impl->call();
 		}
 	private:
 		impl_t m_impl;

@@ -67,38 +67,23 @@ int main()
 			std::cout << "get!";
 		}
 	},io_service);*/
-	stdx::file_ioservice io;
-	HANDLE file = CreateFile("E:\\test.txt", GENERIC_ALL, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
-	if (file == INVALID_HANDLE_VALUE)
+	stdx::file_io_service io_service;
+	stdx::async_fstream stream(io_service, "e://test.txt",stdx::file_access_type::read,stdx::open_type::open,stdx::file_shared_model::shared_read);
+	stream.read().then([](stdx::task_result<stdx::file_io_info> r) 
 	{
-		printf("error\n");
-	}
-	io.bind(file);
-	stdx::file_iocontext context(file);
-	bool r= ReadFile(file,context.get().get_buffer(),100,NULL,&context.m_ol);
-	//if (!r)
-	//{
-	//	//处理错误
-	//	auto code = GetLastError();
-	//	std::string str("windows system error:");
-	//	str.append(std::to_string(code));
-	//	std::cerr << str;
-	//}
-	stdx::threadpool::run([](stdx::file_ioservice io)
-	{
-		using namespace std;
 		try
 		{
-			stdx::file_iocontext context(io.get());
-			cout << "ok:"
-				<< endl
-				<< (char*)context.get().get_buffer();
+			auto info = r.get();
+			std::cout << info.get_buffer();
 		}
-		catch (const std::exception&e)
+		catch (const std::exception&)
 		{
-			cerr << e.what();
+			auto code = GetLastError(); 
+			std::string str("windows system error:"); 
+			str.append(std::to_string(code)); 
+			std::cout << str;
 		}
-	}, io);
+	});
 	std::cin.get();
 	return 0;
 }

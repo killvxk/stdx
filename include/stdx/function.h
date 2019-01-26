@@ -96,8 +96,7 @@ namespace stdx
 		}
 		_R operator()()
 		{
-			m_impl->run();
-			return;
+			return m_impl->run();
 		}
 		operator bool()
 		{
