@@ -175,4 +175,6 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
+	template<typename _Fn,typename ..._Args>
+	auto _GetFnRetType(_Fn &&fn,_Args &&...args)->decltype(fn(args...));
 }

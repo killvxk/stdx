@@ -6,10 +6,14 @@
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#define _ThrowWinError auto code = GetLastError(); \
-						std::string str("windows system error:"); \
-						str.append(std::to_string(code)); \
-						throw std::runtime_error(str.c_str()) 
+#define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
+						if(_ERROR_CODE != 997)\
+						{\
+								std::string _ERROR_STRING("windows system error:"); \
+								_ERROR_STRING.append(std::to_string(_ERROR_CODE)); \
+								throw std::runtime_error(_ERROR_STRING.c_str()); \
+						}\
+
 namespace stdx
 {
 	class _Buffer
@@ -94,6 +98,7 @@ namespace stdx
 		buffer &operator=(const buffer &other)
 		{
 			m_impl = other.m_impl;
+			return *this;
 		}
 		char &operator[](const size_t &i)
 		{
@@ -161,14 +166,14 @@ namespace stdx
 		io_context(HANDLE file_handle,const _Args &...args)
 			:m_parm(std::make_shared<_Parm>(args...))
 			, m_file_handle(file_handle)
-			,m_tcs(m_parm)
+			,m_tcs(*m_parm)
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
 		io_context(const std::shared_ptr<_Parm> &parm,HANDLE file_handle)
 			:m_parm(parm)
 			,m_file_handle(file_handle)
-			,m_tcs(m_parm)
+			,m_tcs(*m_parm)
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
@@ -176,14 +181,14 @@ namespace stdx
 			:m_ol(other.m_ol)
 			,m_parm(other.m_parm)
 			,m_file_handle(other.m_file_handle)
-			,m_tcs(m_parm)
+			,m_tcs(other.m_tcs)
 		{
 		}
 		io_context(io_context<_Parm> &&other)
 			:m_ol(other.m_ol)
 			,m_parm(std::move(other.m_parm))
 			,m_file_handle(std::move(other.m_file_handle))
-			,m_tcs(m_parm)
+			,m_tcs(std::move(other.m_tcs))
 
 		{
 		}
@@ -256,7 +261,7 @@ namespace stdx
 			if (!r)
 			{
 				//处理错误
-				_ThrowWinError;
+				_ThrowWinError
 			}
 			stdx::io_context<_IOContext> context (*CONTAINING_RECORD(ol, stdx::io_context<_IOContext>, m_ol));
 			return context;
@@ -350,14 +355,9 @@ namespace stdx
 			HANDLE file = CreateFile(path.c_str(), access_type, shared_model, 0,open_type,FILE_FLAG_OVERLAPPED,0);
 			if (file == INVALID_HANDLE_VALUE)
 			{
-				_ThrowWinError;
+				_ThrowWinError
 			}
 			m_iocp.bind(file);
-			stdx::threadpool::run([](iocp_t iocp) 
-			{
-				stdx::file_io_context context(iocp.get());
-				context.callback();
-			},m_iocp);
 			return file;
 		}
 		file_io_context read_file(HANDLE file,const file_io_info &info)
@@ -365,8 +365,13 @@ namespace stdx
 			file_io_context context(file,info);
 			if (!ReadFile(file, info.get_buffer(), info.get_buffer().size(), 0, &context.m_ol))
 			{
-				_ThrowWinError;
+				_ThrowWinError
 			}
+			stdx::threadpool::run([](iocp_t iocp) 
+			{
+				file_io_context context(iocp.get());
+				context.callback();
+			},m_iocp);
 			return context;
 		}
 		file_io_context read_file(HANDLE file,const buffer &buffer, unsigned int offset = 0)

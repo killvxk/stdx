@@ -1,5 +1,5 @@
 ﻿#include <iostream>
-#include <stdx/io.h>
+//#include <stdx/io.h>
 #include <stdx/async/task.h>
 #include <WinSock2.h>
 #include <Mswsock.h>
@@ -67,7 +67,7 @@ int main()
 			std::cout << "get!";
 		}
 	},io_service);*/
-	stdx::file_io_service io_service;
+	/*stdx::file_io_service io_service;
 	stdx::async_fstream stream(io_service, "e://test.txt",stdx::file_access_type::read,stdx::open_type::open,stdx::file_shared_model::shared_read);
 	stream.read().then([](stdx::task_result<stdx::file_io_info> r) 
 	{
@@ -83,7 +83,7 @@ int main()
 			str.append(std::to_string(code)); 
 			std::cout << str;
 		}
-	});
+	});*/
 	std::cin.get();
 	return 0;
 }
