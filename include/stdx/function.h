@@ -44,21 +44,6 @@ namespace stdx
 		{}
 		~_Runable()=default;
 
-		_Runable(_Runable<_R,_Fn> &&other)
-			:m_func(std::move(other.m_func))
-		{
-		}
-
-		_Runable(const _Runable<_R,_Fn> &other)
-			:m_func(other.m_func)
-		{}
-
-		_Runable<_R,_Fn> &operator=(const _Runable<_R,_Fn> &other)
-		{
-			m_func = other.m_func;
-			return *this;
-		}
-
 		// Í¨¹ý _BasicAction ¼Ì³Ð
 		virtual _R run() override
 		{
@@ -79,13 +64,13 @@ namespace stdx
 	template<typename T, typename _Fn>
 	runable_ptr<T> make_runable(_Fn &&fn)
 	{
-		return std::make_shared<_Runable<T,_Fn>>(fn);
+		return std::make_shared<_Runable<T,_Fn>>(std::move(fn));
 	}
 
 	template<typename T,typename _Fn,typename ..._Args>
 	runable_ptr<T> make_runable(_Fn &&fn,_Args &&...args)
 	{
-		return make_runable<T>(std::bind(fn,args...))
+		return make_runable<T>(std::bind(fn, args...));
 	};
 
 	template<typename _R,typename ..._Args>

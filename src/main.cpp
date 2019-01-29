@@ -93,10 +93,10 @@ int main()
 		std::cout << i;
 		return i+2;
 	})
-		/*.then([](int i) 
+		.then([](int i) 
 	{
 		std::cout << i;
-	})*/;
+	});
 	std::cin.get();
 	return 0;
 }
