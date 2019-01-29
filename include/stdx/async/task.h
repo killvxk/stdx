@@ -162,11 +162,11 @@ namespace stdx
 			return m_impl->is_complete();
 		}
 
-		//template<typename __R>
-		//task<void> with(task<__R> other)
-		//{
-		//	return task<void>(m_impl->with(other.m_impl));
-		//}
+		template<typename __R>
+		task<void> with(task<__R> other)
+		{
+			return task<void>(m_impl->with(other.m_impl));
+		}
 
 		operator bool() const
 		{
@@ -279,7 +279,15 @@ namespace stdx
 	};
 
 	template<typename Input, typename Result, typename Arg>
-	struct _TaskNextBuilder;
+	struct _TaskNextBuilder
+	{
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next)
+		{
+			static_assert(sizeof(char) == sizeof(double), "the input function is not be allowed");
+			return nullptr;
+		}
+	};
 
 	template<typename Input, typename Result>
 	struct _TaskNextBuilder<Input,Result,void>
@@ -360,7 +368,18 @@ namespace stdx
 		template<typename Fn>
 		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, ...)
 		{
-			return future.get().then(fn);
+			auto t = future.get();
+			return t.then<Fn>(fn);
+		}
+	};
+
+	template<typename Input, typename Result>
+	struct _TaskNextBuilder<stdx::task<Input>, Result, stdx::task_result<Input>>
+	{
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, ...)
+		{
+			return future.get().then(std::move(fn));
 		}
 	};
 
@@ -465,14 +484,14 @@ namespace stdx
 		}
 
 		//合并Task
-		//template<typename _R>
-		//std::shared_ptr<_Task<void>> with(std::shared_ptr<_Task<_R>> other)
-		//{
-		//	return then([other](stdx::task_result<void>&) 
-		//	{
-		//		other->wait();
-		//	});
-		//}
+		template<typename _R>
+		std::shared_ptr<_Task<void>> with(std::shared_ptr<_Task<_R>> other)
+		{
+			return then([other](stdx::task_result<void>&) 
+			{
+				other->wait();
+			});
+		}
 
 	protected:
 		stdx::runable_ptr<R> m_action;
@@ -489,5 +508,96 @@ namespace stdx
 	{
 		return task<_R>::start(fn,args...);
 	}
-	
+
+	template<typename R>
+	class _SyncTask:public _Task<R>
+	{
+	public:
+		template<typename _Fn,typename ..._Args>
+		_SyncTask(_Fn &&fn, _Args &&...args)
+			:_Task<R>(std::move(fn),args...)
+		{}
+		void run() override
+		{
+			m_promise->set_value(m_action->run());
+		}
+
+	};
+
+	template<>
+	class _SyncTask<void> :public _Task<void>
+	{
+	public:
+		template<typename _Fn, typename ..._Args>
+		_SyncTask(_Fn &&fn, _Args &&...args)
+			:_Task<void>(std::move(fn), args...)
+		{}
+		void run() override
+		{
+			m_action->run();
+			m_promise->set_value();
+		}
+	};
+
+	template<typename _Result>
+	class _TaskCompleteEvent
+	{
+	public:
+		_TaskCompleteEvent()
+			:m_promise()
+			,m_future(m_promise.get_future())
+		{}
+		~_TaskCompleteEvent()=default;
+		void set_value(const _Result &value)
+		{
+			m_promise.set_value(value);
+		}
+		void set_exception(std::exception_ptr exception_ptr)
+		{
+			m_promise.set_exception(exception_ptr);
+		}
+
+		stdx::task<_Result> get_task()
+		{
+			return task<_Result>(nullptr);
+		}
+	private:
+		std::promise<_Result> m_promise;
+		std::shared_future<_Result> m_future;
+	};
+
+	template<typename _R>
+	class task_complete_event
+	{
+		using impl_t = std::shared_ptr<_TaskCompleteEvent<_R>>;
+	public:
+		task_complete_event()
+			:m_impl(std::make_shared<_TaskCompleteEvent<_R>>())
+		{}
+		task_complete_event(const task_complete_event<_R> &other)
+			:m_impl(other.m_impl)
+		{}
+		task_complete_event(task_complete_event<_R> &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		~task_complete_event() = default;
+		task_complete_event<_R> &operator=(const task_complete_event<_R> &other)
+		{
+			m_impl = other.m_impl;
+		}
+		void set_value(const _R &value)
+		{
+			m_impl->set_value(value);
+		}
+		void set_exception(std::exception_ptr error)
+		{
+			m_impl->set_exception(error);
+		}
+		stdx::task<_R> get_task()
+		{
+			return m_impl->get_task();
+		}
+	private:
+		impl_t m_impl;
+	};
 }

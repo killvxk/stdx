@@ -1,5 +1,5 @@
 ﻿#include <iostream>
-//#include <stdx/io.h>
+#include <stdx/io.h>
 #include <stdx/async/task.h>
 #include <WinSock2.h>
 #include <Mswsock.h>
@@ -67,36 +67,25 @@ int main()
 			std::cout << "get!";
 		}
 	},io_service);*/
-	/*stdx::file_io_service io_service;
+	stdx::file_io_service io_service;
 	stdx::async_fstream stream(io_service, "e://test.txt",stdx::file_access_type::read,stdx::open_type::open,stdx::file_shared_model::shared_read);
-	stream.read().then([](stdx::task_result<stdx::file_io_info> r) 
-	{
-		try
-		{
-			auto info = r.get();
-			std::cout << info.get_buffer();
-		}
-		catch (const std::exception&)
-		{
-			auto code = GetLastError(); 
-			std::string str("windows system error:"); 
-			str.append(std::to_string(code)); 
-			std::cout << str;
-		}
-	});*/
-	auto t = stdx::async([]() 
-	{
-		return 1;
-	})
-		.then([](int i) 
-	{
-		std::cout << i;
-		return i+2;
-	})
-		.then([](int i) 
-	{
-		std::cout << i;
-	});
+	auto t = stream.read();
+	//t.then([](stdx::task_result<stdx::file_io_info> r)
+	//{
+	//	try
+	//	{
+	//		auto info = r.get();
+	//		std::cout << info.get_buffer();
+	//	}
+	//	catch (const std::exception&)
+	//	{
+	//		auto code = GetLastError();
+	//		std::string str("windows system error:");
+	//		str.append(std::to_string(code));
+	//		std::cout << str;
+	//	}
+	//});
+
 	std::cin.get();
 	return 0;
 }

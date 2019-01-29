@@ -151,11 +151,45 @@ namespace stdx
 		using result = _Result;
 		using arguments = stdx::type_list<_Args...>;
 	};
+
 	template<typename _Fn>
 	struct function_info
 	{
 	private:
 		using info = function_info<decltype(&_Fn::operator())>;
+	public:
+		using result = typename info::result;
+		using arguments = typename info::arguments;
+		using belong_type = _Fn;
+	};
+
+	template<typename _Fn>
+	struct function_info<_Fn&>
+	{
+	private:
+		using info = function_info<_Fn>;
+	public:
+		using result = typename info::result;
+		using arguments = typename info::arguments;
+		using belong_type = _Fn;
+	};
+
+	template<typename _Fn>
+	struct function_info<_Fn&&>
+	{
+	private:
+		using info = function_info<_Fn>;
+	public:
+		using result = typename info::result;
+		using arguments = typename info::arguments;
+		using belong_type = _Fn;
+	};
+
+	template<typename _Fn>
+	struct function_info<const _Fn&>
+	{
+	private:
+		using info = function_info<_Fn>;
 	public:
 		using result = typename info::result;
 		using arguments = typename info::arguments;

@@ -166,14 +166,14 @@ namespace stdx
 		io_context(HANDLE file_handle,const _Args &...args)
 			:m_parm(std::make_shared<_Parm>(args...))
 			, m_file_handle(file_handle)
-			,m_tcs(*m_parm)
+			, m_runable(std::make_shared<stdx::runable_ptr<void>>())
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
 		io_context(const std::shared_ptr<_Parm> &parm,HANDLE file_handle)
 			:m_parm(parm)
 			,m_file_handle(file_handle)
-			,m_tcs(*m_parm)
+			, m_runable(std::make_shared<stdx::runable_ptr<void>>())
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
@@ -181,14 +181,14 @@ namespace stdx
 			:m_ol(other.m_ol)
 			,m_parm(other.m_parm)
 			,m_file_handle(other.m_file_handle)
-			,m_tcs(other.m_tcs)
+			, m_runable(other.m_runable)
 		{
 		}
 		io_context(io_context<_Parm> &&other)
 			:m_ol(other.m_ol)
 			,m_parm(std::move(other.m_parm))
 			,m_file_handle(std::move(other.m_file_handle))
-			,m_tcs(std::move(other.m_tcs))
+			, m_runable(std::move(other.m_runable))
 
 		{
 		}
@@ -208,18 +208,22 @@ namespace stdx
 		{
 			return m_file_handle;
 		}
-		task<_Parm> get_task() const
-		{
-			return m_tcs.get_task();
-		}
 		void callback()
 		{
-			m_tcs.call();
+			if (!m_runable)
+			{
+				throw std::logic_error("the callback is not set");
+			}
+			(*m_runable)->run();
+		}
+		void set_callback(const stdx::runable_ptr<void> &runable)
+		{
+			*m_runable = runable;
 		}
 	private:
 		std::shared_ptr<_Parm> m_parm;
 		HANDLE m_file_handle;
-		stdx::task_callbacker<_Parm> m_tcs;
+		std::shared_ptr<stdx::runable_ptr<void>> m_runable;
 	};
 
 
@@ -360,39 +364,25 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		file_io_context read_file(HANDLE file,const file_io_info &info)
+		stdx::task<file_io_info> read_file(HANDLE file, unsigned int buffer_size = 4096U, unsigned int offset = 0)
 		{
-			file_io_context context(file,info);
-			if (!ReadFile(file, info.get_buffer(), info.get_buffer().size(), 0, &context.m_ol))
+			file_io_context context(file, buffer_size);
+			context.get().set_offset(offset);
+			std::shared_ptr<_Task<file_io_info>> task(std::make_shared<_SyncTask<file_io_info>>([](file_io_context context) 
+			{
+				return context.get();
+			},context));
+			context.set_callback(task);
+			if (!ReadFile(file, context.get().get_buffer(), context.get().get_buffer().size(), NULL, &context.m_ol))
 			{
 				_ThrowWinError
 			}
-			stdx::threadpool::run([](iocp_t iocp) 
+			stdx::threadpool::run([](iocp_t &iocp) 
 			{
-				file_io_context context(iocp.get());
+				auto context = iocp.get();
 				context.callback();
-			},m_iocp);
-			return context;
-		}
-		file_io_context read_file(HANDLE file,const buffer &buffer, unsigned int offset = 0)
-		{
-			file_io_info io_info;
-			if (offset)
-			{
-				io_info.set_offset(offset);
-			}
-			io_info.set_buffer(buffer);
-			return read_file(file, io_info);
-		}
-		file_io_context read_file(HANDLE file, unsigned int buffer_size = 4096U, unsigned int offset = 0)
-		{
-			if (buffer_size == 4096U)
-			{
-				buffer buffer;
-				return read_file(file, buffer, offset);
-			}
-			buffer buffer(buffer_size);
-			return read_file(file, buffer, offset);
+			}, m_iocp);
+			return stdx::task<file_io_info>(task);
 		}
 	private:
 		iocp_t m_iocp;
@@ -413,15 +403,7 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, open_type, shared_model);
 		}
-		file_io_context read_file(HANDLE file, const file_io_info &info)
-		{
-			return m_impl->read_file(file, info);
-		}
-		file_io_context read_file(HANDLE file, const buffer &buffer, unsigned int offset = 0)
-		{
-			return m_impl->read_file(file, buffer, offset);
-		}
-		file_io_context read_file(HANDLE file, unsigned int buffer_size=4096U, unsigned int offset=0)
+		stdx::task<file_io_info> read_file(HANDLE file, unsigned int buffer_size=4096U, unsigned int offset=0)
 		{
 			return m_impl->read_file(file, buffer_size, offset);
 		}
@@ -439,8 +421,7 @@ namespace stdx
 		{}
 		stdx::task<file_io_info> &read(unsigned int buffer_size=4096U,unsigned int offset=0)
 		{
-			return m_io_service.read_file(m_file, buffer_size, offset)
-				.get_task();
+			return m_io_service.read_file(m_file, buffer_size, offset);
 		}
 	private:
 		io_service_t m_io_service;
