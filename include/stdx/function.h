@@ -1,13 +1,14 @@
 #pragma once
 #include <functional>
+#include <stdx/traits/type_list.h>
 
 namespace stdx
 {
 	template<typename _R = void>
-	class _BasicAction
+	class _BasicRunable
 	{
 	public:
-		virtual ~_BasicAction() = default;
+		virtual ~_BasicRunable() = default;
 		virtual _R run() = 0;
 	};
 
@@ -31,28 +32,28 @@ namespace stdx
 	};
 
 	template<typename _R,typename _Fn>
-	class _Action:public _BasicAction<_R>
+	class _Runable:public _BasicRunable<_R>
 	{
 	public:
-		_Action()
-			:_BasicAction<_R>()
+		_Runable()
+			:_BasicRunable<_R>()
 		{}
-		_Action(_Fn &&fn)
-			:_BasicAction()
+		_Runable(_Fn &&fn)
+			:_BasicRunable()
 			, m_func(fn)
 		{}
-		~_Action()=default;
+		~_Runable()=default;
 
-		_Action(_Action<_R,_Fn> &&other)
+		_Runable(_Runable<_R,_Fn> &&other)
 			:m_func(std::move(other.m_func))
 		{
 		}
 
-		_Action(const _Action<_R,_Fn> &other)
+		_Runable(const _Runable<_R,_Fn> &other)
 			:m_func(other.m_func)
 		{}
 
-		_Action<_R,_Fn> &operator=(const _Action<_R,_Fn> &other)
+		_Runable<_R,_Fn> &operator=(const _Runable<_R,_Fn> &other)
 		{
 			m_func = other.m_func;
 			return *this;
@@ -72,57 +73,20 @@ namespace stdx
 		_Fn m_func;
 	};
 
-	template<typename _R>
-	class action
+	template<typename T>
+	using runable_ptr = std::shared_ptr<_BasicRunable<T>>;
+	
+	template<typename T, typename _Fn>
+	runable_ptr<T> make_runable(_Fn &&fn)
 	{
-		using impl_t = std::shared_ptr<_BasicAction<_R>>;
-	public:
-		template<typename _Fn>
-		action(_Fn &&fn)
-			:m_impl(new _Action<_R,_Fn>(std::move(fn)))
-		{}
-		action(const action<_R> &other)
-			:m_impl(other.m_impl)
-		{}
-		action(action<_R> &&other)
-			:m_impl(other.m_impl)
-		{}
-		~action() = default;
-		action<_R> &operator=(const action<_R> &other)
-		{
-			printf("1");
-			m_impl = other.m_impl;
-			return *this;
-		}
-		_R operator()()
-		{
-			return m_impl->run();
-		}
-		operator bool()
-		{
-			return (bool)m_impl;
-		}
-	private:
-		impl_t m_impl;
+		return std::make_shared<_Runable<T,_Fn>>(fn);
+	}
+
+	template<typename T,typename _Fn,typename ..._Args>
+	runable_ptr<T> make_runable(_Fn &&fn,_Args &&...args)
+	{
+		return make_runable<T>(std::bind(fn,args...))
 	};
-
-	template<typename _R = void,typename _Fn>
-	action<_R> make_action(_Fn &&func)
-	{
-		return action<_R>(func);
-	}
-
-	template<typename _R = void, typename _Fn,typename ..._Args>
-	action<_R> make_action(_Fn &&func,_Args &...args)
-	{
-		return action<_R>(std::bind(func,args...));
-	}
-
-	template<typename _R = void, typename _Fn>
-	std::shared_ptr<_Action<_R, _Fn>> _MakeAction(_Fn &func)
-	{
-		return std::make_shared<_Action<_R, _Fn>>(std::move(func));
-	}
 
 	template<typename _R,typename ..._Args>
 	class _BasicFunction
@@ -175,6 +139,41 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	template<typename _Fn,typename ..._Args>
-	auto _GetFnRetType(_Fn &&fn,_Args &&...args)->decltype(fn(args...));
+	
+
+	template<typename _Fn>
+	struct function_info;
+
+	template<typename _Result,typename ..._Args>
+	struct function_info<_Result(*)(_Args...)>
+	{
+		using result = _Result;
+		using arguments = stdx::type_list<_Args...>;
+	};
+
+	template<typename _Class,typename _Result,typename ..._Args>
+	struct function_info<_Result(_Class::*)(_Args...)>
+	{
+		using belong_type = _Class;
+		using result = _Result;
+		using arguments = stdx::type_list<_Args...>;
+	};
+
+	template<typename _Class, typename _Result, typename ..._Args>
+	struct function_info<_Result(_Class::*)(_Args...) const>
+	{
+		using belong_type = _Class;
+		using result = _Result;
+		using arguments = stdx::type_list<_Args...>;
+	};
+	template<typename _Fn>
+	struct function_info
+	{
+	private:
+		using info = function_info<decltype(&_Fn::operator())>;
+	public:
+		using result = typename info::result;
+		using arguments = typename info::arguments;
+		using belong_type = _Fn;
+	};
 }

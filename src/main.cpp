@@ -84,6 +84,19 @@ int main()
 			std::cout << str;
 		}
 	});*/
+	auto t = stdx::async([]() 
+	{
+		return 1;
+	})
+		.then([](int i) 
+	{
+		std::cout << i;
+		return i+2;
+	})
+		/*.then([](int i) 
+	{
+		std::cout << i;
+	})*/;
 	std::cin.get();
 	return 0;
 }

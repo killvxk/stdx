@@ -24,90 +24,6 @@ namespace stdx
 		};
 	};
 
-
-	class _BadParamType;
-
-	template<typename _Ret,typename _Option>
-	class _TaskNextOption
-	{
-		using Ret = _Ret;
-		using Option = _Option;
-	};
-
-	class _TaskNextUsingResult;
-
-	class _TaskNextUsingValue;
-
-	class _TaskNextUsingVoid;
-
-	template<typename _Function, typename _Type>
-	auto _ReturnTypeHelper(_Type t, _Function _Func,int,int) -> _TaskNextOption<decltype(_Func(std::declval<stdx::task_result<_Type>>())),_TaskNextUsingResult>;
-	template<typename _Function, typename _Type>
-	auto _ReturnTypeHelper(_Type t, _Function _Func,int,...) -> _TaskNextOption<decltype(_Func(t)),_TaskNextUsingValue>;
-	template<typename _Function, typename _Type>
-	auto _ReturnTypeHelper(_Type t, _Function _Func,...)->_BadParamType;
-
-	template<typename _Function, typename _ExpectedParameterType>
-	struct _FunctionTypeTraits
-	{
-		using ret_type = decltype(_ReturnTypeHelper(std::declval<_ExpectedParameterType>(), std::declval<_Function>(), 0, 0))::Ret;
-		static_assert(!std::is_same<_FuncRetType, _BadParamType>::value,
-			"incorrect parameter type for the callable object in 'then'; consider _ExpectedParameterType or "
-			"task<_ExpectedParameterType> (see below)");
-
-		using opetion = decltype(
-			_ReturnTypeHelper(std::declval<_ExpectedParameterType>(), std::declval<_Function>(), 0, 0))::Option;
-	};
-
-	template<typename _Function>
-	struct _FunctionTypeTraits<_Function,void>
-	{
-		using ret_type = decltype(std::declval<_Function>()());
-
-		using opetion = _TaskNextUsingVoid;
-	};
-
-	//template<typename _Function, typename _Type>
-	//auto _IsTaskHelper(_Type t, _Function _Func, int, int) -> decltype(_Func(_To_task(t)), std::true_type());
-
-	//template<typename _Function, typename _Type>
-	//std::false_type _IsTaskHelper(_Type t, _Function _Func, int, ...);
-
-	//template<typename _Function, typename _Type>
-	//auto _ReturnTypeHelper(_Type t, _Function _Func, int, int) -> decltype(_Func(stdx::task_result<_Type>(t)));
-	//template<typename _Function, typename _Type>
-	//auto _ReturnTypeHelper(_Type t, _Function _Func, int, ...) -> decltype(_Func(t));
-	//template<typename _Function, typename _Type>
-	//auto _ReturnTypeHelper(_Type t, _Function _Func, ...)->_BadContinuationParamType;
-
-	//template<typename _Function, typename _ExpectedParameterType>
-	//struct _FunctionTypeTraits
-	//{
-	//	typedef decltype(
-	//		_ReturnTypeHelper(stdx::declval<_ExpectedParameterType>(), stdx::declval<_Function>(), 0, 0)) _FuncRetType;
-	//	static_assert(!std::is_same<_FuncRetType, _BadContinuationParamType>::value,
-	//		"incorrect parameter type for the callable object in 'then'; consider _ExpectedParameterType or "
-	//		"task<_ExpectedParameterType> (see below)");
-
-	//	typedef decltype(
-	//		_IsTaskHelper(stdx::declval<_ExpectedParameterType>(), stdx::declval<_Function>(), 0, 0)) _Takes_task;
-	//};
-
-	//template<typename _Function>
-	//struct _FunctionTypeTraits<_Function, void>
-	//{
-	//	typedef decltype(_VoidReturnTypeHelper(stdx::declval<_Function>(), 0, 0)) _FuncRetType;
-	//	typedef decltype(_VoidIsTaskHelper(stdx::declval<_Function>(), 0, 0)) _Takes_task;
-	//};
-
-	//template<typename _Function, typename _ReturnType>
-	//struct _ContinuationTypeTraits
-	//{
-	//	typedef task<
-	//		typename _TaskTypeTraits<typename _FunctionTypeTraits<_Function, _ReturnType>::_FuncRetType>::_TaskRetType>
-	//		_TaskOfType;
-	//};
-
 	//task_result模板
 	template<typename _T>
 	class task_result
@@ -225,10 +141,10 @@ namespace stdx
 			return t;
 		}
 
-		template<typename _Fn, typename __R = _FunctionTypeTraits<_Fn, _R>::ret_type>
+		template<typename _Fn, typename __R = stdx::function_info<_Fn>::result>
 		task<__R> then(_Fn &&fn)
 		{
-			return task<__R>(m_impl->then<__R>(fn));
+			return task<__R>(m_impl->then<_Fn>(std::move(fn)));
 		}
 
 		void wait()
@@ -246,11 +162,11 @@ namespace stdx
 			return m_impl->is_complete();
 		}
 
-		template<typename __R>
-		task<void> with(task<__R> other)
-		{
-			return task<void>(m_impl->with(other.m_impl));
-		}
+		//template<typename __R>
+		//task<void> with(task<__R> other)
+		//{
+		//	return task<void>(m_impl->with(other.m_impl));
+		//}
 
 		operator bool() const
 		{
@@ -264,13 +180,13 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::action<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
 				//调用方法
 				//设置promise
-				promise->set_value(call());
+				promise->set_value(call->run());
 			}
 			catch (const std::exception&)
 			{
@@ -314,12 +230,12 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::action<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
 				//调用方法
-				call();
+				call->run();
 				//设置promise
 				promise->set_value();
 			}
@@ -361,25 +277,22 @@ namespace stdx
 			return;
 		}
 	};
-	//_TaskNextBuilder模板
-	template<typename _R,typename _Parm,typename Option>
-	struct _TaskNextBuilder
-	{};
 
-	template<typename _R,typename _Parm>
-	struct _TaskNextBuilder<_R,_Parm,_TaskNextUsingResult>
+	template<typename Input, typename Result, typename Arg>
+	struct _TaskNextBuilder;
+
+	template<typename Input, typename Result>
+	struct _TaskNextBuilder<Input,Result,void>
 	{
-		template<typename _Fn>
-		static std::shared_ptr<_Task<_R>> build(_Fn &&fn, std::shared_future<_R> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next)
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next)
 		{
-			//创建回调Task
-			auto t = _Task<_r>::make([](_Fn &&fn, std::shared_future<_R> &future)
+			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
 			{
-				return std::bind(fn, task_result<_R>(future))();
+				future.wait();
+				return fn();
 			}, fn, future);
-			//加锁
 			lock.lock();
-			//如果已经完成
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
@@ -388,29 +301,45 @@ namespace stdx
 				t->run();
 				return t;
 			}
-			//未完成则设置回调
-			*next = t;
-			//解锁
 			lock.unlock();
 			return t;
+		}
+	};
+	template<typename Input, typename Result>
+	struct _TaskNextBuilder<Input, Result, stdx::task_result<Input>>
+	{
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next)
+		{
+			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
+			{
+				return std::bind(fn, task_result<Input>(future))();
+			}, fn, future);
+			lock.lock();
+			if ((*state == task_state::complete) || (*state == task_state::error))
+			{
+				//解锁
+				lock.unlock();
+				//运行
+				t->run();
+				return t;
+			}
+			lock.unlock();
 
 		}
 	};
 
-	template<typename _R, typename _Parm>
-	struct _TaskNextBuilder<_R, _Parm, _TaskNextUsingValue>
+	template<typename Input, typename Result>
+	struct _TaskNextBuilder<Input, Result,Input>
 	{
-		template<typename _Fn>
-		static std::shared_ptr<_Task<_R>> build(_Fn &&fn, std::shared_future<_R> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next)
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> next)
 		{
-			//创建回调Task
-			auto t = _Task<_r>::make([](_Fn &&fn, std::shared_future<_R> &future)
+			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
 			{
 				return std::bind(fn,future.get())();
 			}, fn, future);
-			//加锁
 			lock.lock();
-			//如果已经完成
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
@@ -419,70 +348,34 @@ namespace stdx
 				t->run();
 				return t;
 			}
-			//未完成则设置回调
 			*next = t;
-			//解锁
 			lock.unlock();
 			return t;
-
 		}
 	};
 
-	template<typename _R, typename _Parm>
-	struct _TaskNextBuilder<_R, _Parm, _TaskNextUsingVoid>
+	template<typename Input, typename Result>
+	struct _TaskNextBuilder<stdx::task<Input>,Result,Input>
 	{
-		template<typename _Fn>
-		static std::shared_ptr<_Task<_R>> build(_Fn &&fn, std::shared_future<_R> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next)
-		{
-			//创建回调Task
-			auto t = _Task<_r>::make([](_Fn &&fn, std::shared_future<_R> &future)
-			{
-				future.get();
-				return fn();
-			}, fn, future);
-			//加锁
-			lock.lock();
-			//如果已经完成
-			if ((*state == task_state::complete) || (*state == task_state::error))
-			{
-				//解锁
-				lock.unlock();
-				//运行
-				t->run();
-				return t;
-			}
-			//未完成则设置回调
-			*next = t;
-			//解锁
-			lock.unlock();
-			return t;
-
-		}
-	};
-	//用于实现返回Task的Task回调
-	template<typename _R, typename _Parm,typename _Option>
-	struct _TaskNextBuilder<_R,stdx::task<_Parm>,_Option>
-	{
-		template<typename _Fn>
-		static std::shared_ptr<_Task<_R>> build(_Fn &&fn, std::shared_future<stdx::task<_Parm>> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> next)
+		template<typename Fn>
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, ...)
 		{
 			return future.get().then(fn);
 		}
 	};
 
-
 	//Task模板的实现
 	template<typename R>
-	class _Task :public stdx::_BasicAction<void>
+	class _Task :public stdx::_BasicRunable<void>
 	{
 	public:
 		//构造函数
 		template<typename _Fn, typename ..._Args>
 		explicit _Task(_Fn &&f, _Args &&...args)
-			:m_action(stdx::make_action<R>(std::bind(f, args...)))
+			:m_action(stdx::make_runable<R>(std::move(f), args...))
 			, m_promise(std::make_shared<std::promise<R>>())
 			, m_future(m_promise->get_future())
-			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicAction<void>>>(nullptr))
+			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicRunable<void>>>(nullptr))
 			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
 
@@ -491,10 +384,10 @@ namespace stdx
 
 		template<typename _Fn>
 		explicit _Task(_Fn &&f)
-			:m_action(stdx::make_action<R>(f))
+			:m_action(stdx::make_runable<R>(std::move(f)))
 			, m_promise(std::make_shared<std::promise<R>>())
 			, m_future(m_promise->get_future())
-			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicAction<void>>>(nullptr))
+			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicRunable<void>>>(nullptr))
 			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
 		{
@@ -524,16 +417,16 @@ namespace stdx
 			//解锁
 			m_lock.unlock();
 			//创建方法
-			auto f = [](stdx::action<R> r
+			auto f = [](stdx::runable_ptr<R> r
 				, std::shared_ptr<std::promise<R>> promise
-				, std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>>  next
+				, std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>>  next
 				, stdx::spin_lock lock
 				, std::shared_ptr<int> state)
 			{
 				stdx::_TaskCompleter<R>::call(r, promise, next, lock, state);
 			};
 			//放入线程池
-			stdx::threadpool::run(std::bind(f, m_action, m_promise, m_next, m_lock, m_state));
+			stdx::threadpool::run(f, m_action, m_promise, m_next, m_lock, m_state);
 		}
 
 		//等待当前Task(不包括后续)完成
@@ -563,51 +456,35 @@ namespace stdx
 		}
 
 		//延续Task
-		template<typename _Fn,typename _R = _FunctionTypeTraits<_Fn,R>::ret_type,typename Opetion = _FunctionTypeTraits<_Fn,R>::option>
+		template<typename _Fn,typename _R = stdx::function_info<_Fn>::result>
 		std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 		{
-			std::shared_ptr<_Task<_R>> t = stdx::_TaskNextBuilder<R, _R>::build(fn, m_future, m_state, m_lock, m_next);
+			using args_tl = stdx::function_info<_Fn>::arguments;
+			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R,_R,stdx::type_at<0,args_tl>>::build(fn,m_future,m_state,m_lock,m_next);
 			return t;
 		}
 
 		//合并Task
-		template<typename _R>
-		std::shared_ptr<_Task<void>> with(std::shared_ptr<_Task<_R>> other)
-		{
-			return then([other](stdx::task_result<void>&) 
-			{
-				other->wait();
-			});
-		}
+		//template<typename _R>
+		//std::shared_ptr<_Task<void>> with(std::shared_ptr<_Task<_R>> other)
+		//{
+		//	return then([other](stdx::task_result<void>&) 
+		//	{
+		//		other->wait();
+		//	});
+		//}
 
 	protected:
-		stdx::action<R> m_action;
+		stdx::runable_ptr<R> m_action;
 		std::shared_ptr<std::promise<R>> m_promise;
 		std::shared_future<R> m_future;
-		std::shared_ptr<std::shared_ptr<stdx::_BasicAction<void>>> m_next;
+		std::shared_ptr<std::shared_ptr<stdx::_BasicRunable<void>>> m_next;
 		std::shared_ptr<int> m_state;
 		stdx::spin_lock m_lock;
 	};	
 
-	template<typename T>
-	task<T> _ToTaskType();
-
-	template<typename _Fn,typename ..._Args>
-	auto _ReturnFunctionType(_Fn fn,_Args ...args) ->decltype(fn(args...));
-
-	template<typename _Fn,typename ..._Args>
-	struct _FunctionReturnType
-	{
-		using type = decltype(_ReturnFunctionType(std::declval<_Fn>(),std::declval<_Args>...()));
-	};
-	template<typename _Fn>
-	struct _FunctionReturnType<_Fn,void>
-	{
-		using type = decltype(std::declval<_Fn>()());
-	};
-
 	//启动一个Task
-	template<typename _R = void,typename _Fn, typename ..._Args>
+	template<typename _Fn, typename ..._Args,typename _R = stdx::function_info<_Fn>::result>
 	stdx::task<_R> async(_Fn &fn, _Args &...args)
 	{
 		return task<_R>::start(fn,args...);

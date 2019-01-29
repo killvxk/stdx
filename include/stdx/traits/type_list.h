@@ -6,6 +6,12 @@ namespace stdx
 	template<typename ..._T>
 	struct type_list;
 
+	template<>
+	struct type_list<>
+	{
+		using First = void;
+	};
+
 	template<int index,typename _TL>
 	struct _TypeAt
 	{

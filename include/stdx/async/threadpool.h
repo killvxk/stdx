@@ -109,7 +109,7 @@ namespace stdx
 	//线程池
 	class _Threadpool
 	{
-		using runable_ptr = std::shared_ptr<stdx::_BasicAction<void>>;
+		using runable_ptr = std::shared_ptr<stdx::_BasicRunable<void>>;
 	public:
 		//构造函数
 		_Threadpool()
@@ -135,14 +135,14 @@ namespace stdx
 
 		//执行任务
 		template<typename _Fn, typename ..._Args>
-		void run_task(_Fn &task, _Args &...args)
+		void run_task(_Fn &&task, _Args &&...args)
 		{
 			if (m_free_count == 0)
 			{
 				add_thread();
 				m_free_count.add();
 			}
-			runable_ptr c = stdx::_MakeAction<void>(std::bind(task,args...));
+			runable_ptr c = stdx::make_runable<void>(std::bind(std::move(task),args...));
 			m_task_queue->push(c);
 			m_barrier.pass();
 		}
@@ -179,7 +179,7 @@ namespace stdx
 						//进入自旋锁
 						lock.lock();
 						//获取任务
-						runable_ptr t(tasks->front());
+						runable_ptr t  = tasks->front();
 						//从queue中pop
 						tasks->pop();
 						//解锁
@@ -227,9 +227,9 @@ namespace stdx
 		using impl_t = std::shared_ptr<stdx::_Threadpool>;
 		//执行任务
 		template<typename _Fn,typename ..._Args>
-		static void run(_Fn &fn,_Args &...args)
+		static void run(_Fn &&fn,_Args &&...args)
 		{
-			m_impl->run_task(fn,args...);
+			m_impl->run_task(std::move(fn),args...);
 		}
 	private:
 		threadpool() = default;
