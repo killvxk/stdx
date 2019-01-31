@@ -101,6 +101,7 @@ namespace stdx
 	{
 		using impl_t = std::shared_ptr<_BasicFunction<_R,_Args...>>;
 	public:
+		function() = default;
 		template<typename _Fn>
 		function(_Fn &&fn)
 			:m_impl(new _Function<_R,_Fn,_Args...>(std::move(fn)))
@@ -120,6 +121,10 @@ namespace stdx
 		_R operator()(const _Args &...args)
 		{
 			return m_impl->run(args...);
+		}
+		operator bool()
+		{
+			return (bool)m_impl;
 		}
 	private:
 		impl_t m_impl;

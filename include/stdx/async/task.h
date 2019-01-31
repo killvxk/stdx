@@ -333,7 +333,7 @@ namespace stdx
 				return t;
 			}
 			lock.unlock();
-
+			return t;
 		}
 	};
 
@@ -369,7 +369,7 @@ namespace stdx
 		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, ...)
 		{
 			auto t = future.get();
-			return t.then<Fn>(fn);
+			return t.then(fn);
 		}
 	};
 
@@ -519,51 +519,36 @@ namespace stdx
 		{}
 		void run() override
 		{
-			m_promise->set_value(m_action->run());
+			stdx::_TaskCompleter<R>::call(m_action,m_promise,m_next,m_lock,m_state);
 		}
 
 	};
-
-	template<>
-	class _SyncTask<void> :public _Task<void>
-	{
-	public:
-		template<typename _Fn, typename ..._Args>
-		_SyncTask(_Fn &&fn, _Args &&...args)
-			:_Task<void>(std::move(fn), args...)
-		{}
-		void run() override
-		{
-			m_action->run();
-			m_promise->set_value();
-		}
-	};
-
 	template<typename _Result>
 	class _TaskCompleteEvent
 	{
 	public:
 		_TaskCompleteEvent()
-			:m_promise()
-			,m_future(m_promise.get_future())
+			:m_promise(std::make_shared<std::promise<_Result>>())
 		{}
 		~_TaskCompleteEvent()=default;
 		void set_value(const _Result &value)
 		{
-			m_promise.set_value(value);
+			m_promise->set_value(value);
 		}
 		void set_exception(std::exception_ptr exception_ptr)
 		{
-			m_promise.set_exception(exception_ptr);
+			m_promise->set_exception(exception_ptr);
 		}
 
 		stdx::task<_Result> get_task()
 		{
-			return task<_Result>(nullptr);
+			return stdx::async([this]() 
+			{
+				return m_promise->get_future().get();
+			});
 		}
 	private:
-		std::promise<_Result> m_promise;
-		std::shared_future<_Result> m_future;
+		std::shared_ptr<std::promise<_Result>> m_promise;
 	};
 
 	template<typename _R>

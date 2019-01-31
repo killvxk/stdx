@@ -166,14 +166,14 @@ namespace stdx
 		io_context(HANDLE file_handle,const _Args &...args)
 			:m_parm(std::make_shared<_Parm>(args...))
 			, m_file_handle(file_handle)
-			, m_runable(std::make_shared<stdx::runable_ptr<void>>())
+			, m_promise(std::make_shared<std::promise<_Parm>>())
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
 		io_context(const std::shared_ptr<_Parm> &parm,HANDLE file_handle)
 			:m_parm(parm)
 			,m_file_handle(file_handle)
-			, m_runable(std::make_shared<stdx::runable_ptr<void>>())
+			, m_promise(std::make_shared<std::promise<_Parm>>())
 		{
 			std::memset(&m_ol, 0, sizeof(m_ol));
 		}
@@ -181,14 +181,14 @@ namespace stdx
 			:m_ol(other.m_ol)
 			,m_parm(other.m_parm)
 			,m_file_handle(other.m_file_handle)
-			, m_runable(other.m_runable)
+			, m_promise(other.m_promise)
 		{
 		}
 		io_context(io_context<_Parm> &&other)
 			:m_ol(other.m_ol)
 			,m_parm(std::move(other.m_parm))
 			,m_file_handle(std::move(other.m_file_handle))
-			, m_runable(std::move(other.m_runable))
+			, m_promise(std::move(other.m_promise))
 
 		{
 		}
@@ -210,20 +210,16 @@ namespace stdx
 		}
 		void callback()
 		{
-			if (!m_runable)
-			{
-				throw std::logic_error("the callback is not set");
-			}
-			(*m_runable)->run();
+			m_promise->set_value(*m_parm);
 		}
-		void set_callback(const stdx::runable_ptr<void> &runable)
+		std::shared_ptr<std::shared_future<_Parm>> get_future()
 		{
-			*m_runable = runable;
+			return std::make_shared<std::shared_future<_Parm>>(m_promise->get_future());
 		}
 	private:
 		std::shared_ptr<_Parm> m_parm;
 		HANDLE m_file_handle;
-		std::shared_ptr<stdx::runable_ptr<void>> m_runable;
+		std::shared_ptr<std::promise<_Parm>> m_promise;
 	};
 
 
@@ -267,8 +263,7 @@ namespace stdx
 				//处理错误
 				_ThrowWinError
 			}
-			stdx::io_context<_IOContext> context (*CONTAINING_RECORD(ol, stdx::io_context<_IOContext>, m_ol));
-			return context;
+			return *CONTAINING_RECORD(ol, stdx::io_context<_IOContext>, m_ol);
 		}
 
 	private:
@@ -364,15 +359,11 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		stdx::task<file_io_info> read_file(HANDLE file, unsigned int buffer_size = 4096U, unsigned int offset = 0)
+		std::shared_ptr<std::shared_future<file_io_info>> read_file(HANDLE file, unsigned int buffer_size = 4096U, unsigned int offset = 0)
 		{
 			file_io_context context(file, buffer_size);
 			context.get().set_offset(offset);
-			std::shared_ptr<_Task<file_io_info>> task(std::make_shared<_SyncTask<file_io_info>>([](file_io_context context) 
-			{
-				return context.get();
-			},context));
-			context.set_callback(task);
+			auto future = context.get_future();
 			if (!ReadFile(file, context.get().get_buffer(), context.get().get_buffer().size(), NULL, &context.m_ol))
 			{
 				_ThrowWinError
@@ -382,7 +373,7 @@ namespace stdx
 				auto context = iocp.get();
 				context.callback();
 			}, m_iocp);
-			return stdx::task<file_io_info>(task);
+			return future;
 		}
 	private:
 		iocp_t m_iocp;
@@ -403,7 +394,7 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, open_type, shared_model);
 		}
-		stdx::task<file_io_info> read_file(HANDLE file, unsigned int buffer_size=4096U, unsigned int offset=0)
+		std::shared_ptr<std::shared_future<file_io_info>> read_file(HANDLE file, unsigned int buffer_size=4096U, unsigned int offset=0)
 		{
 			return m_impl->read_file(file, buffer_size, offset);
 		}
@@ -419,9 +410,12 @@ namespace stdx
 			:m_io_service(io_service)
 			,m_file(m_io_service.create_file(path,access_type,open_type,shared_model))
 		{}
-		stdx::task<file_io_info> &read(unsigned int buffer_size=4096U,unsigned int offset=0)
+		stdx::task<file_io_info> read(unsigned int buffer_size=4096U,unsigned int offset=0)
 		{
-			return m_io_service.read_file(m_file, buffer_size, offset);
+			return stdx::async([](std::shared_ptr<std::shared_future<file_io_info>> future) 
+			{
+				return future->get();
+			},m_io_service.read_file(m_file, buffer_size, offset));
 		}
 	private:
 		io_service_t m_io_service;
