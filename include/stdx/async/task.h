@@ -4,6 +4,7 @@
 #include <memory>
 #include <future>
 #include <stdx/traits/ref_type.h>
+#include <stdx/traits/value_type.h>
 #include <stdx/function.h>
 #include <stdx/tuple.h>
 namespace stdx
@@ -499,7 +500,7 @@ namespace stdx
 		std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 		{
 			using args_tl = stdx::function_info<_Fn>::arguments;
-			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R,_R,stdx::type_at<0,args_tl>>::build(fn,m_future,m_state,m_lock,m_next);
+			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R,_R,stdx::value_type<stdx::type_at<0,args_tl>>>::build(fn,m_future,m_state,m_lock,m_next);
 			return t;
 		}
 
