@@ -6,7 +6,7 @@ Task模板:
 #include <iostream>
 int main()
 {
-	auto task = stdx::async<void>([]()
+	auto task = stdx::async([]()
 	{
 		std::cout << "hello world" << std::endl; //使用stdx::async方法创建任务
 	})
@@ -20,16 +20,16 @@ int main()
 		{
 			std::cerr << e.what() << std::endl;
 		}
-	})
-	.then<stdx::task<void>>([](stdx::task_result<void>) //参数必须是stdx::task_result
+	}
+	.then([](stdx::task_result<void>) //参数必须是stdx::task_result或者上个task的返回类型
 	{
 		return stdx::async<void>([](){});
 	})
-	.then<int>([](stdx::task_result<void>) //延续返回task的task
+	.then([](stdx::task_result<void>) //延续返回task的task
 	{
 		return 0;
 	})
-	.then<int>([](stdx::task_result<int> r) //延续有返回值的任务
+	.then([](stdx::task_result<int> r) //延续有返回值的任务
 	{
 		try
 		{
