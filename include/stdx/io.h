@@ -6,6 +6,7 @@
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+//定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
 						if(_ERROR_CODE != ERROR_IO_PENDING) \
@@ -24,6 +25,7 @@
 
 namespace stdx
 {
+	//自动释放缓存区实现
 	class _Buffer
 	{
 	public:
@@ -89,6 +91,8 @@ namespace stdx
 		size_t m_size;
 		char *m_data;
 	};
+
+	//自动释放缓存区
 	class buffer
 	{
 		using impl_t = std::shared_ptr<_Buffer>;
@@ -134,45 +138,8 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	class file_io_info
-	{
-	public:
-		file_io_info(size_t size=4096)
-			:m_offset(0)
-			,m_buffer(size)
-		{}
-		file_io_info(const file_io_info &other)
-			:m_buffer(other.m_buffer)
-			,m_offset(other.m_offset)
-		{}
-		~file_io_info() = default;
-		file_io_info &operator=(const file_io_info &other)
-		{
-			m_buffer = other.m_buffer;
-			m_offset = other.m_offset;
-			return *this;
-		}
-		unsigned int get_offset() const
-		{
-			return m_offset;
-		}
-		void set_offset(unsigned int offset)
-		{
-			m_offset = offset;
-		}
-		buffer get_buffer() const
-		{
-			return m_buffer;
-		}
-		void set_buffer(const buffer &other)
-		{
-			m_buffer = other;
-		}
-	private:
-		buffer m_buffer;
-		unsigned int m_offset;
-	};
 
+	//文件IO上下文
 	struct file_io_context
 	{
 		file_io_context()
@@ -188,6 +155,7 @@ namespace stdx
 		bool eof;
 	};
 
+	//文件读取完成事件
 	struct file_read_event
 	{
 		file_read_event() = default;
@@ -225,6 +193,7 @@ namespace stdx
 		bool eof;
 	};
 
+	//文件写入完成事件
 	struct file_write_event
 	{
 		file_write_event() = default;
@@ -251,6 +220,7 @@ namespace stdx
 		size_t size;
 	};
 
+	//IOCP封装
 	template<typename _IOContext>
 	class _IOCP
 	{
@@ -295,6 +265,7 @@ namespace stdx
 		HANDLE m_iocp;
 	};
 
+	//IOCP引用封装
 	template<typename _IOContext>
 	class iocp
 	{
@@ -332,6 +303,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
+	//文件访问类型
 	struct file_access_type
 	{
 		enum
@@ -343,6 +315,7 @@ namespace stdx
 		};
 	};
 
+	//文件共享类型
 	struct file_shared_model
 	{
 		enum
@@ -353,6 +326,8 @@ namespace stdx
 			shared_delete = FILE_SHARE_DELETE
 		};
 	};
+
+	//文件打开类型
 	struct file_open_type
 	{
 		enum
@@ -363,6 +338,8 @@ namespace stdx
 			create_open = OPEN_ALWAYS
 		};
 	};
+
+	//文件IO服务实现
 	class _FileIOService
 	{
 	public:
@@ -479,6 +456,7 @@ namespace stdx
 		iocp_t m_iocp;
 	};
 
+	//文件IO服务
 	class file_io_service
 	{
 		using impl_t = std::shared_ptr<_FileIOService>;
@@ -522,6 +500,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
+	//异步文件流
 	class async_fstream
 	{
 		using io_service_t = file_io_service;

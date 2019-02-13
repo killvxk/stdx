@@ -8,14 +8,14 @@ int main()
 	{
 		std::string str = "原来WriteFile会覆盖";
 		stream.write(str.c_str(), str.size())
-			.then([stream](stdx::file_write_event e) 
+			.then([stream](stdx::file_write_event e) mutable
 			{
-				std::cout << "实际写入字节数:" << e.size;
-				return stream.read()
+				std::cout << "实际写入字节数:" << e.size <<std::endl;
+				return stream.read(1024, 0);
 			})
-			.then([]() 
+			.then([](stdx::file_read_event e) 
 			{
-
+				std::cout << e.buffer;
 			});
 	}
 	catch (const std::exception&e)
