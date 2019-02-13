@@ -173,38 +173,38 @@ namespace stdx
 		unsigned int m_offset;
 	};
 
-	struct _FileIOContext
+	struct file_io_context
 	{
-		_FileIOContext()
+		file_io_context()
 		{
 			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
 		}
-		~_FileIOContext() = default;
+		~file_io_context() = default;
 		OVERLAPPED m_ol;
 		HANDLE file;
 		char *buffer;
-		size_t buffer_size;
-		size_t offset;
+		DWORD size;
+		DWORD offset;
 		bool eof;
 	};
 
-	struct file_io_context
+	struct file_read_event
 	{
-		file_io_context() = default;
-		~file_io_context() = default;
-		file_io_context(const file_io_context &other)
+		file_read_event() = default;
+		~file_read_event() = default;
+		file_read_event(const file_read_event &other)
 			:file(other.file)
 			,buffer(other.buffer)
 			,offset(other.offset)
 			,eof(other.eof)
 		{}
-		file_io_context(file_io_context &&other)
+		file_read_event(file_read_event &&other)
 			:file(std::move(other.file))
 			,buffer(std::move(other.buffer))
 			,offset(std::move(other.offset))
 			,eof(std::move(other.eof))
 		{}
-		file_io_context &operator=(const file_io_context &other)
+		file_read_event &operator=(const file_read_event &other)
 		{
 			file = other.file;
 			buffer = other.buffer;
@@ -212,9 +212,9 @@ namespace stdx
 			eof = other.eof;
 			return *this;
 		}
-		file_io_context(_FileIOContext *ptr)
+		file_read_event(file_io_context *ptr)
 			:file(ptr->file)
-			,buffer(ptr->buffer_size,ptr->buffer)
+			,buffer(ptr->size,ptr->buffer)
 			,offset(ptr->offset)
 			,eof(ptr->eof)
 		{
@@ -223,6 +223,32 @@ namespace stdx
 		buffer buffer;
 		size_t offset;
 		bool eof;
+	};
+
+	struct file_write_event
+	{
+		file_write_event() = default;
+		~file_write_event() = default;
+		file_write_event(const file_write_event &other)
+			:file(other.file)
+			,size(other.size)
+		{}
+		file_write_event(file_write_event &&other)
+			:file(std::move(other.file))
+			,size(std::move(other.size))
+		{}
+		file_write_event &operator=(const file_write_event &other)
+		{
+			file = other.file;
+			size = other.size;
+			return *this;
+		}
+		file_write_event(file_io_context *ptr)
+			:file(ptr->file)
+			,size(ptr->size)
+		{}
+		HANDLE file;
+		size_t size;
 	};
 
 	template<typename _IOContext>
@@ -340,7 +366,7 @@ namespace stdx
 	class _FileIOService
 	{
 	public:
-		using iocp_t = stdx::iocp<_FileIOContext>;
+		using iocp_t = stdx::iocp<file_io_context>;
 		_FileIOService()
 			:m_iocp()
 		{}
@@ -358,15 +384,15 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		void read_file(HANDLE file, size_t buffer_size, size_t offset,std::function<void(file_io_context)> &&callback)
+		void read_file(HANDLE file, size_t size, size_t offset,std::function<void(file_read_event)> &&callback)
 		{
-			_FileIOContext *context = new _FileIOContext;
+			file_io_context *context = new file_io_context;
 			context->eof = false;
 			context->file = file;
 			context->offset = offset;
-			context->buffer = (char*)std::calloc(buffer_size,sizeof(char));
-			context->buffer_size = buffer_size;
-			if (!ReadFile(file,context->buffer, context->buffer_size, NULL, &(context->m_ol)))
+			context->buffer = (char*)std::calloc(size,sizeof(char));
+			context->size = size;
+			if (!ReadFile(file,context->buffer, context->size, NULL, &(context->m_ol)))
 			{
 				//处理错误
 				DWORD code = GetLastError();
@@ -392,11 +418,10 @@ namespace stdx
 					}
 				}
 			}
-			stdx::threadpool::run([](iocp_t &iocp, std::function<void(file_io_context)> &callback)
+			stdx::threadpool::run([](iocp_t &iocp, std::function<void(file_read_event)> &callback)
 			{
 				auto *context_ptr = iocp.get();
-				DWORD size = context_ptr->buffer_size;
-				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &size, false))
+				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
 				{
 					DWORD code = GetLastError();
 					if (code != ERROR_IO_PENDING)
@@ -421,11 +446,34 @@ namespace stdx
 						}
 					}
 				}
-				auto context = file_io_context(context_ptr);
+				auto context = file_read_event(context_ptr);
 				delete context_ptr;
 				callback(context);
 			}, m_iocp,callback);
 			return;
+		}
+		void write_file(HANDLE file,const char *buffer,size_t size,std::function<void(file_write_event)> &&callback)
+		{
+			file_io_context *context_ptr = new file_io_context;
+			context_ptr->buffer =(char*) buffer;
+			context_ptr->size = 0;
+			context_ptr->eof = false;
+			context_ptr->offset = 0;
+			if (!WriteFile(file, buffer, size, &(context_ptr->size), &(context_ptr->m_ol)))
+			{
+				_ThrowWinError
+			}
+			stdx::threadpool::run([](iocp_t &iocp, std::function<void(file_write_event)> &callback)
+			{
+				auto *context_ptr = iocp.get();
+				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+				{
+					_ThrowWinError
+				}
+				auto context = file_write_event(context_ptr);
+				delete context_ptr;
+				callback(context);
+			},m_iocp,callback);
 		}
 	private:
 		iocp_t m_iocp;
@@ -446,9 +494,13 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, file_open_type, shared_model);
 		}
-		void read_file(HANDLE file, size_t buffer_size, size_t offset, std::function<void(file_io_context)> &&callback)
+		void read_file(HANDLE file, size_t size, size_t offset, std::function<void(file_read_event)> &&callback)
 		{
-			return m_impl->read_file(file, buffer_size, offset,std::move(callback));
+			return m_impl->read_file(file, size, offset,std::move(callback));
+		}
+		void write_file(HANDLE file,const char *buffer,size_t size,std::function<void(file_write_event)> &&callback)
+		{
+			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
 	private:
 		impl_t m_impl;
@@ -462,14 +514,28 @@ namespace stdx
 			:m_io_service(io_service)
 			,m_file(m_io_service.create_file(path,access_type,file_open_type,shared_model))
 		{}
-		stdx::task<file_io_context> read(size_t buffer_size,size_t offset)
+		stdx::task<file_read_event> read(size_t size,size_t offset)
 		{
-			std::shared_ptr<std::promise<file_io_context>> promise = std::make_shared<std::promise<file_io_context>>();
-			stdx::task<file_io_context> task([promise]()
+			std::shared_ptr<std::promise<file_read_event>> promise = std::make_shared<std::promise<file_read_event>>();
+			stdx::task<file_read_event> task([promise]()
 			{
 				return promise->get_future().get();
 			});
-			m_io_service.read_file(m_file, buffer_size, offset, [promise,task](file_io_context context) mutable
+			m_io_service.read_file(m_file, size, offset, [promise,task](file_read_event context) mutable
+			{
+				promise->set_value(context);
+				task.run();
+			});
+			return task;
+		}
+		stdx::task<file_write_event> write(const char* buffer, size_t size)
+		{
+			std::shared_ptr<std::promise<file_write_event>> promise = std::make_shared<std::promise<file_write_event>>();
+			stdx::task<file_write_event> task([promise]()
+			{
+				return promise->get_future().get();
+			});
+			m_io_service.write_file(m_file, buffer, size, [promise,task](file_write_event context) mutable 
 			{
 				promise->set_value(context);
 				task.run();
