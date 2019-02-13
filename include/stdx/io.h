@@ -7,12 +7,20 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
-						if(_ERROR_CODE != 997)\
-						{\
-								std::string _ERROR_STRING("windows system error:"); \
-								_ERROR_STRING.append(std::to_string(_ERROR_CODE)); \
-								throw std::runtime_error(_ERROR_STRING.c_str()); \
+						LPVOID _MSG;\
+						if(_ERROR_CODE != ERROR_IO_PENDING) \
+						{ \
+							if(FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,NULL,_ERROR_CODE,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &_MSG,0,NULL))\
+							{ \
+								throw std::runtime_error((char*)_MSG);\
+							}else \
+							{ \
+								std::string _ERROR_MSG("windows system error:");\
+								_ERROR_MSG.append(std::to_string(_ERROR_CODE));\
+								throw std::runtime_error(_ERROR_MSG.c_str()); \
+							} \
 						}\
+						
 
 namespace stdx
 {
@@ -28,6 +36,10 @@ namespace stdx
 				throw std::bad_alloc();
 			}
 		}
+		_Buffer(size_t size, char* data)
+			:m_size(size)
+			,m_data(data)
+		{}
 		~_Buffer()
 		{
 			free(m_data);
@@ -83,6 +95,9 @@ namespace stdx
 	public:
 		buffer(size_t size=4096)
 			:m_impl(std::make_shared<_Buffer>(size))
+		{}
+		buffer(size_t size, char* data)
+			:m_impl(std::make_shared<_Buffer>(size,data))
 		{}
 		buffer(const buffer &other)
 			:m_impl(other.m_impl)
@@ -157,74 +172,58 @@ namespace stdx
 		buffer m_buffer;
 		unsigned int m_offset;
 	};
-	template<typename _Parm>
-	class io_context
-	{
-	public:
-		OVERLAPPED m_ol;
-		template<typename ..._Args>
-		io_context(HANDLE file_handle,const _Args &...args)
-			:m_parm(std::make_shared<_Parm>(args...))
-			, m_file_handle(file_handle)
-			, m_promise(std::make_shared<std::promise<_Parm>>())
-		{
-			std::memset(&m_ol, 0, sizeof(m_ol));
-		}
-		io_context(const std::shared_ptr<_Parm> &parm,HANDLE file_handle)
-			:m_parm(parm)
-			,m_file_handle(file_handle)
-			, m_promise(std::make_shared<std::promise<_Parm>>())
-		{
-			std::memset(&m_ol, 0, sizeof(m_ol));
-		}
-		io_context(const io_context<_Parm> &other)
-			:m_ol(other.m_ol)
-			,m_parm(other.m_parm)
-			,m_file_handle(other.m_file_handle)
-			, m_promise(other.m_promise)
-		{
-		}
-		io_context(io_context<_Parm> &&other)
-			:m_ol(other.m_ol)
-			,m_parm(std::move(other.m_parm))
-			,m_file_handle(std::move(other.m_file_handle))
-			, m_promise(std::move(other.m_promise))
 
+	struct _FileIOContext
+	{
+		_FileIOContext()
 		{
+			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
 		}
-		~io_context() = default;
-		_Parm &get() const
-		{
-			return *m_parm;
-		}
-		io_context<_Parm> &operator=(const io_context<_Parm> &other)
-		{
-			m_ol = other.m_ol;
-			m_parm = other.m_parm;
-			m_file_handle = other.m_file_handle;
-			return *this;
-		}
-		HANDLE get_file_handle() const
-		{
-			return m_file_handle;
-		}
-		void callback()
-		{
-			m_promise->set_value(*m_parm);
-		}
-		std::shared_ptr<std::shared_future<_Parm>> get_future()
-		{
-			return std::make_shared<std::shared_future<_Parm>>(m_promise->get_future());
-		}
-	private:
-		std::shared_ptr<_Parm> m_parm;
-		HANDLE m_file_handle;
-		std::shared_ptr<std::promise<_Parm>> m_promise;
+		~_FileIOContext() = default;
+		OVERLAPPED m_ol;
+		HANDLE file;
+		char *buffer;
+		size_t buffer_size;
+		size_t offset;
+		bool eof;
 	};
 
-
-	using file_io_context = io_context<file_io_info>;
-
+	struct file_io_context
+	{
+		file_io_context() = default;
+		~file_io_context() = default;
+		file_io_context(const file_io_context &other)
+			:file(other.file)
+			,buffer(other.buffer)
+			,offset(other.offset)
+			,eof(other.eof)
+		{}
+		file_io_context(file_io_context &&other)
+			:file(std::move(other.file))
+			,buffer(std::move(other.buffer))
+			,offset(std::move(other.offset))
+			,eof(std::move(other.eof))
+		{}
+		file_io_context &operator=(const file_io_context &other)
+		{
+			file = other.file;
+			buffer = other.buffer;
+			offset = other.offset;
+			eof = other.eof;
+			return *this;
+		}
+		file_io_context(_FileIOContext *ptr)
+			:file(ptr->file)
+			,buffer(ptr->buffer_size,ptr->buffer)
+			,offset(ptr->offset)
+			,eof(ptr->eof)
+		{
+		}
+		HANDLE file;
+		buffer buffer;
+		size_t offset;
+		bool eof;
+	};
 
 	template<typename _IOContext>
 	class _IOCP
@@ -252,7 +251,7 @@ namespace stdx
 			CreateIoCompletionPort((HANDLE)file_handle, m_iocp, file_handle, 0);
 		}
 
-		stdx::io_context<_IOContext> get()
+		_IOContext *get()
 		{
 			DWORD size = 0;
 			OVERLAPPED *ol= nullptr;
@@ -263,7 +262,7 @@ namespace stdx
 				//处理错误
 				_ThrowWinError
 			}
-			return *CONTAINING_RECORD(ol, stdx::io_context<_IOContext>, m_ol);
+			return CONTAINING_RECORD(ol,_IOContext, m_ol);
 		}
 
 	private:
@@ -290,7 +289,7 @@ namespace stdx
 			m_impl = other.m_impl;
 			return *this;
 		}
-		stdx::io_context<_IOContext> get()
+		_IOContext *get()
 		{
 			return m_impl->get();
 		}
@@ -328,7 +327,7 @@ namespace stdx
 			shared_delete = FILE_SHARE_DELETE
 		};
 	};
-	struct open_type
+	struct file_open_type
 	{
 		enum
 		{
@@ -341,7 +340,7 @@ namespace stdx
 	class _FileIOService
 	{
 	public:
-		using iocp_t = stdx::iocp<file_io_info>;
+		using iocp_t = stdx::iocp<_FileIOContext>;
 		_FileIOService()
 			:m_iocp()
 		{}
@@ -349,9 +348,9 @@ namespace stdx
 			:m_iocp(iocp)
 		{}
 		~_FileIOService() = default;
-		HANDLE create_file(const std::string &path,DWORD access_type,DWORD open_type,DWORD shared_model)
+		HANDLE create_file(const std::string &path,DWORD access_type,DWORD file_open_type,DWORD shared_model)
 		{
-			HANDLE file = CreateFile(path.c_str(), access_type, shared_model, 0,open_type,FILE_FLAG_OVERLAPPED,0);
+			HANDLE file = CreateFile(path.c_str(), access_type, shared_model, 0,file_open_type,FILE_FLAG_OVERLAPPED,0);
 			if (file == INVALID_HANDLE_VALUE)
 			{
 				_ThrowWinError
@@ -359,21 +358,74 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		std::shared_ptr<std::shared_future<file_io_info>> read_file(HANDLE file, unsigned int buffer_size = 4096U, unsigned int offset = 0)
+		void read_file(HANDLE file, size_t buffer_size, size_t offset,std::function<void(file_io_context)> &&callback)
 		{
-			file_io_context context(file, buffer_size);
-			context.get().set_offset(offset);
-			auto future = context.get_future();
-			if (!ReadFile(file, context.get().get_buffer(), context.get().get_buffer().size(), NULL, &context.m_ol))
+			_FileIOContext *context = new _FileIOContext;
+			context->eof = false;
+			context->file = file;
+			context->offset = offset;
+			context->buffer = (char*)std::calloc(buffer_size,sizeof(char));
+			context->buffer_size = buffer_size;
+			if (!ReadFile(file,context->buffer, context->buffer_size, NULL, &(context->m_ol)))
 			{
-				_ThrowWinError
+				//处理错误
+				DWORD code = GetLastError();
+				if (code != ERROR_IO_PENDING)
+				{
+					if (code == ERROR_HANDLE_EOF)
+					{
+						context->eof = true;
+					}
+					else
+					{
+						LPVOID msg;
+						if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL,code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+						{ 
+							throw std::runtime_error((char*)msg); 
+						}
+						else 
+						{ 
+							std::string _ERROR_MSG("windows system error:"); 
+							_ERROR_MSG.append(std::to_string(code)); 
+							throw std::runtime_error(_ERROR_MSG.c_str()); 
+						} 
+					}
+				}
 			}
-			stdx::threadpool::run([](iocp_t &iocp) 
+			stdx::threadpool::run([](iocp_t &iocp, std::function<void(file_io_context)> &callback)
 			{
-				auto context = iocp.get();
-				context.callback();
-			}, m_iocp);
-			return future;
+				auto *context_ptr = iocp.get();
+				DWORD size = context_ptr->buffer_size;
+				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &size, false))
+				{
+					DWORD code = GetLastError();
+					if (code != ERROR_IO_PENDING)
+					{
+						if (code == ERROR_HANDLE_EOF)
+						{
+							context_ptr->eof = true;
+						}
+						else
+						{
+							LPVOID msg;
+							if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+							{
+								throw std::runtime_error((char*)msg);
+							}
+							else
+							{
+								std::string _ERROR_MSG("windows system error:");
+								_ERROR_MSG.append(std::to_string(code));
+								throw std::runtime_error(_ERROR_MSG.c_str());
+							}
+						}
+					}
+				}
+				auto context = file_io_context(context_ptr);
+				delete context_ptr;
+				callback(context);
+			}, m_iocp,callback);
+			return;
 		}
 	private:
 		iocp_t m_iocp;
@@ -390,13 +442,13 @@ namespace stdx
 		file_io_service(const iocp_t &iocp)
 			:m_impl(std::make_shared<_FileIOService>(iocp))
 		{}
-		HANDLE create_file(const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
+		HANDLE create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model)
 		{
-			return m_impl->create_file(path, access_type, open_type, shared_model);
+			return m_impl->create_file(path, access_type, file_open_type, shared_model);
 		}
-		std::shared_ptr<std::shared_future<file_io_info>> read_file(HANDLE file, unsigned int buffer_size=4096U, unsigned int offset=0)
+		void read_file(HANDLE file, size_t buffer_size, size_t offset, std::function<void(file_io_context)> &&callback)
 		{
-			return m_impl->read_file(file, buffer_size, offset);
+			return m_impl->read_file(file, buffer_size, offset,std::move(callback));
 		}
 	private:
 		impl_t m_impl;
@@ -406,16 +458,23 @@ namespace stdx
 	{
 		using io_service_t = file_io_service;
 	public:
-		async_fstream(const io_service_t &io_service,const std::string &path,DWORD access_type,DWORD open_type,DWORD shared_model)
+		async_fstream(const io_service_t &io_service,const std::string &path,DWORD access_type,DWORD file_open_type,DWORD shared_model)
 			:m_io_service(io_service)
-			,m_file(m_io_service.create_file(path,access_type,open_type,shared_model))
+			,m_file(m_io_service.create_file(path,access_type,file_open_type,shared_model))
 		{}
-		stdx::task<file_io_info> read(unsigned int buffer_size=4096U,unsigned int offset=0)
+		stdx::task<file_io_context> read(size_t buffer_size,size_t offset)
 		{
-			return stdx::async([](std::shared_ptr<std::shared_future<file_io_info>> future) 
+			std::shared_ptr<std::promise<file_io_context>> promise = std::make_shared<std::promise<file_io_context>>();
+			stdx::task<file_io_context> task([promise]()
 			{
-				return future->get();
-			},m_io_service.read_file(m_file, buffer_size, offset));
+				return promise->get_future().get();
+			});
+			m_io_service.read_file(m_file, buffer_size, offset, [promise,task](file_io_context context) mutable
+			{
+				promise->set_value(context);
+				task.run();
+			});
+			return task;
 		}
 	private:
 		io_service_t m_io_service;

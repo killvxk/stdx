@@ -18,5 +18,5 @@
          using type = _T;
      };
      template<typename _T>
-     using value_type = _ValueType<_T>::type;
+     using value_type = typename _ValueType<_T>::type;
  }
