@@ -490,6 +490,21 @@ namespace stdx
 		file_io_service(const iocp_t &iocp)
 			:m_impl(std::make_shared<_FileIOService>(iocp))
 		{}
+		file_io_service(const file_io_service &other)
+			:m_impl(other.m_impl)
+		{}
+		file_io_service(file_io_service &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		file_io_service &operator=(const file_io_service &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator bool() const
+		{
+			return (bool)m_impl;
+		}
 		HANDLE create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model)
 		{
 			return m_impl->create_file(path, access_type, file_open_type, shared_model);
@@ -502,6 +517,7 @@ namespace stdx
 		{
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
+		
 	private:
 		impl_t m_impl;
 	};
@@ -514,8 +530,26 @@ namespace stdx
 			:m_io_service(io_service)
 			,m_file(m_io_service.create_file(path,access_type,file_open_type,shared_model))
 		{}
+		async_fstream(const async_fstream &other)
+			:m_io_service(other.m_io_service)
+			,m_file(other.m_file)
+		{}
+		async_fstream(async_fstream &&other)
+			:m_io_service(std::move(other.m_io_service))
+			,m_file(std::move(other.m_file))
+		{}
+		async_fstream &operator=(const async_fstream &other)
+		{
+			m_file = other.m_file;
+			m_io_service = other.m_io_service;
+			return *this;
+		}
 		stdx::task<file_read_event> read(size_t size,size_t offset)
 		{
+			if (!m_io_service)
+			{
+				throw std::logic_error("this io service has been free");
+			}
 			std::shared_ptr<std::promise<file_read_event>> promise = std::make_shared<std::promise<file_read_event>>();
 			stdx::task<file_read_event> task([promise]()
 			{
@@ -530,6 +564,10 @@ namespace stdx
 		}
 		stdx::task<file_write_event> write(const char* buffer, size_t size)
 		{
+			if (!m_io_service)
+			{
+				throw std::logic_error("this io service has been free");
+			}
 			std::shared_ptr<std::promise<file_write_event>> promise = std::make_shared<std::promise<file_write_event>>();
 			stdx::task<file_write_event> task([promise]()
 			{

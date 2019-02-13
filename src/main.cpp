@@ -7,12 +7,16 @@ int main()
 	try
 	{
 		std::string str = "原来WriteFile会覆盖";
-		stream.write(str.c_str(),str.size()).wait();
-		stream.read(1024, 0)
-			.then([](stdx::file_read_event context)
-		{
-			std::cout << context.buffer;
-		});
+		stream.write(str.c_str(), str.size())
+			.then([stream](stdx::file_write_event e) 
+			{
+				std::cout << "实际写入字节数:" << e.size;
+				return stream.read()
+			})
+			.then([]() 
+			{
+
+			});
 	}
 	catch (const std::exception&e)
 	{
