@@ -101,31 +101,44 @@ namespace stdx
 	};
 	struct socket_io_context
 	{
-		OVERLAPPED m_ol;
-		WSABUF m_wsabuf;
-		SOCKET m_socket;
-		SOCKADDR_IN m_addr;
-		char m_buffer[4096];
-		int m_io_type;
-		DWORD m_send;
-		DWORD m_recv;
-	};
-	struct socket_io_type
-	{
-		enum
+		socket_io_context()
 		{
-			idle = 0,
-			accept = 1,
-			send = 2,
-			recv = 3
-		};
+			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
+		}
+		OVERLAPPED m_ol;
+		SOCKET this_socket;
+		sockaddr addr;
+		char* buffer;
+		DWORD size;
+		SOCKET accept_socket;
 	};
-	using socket_io_service = stdx::io_service<stdx::socket_io_context>;
 
-	struct task_ol
+	class _NetworkIOService
 	{
-
+	public:
+		using iocp_t = stdx::iocp<socket_io_context>;
+		_NetworkIOService()
+			:m_iocp()
+		{}
+		_NetworkIOService(const iocp_t &iocp)
+			:m_iocp(iocp)
+		{}
+		~_NetworkIOService() = default;
+		SOCKET create_socket(int addr_family, int sock_type, int protocl)
+		{
+			SOCKET sock = socket(addr_family,sock_type,protocl);
+			m_iocp.bind(sock);
+			return sock;
+		}
+		SOCKET create_wsasocket(int addr_family,int sock_type,int protocl)
+		{
+			SOCKET sock = WSASocket(addr_family, sock_type,protocl, NULL, 0,WSA_FLAG_OVERLAPPED);
+			return sock;
+		}
+	private:
+		iocp_t m_iocp;
 	};
+
 	class _Socket
 	{
 	public:
@@ -136,17 +149,16 @@ namespace stdx
 		{
 			closesocket(handle);
 		}
-		SOCKET accept()
+		SOCKET accept_async(DWORD buffer_size)
 		{
 			if (accept_ex==NULL)
 			{
 				_GetAcceptEx(m_handle, &accept_ex);
 			}
 			SOCKET new_socket = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-			std::shared_ptr<std::vector<char>> buf = std::make_shared<std::vector<char>>(4096);
+			char *buffer = std::calloc(sizeof(char), buffer_size);
 			DWORD size;
-			WSAOVERLAPPED ol;
-			memset(&ol, 0, sizeof(ol));
+			
 			accept_ex(m_handle, new_socket, buf->data(), buf->size() - ((sizeof(sockaddr_in) + 16) * 2), sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &size, &ol);
 			return new_socket;
 		}

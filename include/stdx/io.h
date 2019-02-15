@@ -238,13 +238,19 @@ namespace stdx
 		}
 		void bind(const HANDLE &file_handle)
 		{
-			CreateIoCompletionPort(file_handle, m_iocp,(ULONG_PTR)file_handle, 0);
+			if (CreateIoCompletionPort(file_handle, m_iocp, (ULONG_PTR)file_handle, 0) == NULL)
+			{
+				_ThrowWinError
+			}
 		}
 
 		template<typename _HandleType>
 		void bind(const _HandleType &file_handle)
 		{
-			CreateIoCompletionPort((HANDLE)file_handle, m_iocp, file_handle, 0);
+			if (CreateIoCompletionPort((HANDLE)file_handle, m_iocp, file_handle, 0) == NULL)
+			{
+				_ThrowWinError
+			}
 		}
 
 		_IOContext *get()
