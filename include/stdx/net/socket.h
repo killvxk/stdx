@@ -99,12 +99,13 @@ namespace stdx
 	private:
 		SOCKADDR_IN m_handle;
 	};
-	struct socket_io_context
+	struct network_io_context
 	{
-		socket_io_context()
+		network_io_context()
 		{
 			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
 		}
+		~network_io_context() = default;
 		OVERLAPPED m_ol;
 		SOCKET this_socket;
 		sockaddr addr;
@@ -116,7 +117,7 @@ namespace stdx
 	class _NetworkIOService
 	{
 	public:
-		using iocp_t = stdx::iocp<socket_io_context>;
+		using iocp_t = stdx::iocp<network_io_context>;
 		_NetworkIOService()
 			:m_iocp()
 		{}
@@ -137,6 +138,32 @@ namespace stdx
 		}
 	private:
 		iocp_t m_iocp;
+	};
+
+	struct network_send_event
+	{
+		network_send_event() = default;
+		~network_send_event() = default;
+		network_send_event(const network_send_event &other)
+			:sock(other.sock)
+			, size(other.size)
+		{}
+		network_send_event(network_send_event &&other)
+			:sock(std::move(other.sock))
+			,size(std::move(other.size))
+		{}
+		network_send_event &operator=(const network_send_event &other)
+		{
+			sock = other.file;
+			size = other.size;
+			return *this;
+		}
+		network_send_event(network_io_context *ptr)
+			:sock(ptr->this_socket)
+			,size(ptr->size)
+		{}
+		SOCKET sock;
+		size_t size;
 	};
 
 	class _Socket
