@@ -38,7 +38,7 @@ namespace stdx
 				throw std::bad_alloc();
 			}
 		}
-		_Buffer(size_t size, char* data)
+		explicit _Buffer(size_t size, char* data)
 			:m_size(size)
 			,m_data(data)
 		{}
@@ -432,9 +432,7 @@ namespace stdx
 		void write_file(HANDLE file,const char *buffer,size_t size,std::function<void(file_write_event)> &&callback)
 		{
 			file_io_context *context_ptr = new file_io_context;
-			context_ptr->buffer =(char*) buffer;
 			context_ptr->size = 0;
-			context_ptr->eof = false;
 			context_ptr->offset = 0;
 			if (!WriteFile(file, buffer, size, &(context_ptr->size), &(context_ptr->m_ol)))
 			{
@@ -500,28 +498,18 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	//异步文件流
-	class async_fstream
+	//异步文件流实现
+	class _AsyncFileStream
 	{
 		using io_service_t = file_io_service;
 	public:
-		async_fstream(const io_service_t &io_service,const std::string &path,DWORD access_type,DWORD file_open_type,DWORD shared_model)
+		_AsyncFileStream(const io_service_t &io_service,const std::string &path,DWORD access_type,DWORD open_type,DWORD shared_model)
 			:m_io_service(io_service)
-			,m_file(m_io_service.create_file(path,access_type,file_open_type,shared_model))
+			,m_file(m_io_service.create_file(path,access_type,open_type,shared_model))
 		{}
-		async_fstream(const async_fstream &other)
-			:m_io_service(other.m_io_service)
-			,m_file(other.m_file)
-		{}
-		async_fstream(async_fstream &&other)
-			:m_io_service(std::move(other.m_io_service))
-			,m_file(std::move(other.m_file))
-		{}
-		async_fstream &operator=(const async_fstream &other)
+		~_AsyncFileStream()
 		{
-			m_file = other.m_file;
-			m_io_service = other.m_io_service;
-			return *this;
+			CloseHandle(m_file);
 		}
 		stdx::task<file_read_event> read(size_t size,size_t offset)
 		{
@@ -562,6 +550,47 @@ namespace stdx
 	private:
 		io_service_t m_io_service;
 		HANDLE m_file;
+	};
+	class async_file_stream
+	{
+		using impl_t = std::shared_ptr<_AsyncFileStream>;
+		using io_service_t = file_io_service;
+	public:
+		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
+			:m_impl(std::make_shared<_AsyncFileStream>(io_service,path,access_type,open_type,shared_model))
+		{}
+
+		async_file_stream(const async_file_stream &other)
+			:m_impl(other.m_impl)
+		{}
+
+		async_file_stream(async_file_stream &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+
+		~async_file_stream() = default;
+
+		async_file_stream &operator=(const async_file_stream &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		stdx::task<file_read_event> read(size_t size, size_t offset)
+		{
+			return m_impl->read(size, offset);
+		}
+
+		stdx::task<file_write_event> write(const char* buffer, size_t size)
+		{
+			return m_impl->write(buffer, size);
+		}
+		stdx::task<file_write_event> write(const std::string &str)
+		{
+			return m_impl->write(str.c_str(), str.size());
+		}
+	private:
+		impl_t m_impl;
 	};
 }
 #endif
