@@ -106,12 +106,39 @@ namespace stdx
 			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
 		}
 		~network_io_context() = default;
-		OVERLAPPED m_ol;
+		WSAOVERLAPPED m_ol;
 		SOCKET this_socket;
 		sockaddr addr;
 		char* buffer;
 		DWORD size;
 		SOCKET accept_socket;
+		std::function <void(network_io_context*)> *callback;
+	};
+
+	struct network_send_event
+	{
+		network_send_event() = default;
+		~network_send_event() = default;
+		network_send_event(const network_send_event &other)
+			:sock(other.sock)
+			, size(other.size)
+		{}
+		network_send_event(network_send_event &&other)
+			:sock(std::move(other.sock))
+			, size(std::move(other.size))
+		{}
+		network_send_event &operator=(const network_send_event &other)
+		{
+			sock = other.file;
+			size = other.size;
+			return *this;
+		}
+		network_send_event(network_io_context *ptr)
+			:sock(ptr->this_socket)
+			, size(ptr->size)
+		{}
+		SOCKET sock;
+		size_t size;
 	};
 
 	class _NetworkIOService
@@ -134,36 +161,45 @@ namespace stdx
 		SOCKET create_wsasocket(int addr_family,int sock_type,int protocl)
 		{
 			SOCKET sock = WSASocket(addr_family, sock_type,protocl, NULL, 0,WSA_FLAG_OVERLAPPED);
+			m_iocp.bind(sock);
 			return sock;
+		}
+		void send(SOCKET sock,const char* buffer,size_t size,std::function<void(network_send_event)> &&callback)
+		{
+			auto *context_ptr = new network_io_context;
+			std::function <void(network_io_context*)> *call = new std::function <void(network_io_context*)>;
+			*call = [callback](network_io_context *context_ptr) 
+			{
+				network_send_event context(context_ptr);
+				delete context_ptr;
+				callback(context);
+			};
+			context_ptr->callback = call;
+			WSASend(sock, buffer, size, &(context_ptr->size),NULL,&(context_ptr->m_ol),NULL);
+			stdx::threadpool::run([](iocp_t iocp) 
+			{
+				auto *context_ptr = iocp.get();
+				auto *call = context_ptr->callback;
+				(*call)(context_ptr);
+				delete call;
+			},m_iocp);
+		}
+		void receive(SOCKET sock, size_t size, ,std::function<void(network_send_event)> &&callback)
+		{
+			auto *context_ptr = new network_io_context;
+			context_ptr->buffer = (char*)std::calloc(sizeof(char), size);
+			std::function <void(network_io_context*)> *call = new std::function <void(network_io_context*)>;
+			*call = [callback](network_io_context *context_ptr)
+			{
+				network_send_event context(context_ptr);
+				delete context_ptr;
+				callback(context);
+			};
+			context_ptr->callback = call;
+			WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL);
 		}
 	private:
 		iocp_t m_iocp;
-	};
-
-	struct network_send_event
-	{
-		network_send_event() = default;
-		~network_send_event() = default;
-		network_send_event(const network_send_event &other)
-			:sock(other.sock)
-			, size(other.size)
-		{}
-		network_send_event(network_send_event &&other)
-			:sock(std::move(other.sock))
-			,size(std::move(other.size))
-		{}
-		network_send_event &operator=(const network_send_event &other)
-		{
-			sock = other.file;
-			size = other.size;
-			return *this;
-		}
-		network_send_event(network_io_context *ptr)
-			:sock(ptr->this_socket)
-			,size(ptr->size)
-		{}
-		SOCKET sock;
-		size_t size;
 	};
 
 	class _Socket
