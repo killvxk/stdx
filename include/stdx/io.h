@@ -153,7 +153,7 @@ namespace stdx
 		DWORD size;
 		DWORD offset;
 		bool eof;
-		std::function<void(file_io_context*)> *callback;
+		std::function<void(file_io_context*,std::exception_ptr)> *callback;
 	};
 
 	//文件读取完成事件
@@ -368,7 +368,7 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		void read_file(HANDLE file,const size_t &size,const size_t &offset,std::function<void(file_read_event)> &&callback)
+		void read_file(HANDLE file,const size_t &size,const size_t &offset,std::function<void(file_read_event,std::exception_ptr)> &&callback)
 		{
 			file_io_context *context = new file_io_context;
 			context->eof = false;
@@ -376,16 +376,21 @@ namespace stdx
 			context->offset = offset;
 			context->buffer = (char*)std::calloc(size,sizeof(char));
 			context->size = size;
-			std::function<void(file_io_context*)> *call = new std::function<void(file_io_context*)>;
-			*call = [callback,size](file_io_context *context_ptr) 
+			std::function<void(file_io_context*, std::exception_ptr)> *call = new std::function<void(file_io_context*, std::exception_ptr)>;
+			*call = [callback,size](file_io_context *context_ptr,std::exception_ptr error)
 			{
+				if (error)
+				{
+					callback(file_read_event(), error);
+					return;
+				}
 				if (context_ptr->size < size)
 				{
 					context_ptr->eof = true;
 				}
 				file_read_event context(context_ptr);
 				delete context_ptr;
-				callback(context);
+				callback(context,nullptr);
 			};
 			context->callback = call;
 			if (!ReadFile(file,context->buffer,size,&(context->size), &(context->m_ol)))
@@ -417,48 +422,61 @@ namespace stdx
 			stdx::threadpool::run([](iocp_t &iocp)
 			{
 				auto *context_ptr = iocp.get();
-				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+				std::exception_ptr error(nullptr);
+				try
 				{
-					DWORD code = GetLastError();
-					if (code != ERROR_IO_PENDING)
+					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
 					{
-						if (code == ERROR_HANDLE_EOF)
+						DWORD code = GetLastError();
+						if (code != ERROR_IO_PENDING)
 						{
-							context_ptr->eof = true;
-						}
-						else
-						{
-							LPVOID msg;
-							if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+							if (code == ERROR_HANDLE_EOF)
 							{
-								throw std::runtime_error((char*)msg);
+								context_ptr->eof = true;
 							}
 							else
 							{
-								std::string _ERROR_MSG("windows system error:");
-								_ERROR_MSG.append(std::to_string(code));
-								throw std::runtime_error(_ERROR_MSG.c_str());
+								LPVOID msg;
+								if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+								{
+									throw std::runtime_error((char*)msg);
+								}
+								else
+								{
+									std::string _ERROR_MSG("windows system error:");
+									_ERROR_MSG.append(std::to_string(code));
+									throw std::runtime_error(_ERROR_MSG.c_str());
+								}
 							}
 						}
 					}
 				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
+				}
 				auto *call = context_ptr->callback;
-				(*call)(context_ptr);
+				(*call)(context_ptr,error);
 				delete call;
 			}, m_iocp);
 			return;
 		}
-		void write_file(HANDLE file,const char *buffer,const size_t &size,std::function<void(file_write_event)> &&callback)
+		void write_file(HANDLE file,const char *buffer,const size_t &size,std::function<void(file_write_event,std::exception_ptr)> &&callback)
 		{
 			file_io_context *context_ptr = new file_io_context;
 			context_ptr->size = 0;
 			context_ptr->offset = 0;
-			std::function<void(file_io_context*)> *call = new std::function<void(file_io_context*)>;
-			*call = [callback](file_io_context *context_ptr) 
+			auto *call = new std::function<void(file_io_context*, std::exception_ptr)>;
+			*call = [callback](file_io_context *context_ptr, std::exception_ptr error)
 			{
+				if (error)
+				{
+					callback(file_write_event(), error);
+					return;
+				}
 				file_write_event context(context_ptr);
 				delete context_ptr;
-				callback(context);
+				callback(context,nullptr);
 			};
 			context_ptr->callback = call;
 			if (!WriteFile(file, buffer, size, &(context_ptr->size), &(context_ptr->m_ol)))
@@ -468,12 +486,20 @@ namespace stdx
 			stdx::threadpool::run([](iocp_t &iocp)
 			{
 				auto *context_ptr = iocp.get();
-				if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+				std::exception_ptr error(nullptr);
+				try
 				{
-					_ThrowWinError
+					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+					{
+						_ThrowWinError
+					}
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
 				}
 				auto *call = context_ptr->callback;
-				(*call)(context_ptr);
+				(*call)(context_ptr,error);
 				delete call;
 			},m_iocp);
 		}
@@ -512,11 +538,11 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, file_open_type, shared_model);
 		}
-		void read_file(HANDLE file,const size_t &size, const size_t &offset, std::function<void(file_read_event)> &&callback)
+		void read_file(HANDLE file,const size_t &size, const size_t &offset, std::function<void(file_read_event,std::exception_ptr)> &&callback)
 		{
 			return m_impl->read_file(file, size, offset,std::move(callback));
 		}
-		void write_file(HANDLE file,const char *buffer,const size_t &size,std::function<void(file_write_event)> &&callback)
+		void write_file(HANDLE file, const char *buffer, const size_t &size, std::function<void(file_write_event,std::exception_ptr)> &&callback)
 		{
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
@@ -549,8 +575,13 @@ namespace stdx
 			{
 				return promise->get_future().get();
 			});
-			m_io_service.read_file(m_file, size, offset, [promise,task](file_read_event context) mutable
+			m_io_service.read_file(m_file, size, offset, [promise,task](file_read_event context,std::exception_ptr error) mutable
 			{
+				if (error)
+				{
+					promise->set_exception(error);
+					return;
+				}
 				promise->set_value(context);
 				task.run();
 			});
@@ -567,8 +598,12 @@ namespace stdx
 			{
 				return promise->get_future().get();
 			});
-			m_io_service.write_file(m_file, buffer, size, [promise,task](file_write_event context) mutable 
+			m_io_service.write_file(m_file, buffer, size, [promise,task](file_write_event context,std::exception_ptr error) mutable 
 			{
+				if (error)
+				{
+					promise->set_exception(error);
+				}
 				promise->set_value(context);
 				task.run();
 			});

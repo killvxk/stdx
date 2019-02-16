@@ -197,9 +197,9 @@ namespace stdx
 			stdx::threadpool::run([](iocp_t iocp) 
 			{
 				auto *context_ptr = iocp.get();
-				if (WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &code, false, NULL))
+				if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &code, false, NULL))
 				{
-
+					//在这里出错
 				}
 				auto *call = context_ptr->callback;
 				(*call)(context_ptr);
