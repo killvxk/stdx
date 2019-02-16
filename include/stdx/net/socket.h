@@ -12,6 +12,13 @@
 namespace stdx
 {
 #ifdef WIN32
+#define _ThrowWSAError 	auto _ERROR_CODE = WSAGetLastError(); \
+						if(_ERROR_CODE != WSA_IO_PENDING)\
+						{\
+							std::string _ERROR_STR("windows WSA error:");\
+							_ERROR_STR.append(std::to_string(_ERROR_CODE));\
+							throw std::runtime_error(_ERROR_STR.c_str());\
+						}\
 	struct _WSAStarter
 	{
 		WSAData wsa;
@@ -20,14 +27,14 @@ namespace stdx
 		{
 			if (WSAStartup(MAKEWORD(2, 2), &wsa))
 			{
-
+				_ThrowWinError
 			}
 		}
 		~_WSAStarter()
 		{
 			if (WSACleanup())
 			{
-
+				_ThrowWinError
 			}
 		}
 	};
@@ -155,12 +162,20 @@ namespace stdx
 		SOCKET create_socket(int addr_family, int sock_type, int protocl)
 		{
 			SOCKET sock = socket(addr_family,sock_type,protocl);
+			if (sock == INVALID_SOCKET)
+			{
+				_ThrowWSAError
+			}
 			m_iocp.bind(sock);
 			return sock;
 		}
 		SOCKET create_wsasocket(int addr_family,int sock_type,int protocl)
 		{
 			SOCKET sock = WSASocket(addr_family, sock_type,protocl, NULL, 0,WSA_FLAG_OVERLAPPED);
+			if (sock == INVALID_SOCKET)
+			{
+				_ThrowWSAError
+			}
 			m_iocp.bind(sock);
 			return sock;
 		}
@@ -175,10 +190,17 @@ namespace stdx
 				callback(context);
 			};
 			context_ptr->callback = call;
-			WSASend(sock, buffer, size, &(context_ptr->size),NULL,&(context_ptr->m_ol),NULL);
+			if (WSASend(sock, buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
 			stdx::threadpool::run([](iocp_t iocp) 
 			{
 				auto *context_ptr = iocp.get();
+				if (WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &code, false, NULL))
+				{
+
+				}
 				auto *call = context_ptr->callback;
 				(*call)(context_ptr);
 				delete call;
@@ -202,53 +224,53 @@ namespace stdx
 		iocp_t m_iocp;
 	};
 
-	class _Socket
-	{
-	public:
-		_Socket(int addr_family,int sock_type,int protocl)
-			:_Socket(WSASocket(addr_family, sock_type, protocl, NULL, 0, WSAOVERLAPPED))
-		{}
-		~_Socket()
-		{
-			closesocket(handle);
-		}
-		SOCKET accept_async(DWORD buffer_size)
-		{
-			if (accept_ex==NULL)
-			{
-				_GetAcceptEx(m_handle, &accept_ex);
-			}
-			SOCKET new_socket = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-			char *buffer = std::calloc(sizeof(char), buffer_size);
-			DWORD size;
-			
-			accept_ex(m_handle, new_socket, buf->data(), buf->size() - ((sizeof(sockaddr_in) + 16) * 2), sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &size, &ol);
-			return new_socket;
-		}
-		void use_io_service(const stdx::socket_io_service &io_service)
-		{
-			io_service.bind(m_handle);
-		}
-	private:
-		SOCKET m_handle;
-		_Socket(SOCKET handle)
-			:m_handle(handle)
-		{
-		}
-		static LPFN_ACCEPTEX accept_ex;
-	};
-	void _GetAcceptEx(const SOCKET &s, LPFN_ACCEPTEX *ptr)
-	{
-		GUID id = WSAID_ACCEPTEX;
-		DWORD buf;
-		WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
-	}
-	void _GetAcceptExSockaddr(const SOCKET &s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
-	{
-		GUID id = WSAID_GETACCEPTEXSOCKADDRS;
-		DWORD buf;
-		WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
-	}
+	//class _Socket
+	//{
+	//public:
+	//	_Socket(int addr_family,int sock_type,int protocl)
+	//		:_Socket(WSASocket(addr_family, sock_type, protocl, NULL, 0, WSAOVERLAPPED))
+	//	{}
+	//	~_Socket()
+	//	{
+	//		closesocket(handle);
+	//	}
+	//	SOCKET accept_async(DWORD buffer_size)
+	//	{
+	//		if (accept_ex==NULL)
+	//		{
+	//			_GetAcceptEx(m_handle, &accept_ex);
+	//		}
+	//		SOCKET new_socket = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+	//		char *buffer = std::calloc(sizeof(char), buffer_size);
+	//		DWORD size;
+	//		
+	//		accept_ex(m_handle, new_socket, buf->data(), buf->size() - ((sizeof(sockaddr_in) + 16) * 2), sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &size, &ol);
+	//		return new_socket;
+	//	}
+	//	void use_io_service(const stdx::socket_io_service &io_service)
+	//	{
+	//		io_service.bind(m_handle);
+	//	}
+	//private:
+	//	SOCKET m_handle;
+	//	_Socket(SOCKET handle)
+	//		:m_handle(handle)
+	//	{
+	//	}
+	//	static LPFN_ACCEPTEX accept_ex;
+	//};
+	//void _GetAcceptEx(const SOCKET &s, LPFN_ACCEPTEX *ptr)
+	//{
+	//	GUID id = WSAID_ACCEPTEX;
+	//	DWORD buf;
+	//	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
+	//}
+	//void _GetAcceptExSockaddr(const SOCKET &s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
+	//{
+	//	GUID id = WSAID_GETACCEPTEXSOCKADDRS;
+	//	DWORD buf;
+	//	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
+	//}
 #endif //Win32
 #ifdef UNIX
 
