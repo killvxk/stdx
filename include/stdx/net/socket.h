@@ -119,7 +119,7 @@ namespace stdx
 		char* buffer;
 		DWORD size;
 		SOCKET accept_socket;
-		std::function <void(network_io_context*)> *callback;
+		std::function <void(network_io_context*,std::exception_ptr)> *callback;
 	};
 
 	struct network_send_event
@@ -179,15 +179,21 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
-		void send(SOCKET sock,const char* buffer,size_t size,std::function<void(network_send_event)> &&callback)
+		void send(SOCKET sock,const char* buffer,size_t size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
-			std::function <void(network_io_context*)> *call = new std::function <void(network_io_context*)>;
-			*call = [callback](network_io_context *context_ptr) 
+			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
+			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
 			{
+				if (error)
+				{
+					callback(network_send_event(), error);
+					delete context_ptr;
+					return;
+				}
 				network_send_event context(context_ptr);
 				delete context_ptr;
-				callback(context);
+				callback(context,nullptr);
 			};
 			context_ptr->callback = call;
 			if (WSASend(sock, buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
@@ -197,29 +203,44 @@ namespace stdx
 			stdx::threadpool::run([](iocp_t iocp) 
 			{
 				auto *context_ptr = iocp.get();
-				if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &code, false, NULL))
+				std::exception_ptr error(nullptr);
+				try
 				{
-					//在这里出错
+					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol),&(context_ptr->size), false, NULL))
+					{
+						//在这里出错
+						_ThrowWSAError
+					}
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
 				}
 				auto *call = context_ptr->callback;
-				(*call)(context_ptr);
+				(*call)(context_ptr,error);
 				delete call;
 			},m_iocp);
 		}
-		void receive(SOCKET sock, size_t size, ,std::function<void(network_send_event)> &&callback)
-		{
-			auto *context_ptr = new network_io_context;
-			context_ptr->buffer = (char*)std::calloc(sizeof(char), size);
-			std::function <void(network_io_context*)> *call = new std::function <void(network_io_context*)>;
-			*call = [callback](network_io_context *context_ptr)
-			{
-				network_send_event context(context_ptr);
-				delete context_ptr;
-				callback(context);
-			};
-			context_ptr->callback = call;
-			WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL);
-		}
+		//void receive(SOCKET sock, size_t size, ,std::function<void(network_send_event,std::exception_ptr)> &&callback)
+		//{
+		//	auto *context_ptr = new network_io_context;
+		//	context_ptr->buffer = (char*)std::calloc(sizeof(char), size);
+		//	auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
+		//	*call = [callback](network_io_context *context_ptr,std::exception_ptr error)
+		//	{
+		//		if (error)
+		//		{
+		//			delete context_ptr;
+		//			callback()
+		//			return;
+		//		}
+		//		network_send_event context(context_ptr);
+		//		delete context_ptr;
+		//		callback(context);
+		//	};
+		//	context_ptr->callback = call;
+		//	WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL);
+		//}
 	private:
 		iocp_t m_iocp;
 	};

@@ -382,6 +382,7 @@ namespace stdx
 				if (error)
 				{
 					callback(file_read_event(), error);
+					delete context_ptr;
 					return;
 				}
 				if (context_ptr->size < size)
@@ -471,6 +472,7 @@ namespace stdx
 			{
 				if (error)
 				{
+					delete context_ptr;
 					callback(file_write_event(), error);
 					return;
 				}
