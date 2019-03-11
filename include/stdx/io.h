@@ -585,9 +585,13 @@ namespace stdx
 	{
 		using io_service_t = file_io_service;
 	public:
-		_AsyncFileStream(const io_service_t &io_service,const std::string &path,DWORD access_type,DWORD open_type,DWORD shared_model)
+		_AsyncFileStream(const io_service_t &io_service,const std::string &path,const DWORD &access_type,const DWORD &open_type,const DWORD &shared_model)
 			:m_io_service(io_service)
 			,m_file(m_io_service.create_file(path,access_type,open_type,shared_model))
+		{}
+		_AsyncFileStream(const io_service_t &io_service, const std::string &path,const DWORD &access_type, const DWORD &open_type)
+			:m_io_service(io_service)
+			,m_file(m_io_service.create_file(path,access_type,open_type,file_shared_model::shared_read))
 		{}
 		~_AsyncFileStream()
 		{
@@ -654,6 +658,10 @@ namespace stdx
 	public:
 		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
 			:m_impl(std::make_shared<_AsyncFileStream>(io_service,path,access_type,open_type,shared_model))
+		{}
+
+		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
+			:m_impl(std::make_shared<_AsyncFileStream>(io_service, path, access_type, open_type,file_shared_model::shared_read))
 		{}
 
 		async_file_stream(const async_file_stream &other)
