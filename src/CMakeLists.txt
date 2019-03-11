@@ -1,20 +1,20 @@
-
+ï»¿
 cmake_minimum_required (VERSION 3.8)
-# ½«Ô´Ìí¼Óµ½´ËÏîÄ¿µÄ¿ÉÖ´ĞĞÎÄ¼ş¡£
+# å°†æºæ·»åŠ åˆ°æ­¤é¡¹ç›®çš„å¯æ‰§è¡Œæ–‡ä»¶ã€‚
 add_executable (ziran "main.cpp")
 include_directories(${PROJECT_SOURCE_DIR}/include)
-#ÉèÖÃÄ£¿éÂ·¾¶
+#è®¾ç½®æ¨¡å—è·¯å¾„
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-# TODO: ÈçÓĞĞèÒª£¬ÇëÌí¼Ó²âÊÔ²¢°²×°Ä¿±ê¡£
+# TODO: å¦‚æœ‰éœ€è¦ï¼Œè¯·æ·»åŠ æµ‹è¯•å¹¶å®‰è£…ç›®æ ‡ã€‚
 
 if(WIN32)
-	add_definitions("-DUSE_WIN32")
+	#add_definitions("-DUSE_WIN32")
 endif()
 
 if(UNIX)
-	add_definitions("-DUSE_UNIX")
+	#add_definitions("-DUSE_UNIX")
 	#pthread
 	find_package(Threads REQUIRED)
 	if(THREADS_HAVE_PTHREAD_ARG)

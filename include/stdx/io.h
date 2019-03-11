@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <stdx/async/task.h>
+#include <stdx/env.h>
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -18,7 +19,7 @@
 							{ \
 								std::string _ERROR_MSG("windows system error:");\
 								_ERROR_MSG.append(std::to_string(_ERROR_CODE));\
-								throw std::runtime_error(_ERROR_MSG.c_str()); \
+								throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_MSG.c_str()); \
 							} \
 						}\
 						
@@ -346,6 +347,16 @@ namespace stdx
 		};
 	};
 
+	struct file_pointer_move_method
+	{
+		enum
+		{
+			begin = FILE_BEGIN,
+			end = FILE_END,
+			current = FILE_CURRENT
+		};
+	};
+
 	//文件IO服务实现
 	class _FileIOService
 	{
@@ -505,6 +516,17 @@ namespace stdx
 				delete call;
 			},m_iocp);
 		}
+		void set_file_pointer(HANDLE file,const long long &distance,const DWORD &method)
+		{
+			LARGE_INTEGER li;
+			li.QuadPart = distance;
+			li.LowPart = SetFilePointer(file,li.LowPart,&(li.HighPart),method);
+			if (li.LowPart == INVALID_SET_FILE_POINTER)
+			{
+				_ThrowWinError
+			}
+			return;
+		}
 	private:
 		iocp_t m_iocp;
 	};
@@ -549,6 +571,11 @@ namespace stdx
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
 		
+		void set_file_pointer(HANDLE file,const long long &distance,const DWORD &method)
+		{
+			return m_impl->set_file_pointer(file,distance,method);
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -611,6 +638,11 @@ namespace stdx
 			});
 			return task;
 		}
+
+		void set_pointer(const long long &distance,const DWORD &method)
+		{
+			m_io_service.set_file_pointer(m_file, distance, method);
+		}
 	private:
 		io_service_t m_io_service;
 		HANDLE m_file;
@@ -652,6 +684,12 @@ namespace stdx
 		stdx::task<file_write_event> write(const std::string &str)
 		{
 			return m_impl->write(str.c_str(), str.size());
+		}
+
+		async_file_stream set_pointer(const long long &distance,const DWORD &method)
+		{
+			m_impl->set_pointer(distance, method);
+			return *this;
 		}
 	private:
 		impl_t m_impl;

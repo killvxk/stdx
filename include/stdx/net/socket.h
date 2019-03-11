@@ -4,6 +4,7 @@
 #include <stdx/buffer.h>
 #include <stdx/async/spin_lock.h>
 #include <stdx/io.h>
+#include <stdx/env.h>
 #ifdef WIN32
 #include <WinSock2.h>
 #include <MSWSock.h>
@@ -17,7 +18,7 @@ namespace stdx
 						{\
 							std::string _ERROR_STR("windows WSA error:");\
 							_ERROR_STR.append(std::to_string(_ERROR_CODE));\
-							throw std::runtime_error(_ERROR_STR.c_str());\
+							throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_STR.c_str());\
 						}\
 	struct _WSAStarter
 	{
