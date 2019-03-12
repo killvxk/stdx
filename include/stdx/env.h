@@ -15,3 +15,15 @@
 
 #endif // !LINUX
 #endif // !WIN32
+
+#define int32 int
+#define byte unsigned char
+#define uint32 unsigned int
+#define uint unsigned int
+#ifdef WIN32
+#define int64 __int64
+#define uint64 unsigned __int64
+#else
+#define int64 long long
+#define uint64 unsigned long long
+#endif // WIN32

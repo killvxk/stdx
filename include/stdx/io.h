@@ -516,7 +516,7 @@ namespace stdx
 				delete call;
 			},m_iocp);
 		}
-		void set_file_pointer(HANDLE file,const long long &distance,const DWORD &method)
+		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
 		{
 			LARGE_INTEGER li;
 			li.QuadPart = distance;
@@ -571,7 +571,7 @@ namespace stdx
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
 		
-		void set_file_pointer(HANDLE file,const long long &distance,const DWORD &method)
+		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
 		{
 			return m_impl->set_file_pointer(file,distance,method);
 		}
@@ -643,7 +643,7 @@ namespace stdx
 			return task;
 		}
 
-		void set_pointer(const long long &distance,const DWORD &method)
+		void set_pointer(const int64 &distance,const DWORD &method)
 		{
 			m_io_service.set_file_pointer(m_file, distance, method);
 		}
@@ -694,7 +694,7 @@ namespace stdx
 			return m_impl->write(str.c_str(), str.size());
 		}
 
-		async_file_stream set_pointer(const long long &distance,const DWORD &method)
+		async_file_stream set_pointer(const int64 &distance,const DWORD &method)
 		{
 			m_impl->set_pointer(distance, method);
 			return *this;
