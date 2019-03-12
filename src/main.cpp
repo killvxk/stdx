@@ -24,7 +24,9 @@ int main()
 	{
 		std::cerr << e.what();
 	}*/
-
+	uint32 a = 0xFFFFFFFF;
+	byte b = get_byte(4, &a);
+	std::cout << b <<std::endl;
 	std::cin.get();
 	return 0;
 }
