@@ -1,8 +1,9 @@
 ﻿#include <stdx/io.h>
+#include <stdx/net/socket.h>
 #include <iostream>
 int main()
 {
-	stdx::file_io_service io_service;
+	/*stdx::file_io_service io_service;
 	stdx::async_file_stream stream(io_service,"e://test.txt",stdx::file_access_type::all,stdx::file_open_type::open,stdx::file_shared_model::shared_read);
 	try
 	{
@@ -22,7 +23,8 @@ int main()
 	catch (const std::exception&e)
 	{
 		std::cerr << e.what();
-	}
+	}*/
+
 	std::cin.get();
 	return 0;
 }

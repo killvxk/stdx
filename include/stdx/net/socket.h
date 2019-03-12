@@ -1,7 +1,5 @@
 ﻿#pragma once
-#include <stdx/exception.h>
 #include <stdx/async/task.h>
-#include <stdx/buffer.h>
 #include <stdx/async/spin_lock.h>
 #include <stdx/io.h>
 #include <stdx/env.h>
@@ -20,6 +18,7 @@ namespace stdx
 							_ERROR_STR.append(std::to_string(_ERROR_CODE));\
 							throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_STR.c_str());\
 						}\
+
 	struct _WSAStarter
 	{
 		WSAData wsa;
@@ -137,7 +136,7 @@ namespace stdx
 		{}
 		network_send_event &operator=(const network_send_event &other)
 		{
-			sock = other.file;
+			sock = other.sock;
 			size = other.size;
 			return *this;
 		}
@@ -180,7 +179,7 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
-		void send(SOCKET sock,const char* buffer,size_t size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
+		void send(SOCKET sock,char* buffer,const size_t &size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
 			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
@@ -197,7 +196,10 @@ namespace stdx
 				callback(context,nullptr);
 			};
 			context_ptr->callback = call;
-			if (WSASend(sock, buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			WSABUF buf;
+			buf.buf = buffer;
+			buf.len = size;
+			if (WSASend(sock, &buf, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -221,6 +223,7 @@ namespace stdx
 				(*call)(context_ptr,error);
 				delete call;
 			},m_iocp);
+			
 		}
 		//void receive(SOCKET sock, size_t size, ,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		//{
@@ -294,9 +297,9 @@ namespace stdx
 	//	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
 	//}
 #endif //Win32
-#ifdef UNIX
+#ifdef LINUX
 
-#endif // UNIX
+#endif //LINUX
 
 
 }
