@@ -468,7 +468,14 @@ namespace stdx
 					error = std::current_exception();
 				}
 				auto *call = context_ptr->callback;
-				(*call)(context_ptr,error);
+				try
+				{
+					(*call)(context_ptr, error);
+				}
+				catch (const std::exception&)
+				{
+					delete call;
+				}
 				delete call;
 			}, m_iocp);
 			return;
@@ -512,7 +519,14 @@ namespace stdx
 					error = std::current_exception();
 				}
 				auto *call = context_ptr->callback;
-				(*call)(context_ptr,error);
+				try
+				{
+					(*call)(context_ptr, error);
+				}
+				catch (const std::exception&)
+				{
+					delete call;
+				}
 				delete call;
 			},m_iocp);
 		}
