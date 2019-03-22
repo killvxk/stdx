@@ -20,6 +20,8 @@
 #define byte unsigned char
 #define uint32 unsigned int
 #define uint unsigned int
+#define int16 short
+#define uint16 unsigned short
 #ifdef WIN32
 #define int64 __int64
 #define uint64 unsigned __int64

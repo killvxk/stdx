@@ -116,7 +116,7 @@ namespace stdx
 		WSAOVERLAPPED m_ol;
 		SOCKET this_socket;
 		sockaddr addr;
-		char* buffer;
+		WSABUF buffer;
 		DWORD size;
 		SOCKET accept_socket;
 		std::function <void(network_io_context*,std::exception_ptr)> *callback;
@@ -179,7 +179,7 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
-		void send(SOCKET sock,char* buffer,const size_t &size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
+		void send(SOCKET sock,const char* data,const size_t &size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
 			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
@@ -197,8 +197,11 @@ namespace stdx
 			};
 			context_ptr->callback = call;
 			WSABUF buf;
+			char *buffer = (char*)std::calloc(sizeof(char), size);
+			std::strncpy(buffer, data, size);
 			buf.buf = buffer;
 			buf.len = size;
+			context_ptr->buffer = buf;
 			if (WSASend(sock, &buf, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
@@ -207,6 +210,8 @@ namespace stdx
 			{
 				auto *context_ptr = iocp.get();
 				std::exception_ptr error(nullptr);
+				//释放写入缓存区
+				std::free(context_ptr->buffer.buf);
 				try
 				{
 					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol),&(context_ptr->size), false, NULL))
