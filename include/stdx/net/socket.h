@@ -270,11 +270,11 @@ namespace stdx
 			},m_iocp);
 		}
 
+		//接收数据
 		void recv(SOCKET sock,const size_t &size,std::function<void(network_recv_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
-			
-			char* buf = (char*)std::calloc(sizeof(char), size);
+			char *buf = (char*)std::calloc(sizeof(char), size);
 			WSABUF *buffer = new WSABUF;
 			buffer->buf = buf;
 			buffer->len = size;
