@@ -116,9 +116,9 @@ namespace stdx
 		WSAOVERLAPPED m_ol;
 		SOCKET this_socket;
 		sockaddr addr;
-		WSABUF buffer;
+		WSABUF *buffer;
 		DWORD size;
-		SOCKET accept_socket;
+		SOCKET target_socket;
 		std::function <void(network_io_context*,std::exception_ptr)> *callback;
 	};
 
@@ -145,6 +145,37 @@ namespace stdx
 			, size(ptr->size)
 		{}
 		SOCKET sock;
+		size_t size;
+	};
+
+	struct network_recv_event 
+	{
+		network_recv_event() = default;
+		~network_recv_event() = default;
+		network_recv_event(const network_recv_event &other)
+			:sock(other.sock)
+			,buffer(other.buffer)
+			,size(other.size)
+		{}
+		network_recv_event(network_recv_event &&other)
+			:sock(std::move(other.sock))
+			,buffer(other.buffer)
+			,size(other.size)
+		{}
+		network_recv_event &operator=(const network_recv_event &other)
+		{
+			sock = other.sock;
+			buffer = other.buffer;
+			size = other.size;
+			return *this;
+		}
+		network_recv_event(network_io_context *ptr)
+			:sock(ptr->target_socket)
+			,buffer(ptr->buffer->len, ptr->buffer->buf)
+			,size(ptr->size)
+		{}
+		SOCKET sock;
+		stdx::buffer buffer;
 		size_t size;
 	};
 
@@ -179,6 +210,7 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
+		//发送数据
 		void send(SOCKET sock,const char* data,const size_t &size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
@@ -188,21 +220,25 @@ namespace stdx
 				if (error)
 				{
 					callback(network_send_event(), error);
+					std::free(context_ptr->buffer->buf);
+					delete context_ptr->buffer;
 					delete context_ptr;
 					return;
 				}
 				network_send_event context(context_ptr);
+				std::free(context_ptr->buffer->buf);
+				delete context_ptr->buffer;
 				delete context_ptr;
 				callback(context,nullptr);
 			};
 			context_ptr->callback = call;
-			WSABUF buf;
+			WSABUF *buf = new WSABUF;
 			char *buffer = (char*)std::calloc(sizeof(char), size);
 			std::strncpy(buffer, data, size);
-			buf.buf = buffer;
-			buf.len = size;
+			buf->buf = buffer;
+			buf->len = size;
 			context_ptr->buffer = buf;
-			if (WSASend(sock, &buf, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			if (WSASend(sock, buf, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -210,8 +246,6 @@ namespace stdx
 			{
 				auto *context_ptr = iocp.get();
 				std::exception_ptr error(nullptr);
-				//释放写入缓存区
-				std::free(context_ptr->buffer.buf);
 				try
 				{
 					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol),&(context_ptr->size), false, NULL))
@@ -234,28 +268,62 @@ namespace stdx
 				}
 				delete call;
 			},m_iocp);
-			
 		}
-		//void receive(SOCKET sock, size_t size, ,std::function<void(network_send_event,std::exception_ptr)> &&callback)
-		//{
-		//	auto *context_ptr = new network_io_context;
-		//	context_ptr->buffer = (char*)std::calloc(sizeof(char), size);
-		//	auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
-		//	*call = [callback](network_io_context *context_ptr,std::exception_ptr error)
-		//	{
-		//		if (error)
-		//		{
-		//			delete context_ptr;
-		//			callback()
-		//			return;
-		//		}
-		//		network_send_event context(context_ptr);
-		//		delete context_ptr;
-		//		callback(context);
-		//	};
-		//	context_ptr->callback = call;
-		//	WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL);
-		//}
+
+		void recv(SOCKET sock,const size_t &size,std::function<void(network_recv_event,std::exception_ptr)> &&callback)
+		{
+			auto *context_ptr = new network_io_context;
+			
+			char* buf = (char*)std::calloc(sizeof(char), size);
+			WSABUF *buffer = new WSABUF;
+			buffer->buf = buf;
+			buffer->len = size;
+			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
+			*call = [callback](network_io_context *context_ptr,std::exception_ptr error)
+			{
+				if (error)
+				{
+					delete context_ptr;
+					callback(network_recv_event(),error);
+					return;
+				}
+				network_recv_event context(context_ptr);
+				delete context_ptr->buffer;
+				delete context_ptr;
+				callback(context,std::exception_ptr(nullptr));
+			};
+			context_ptr->callback = call;
+			if (WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+			stdx::threadpool::run([](iocp_t iocp)
+			{
+				auto *context_ptr = iocp.get();
+				std::exception_ptr error(nullptr);
+				try
+				{
+					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, NULL))
+					{
+						//在这里出错
+						_ThrowWSAError
+					}
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
+				}
+				auto *call = context_ptr->callback;
+				try
+				{
+					(*call)(context_ptr, error);
+				}
+				catch (const std::exception&)
+				{
+				}
+				delete call;
+			}, m_iocp);
+		}
 	private:
 		iocp_t m_iocp;
 	};
