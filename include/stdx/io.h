@@ -4,35 +4,15 @@
 #include <string>
 #include <stdx/async/task.h>
 #include <stdx/env.h>
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-//定义抛出Windows错误宏
-#define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
-						LPVOID _MSG;\
-						if(_ERROR_CODE != ERROR_IO_PENDING) \
-						{ \
-							if(FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,NULL,_ERROR_CODE,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &_MSG,0,NULL))\
-							{ \
-								throw std::runtime_error((char*)_MSG);\
-							}else \
-							{ \
-								std::string _ERROR_MSG("windows system error:");\
-								_ERROR_MSG.append(std::to_string(_ERROR_CODE));\
-								throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_MSG.c_str()); \
-							} \
-						}\
-						
-
 namespace stdx
 {
 	//自动释放缓存区实现
 	class _Buffer
 	{
 	public:
-		_Buffer(size_t size=4096)
+		_Buffer(size_t size = 4096)
 			:m_size(size)
-			,m_data((char*)std::calloc(sizeof(char),m_size))
+			, m_data((char*)std::calloc(sizeof(char), m_size))
 		{
 			if (m_data == nullptr)
 			{
@@ -41,7 +21,7 @@ namespace stdx
 		}
 		explicit _Buffer(size_t size, char* data)
 			:m_size(size)
-			,m_data(data)
+			, m_data(data)
 		{}
 		~_Buffer()
 		{
@@ -67,7 +47,7 @@ namespace stdx
 			}
 			if (size > m_size)
 			{
-				if (std::realloc(m_data, m_size)==nullptr)
+				if (std::realloc(m_data, m_size) == nullptr)
 				{
 					throw std::bad_alloc();
 				}
@@ -98,11 +78,11 @@ namespace stdx
 	{
 		using impl_t = std::shared_ptr<_Buffer>;
 	public:
-		buffer(size_t size=4096)
+		buffer(size_t size = 4096)
 			:m_impl(std::make_shared<_Buffer>(size))
 		{}
 		buffer(size_t size, char* data)
-			:m_impl(std::make_shared<_Buffer>(size,data))
+			:m_impl(std::make_shared<_Buffer>(size, data))
 		{}
 		buffer(const buffer &other)
 			:m_impl(other.m_impl)
@@ -139,6 +119,29 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
+}
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+//定义抛出Windows错误宏
+#define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
+						LPVOID _MSG;\
+						if(_ERROR_CODE != ERROR_IO_PENDING) \
+						{ \
+							if(FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,NULL,_ERROR_CODE,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &_MSG,0,NULL))\
+							{ \
+								throw std::runtime_error((char*)_MSG);\
+							}else \
+							{ \
+								std::string _ERROR_MSG("windows system error:");\
+								_ERROR_MSG.append(std::to_string(_ERROR_CODE));\
+								throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_MSG.c_str()); \
+							} \
+						}\
+						
+
+namespace stdx
+{
 
 	//文件IO上下文
 	struct file_io_context
