@@ -474,7 +474,6 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
-					delete call;
 				}
 				delete call;
 			}, m_iocp);
@@ -525,7 +524,6 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
-					delete call;
 				}
 				delete call;
 			},m_iocp);
