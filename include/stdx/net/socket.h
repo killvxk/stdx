@@ -231,7 +231,6 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
-					delete call;
 				}
 				delete call;
 			},m_iocp);
