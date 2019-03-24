@@ -30,4 +30,4 @@
 #define uint64 unsigned long long
 #endif // WIN32
 
-#define get_byte(x,ptr) *((byte*)ptr+(x-1)) 
+#define get_byte(x,ptr) *((byte*)ptr+(x)) 
