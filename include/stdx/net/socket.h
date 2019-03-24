@@ -309,7 +309,7 @@ namespace stdx
 				callback(context,std::exception_ptr(nullptr));
 			};
 			context_ptr->callback = call;
-			if (WSARecv(sock, context_ptr->buffer, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			if (WSARecv(sock, context_ptr->buffer, 1, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
