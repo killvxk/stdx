@@ -66,43 +66,56 @@ namespace stdx
 		};
 	};
 
-	class tcp_addr
+	class network_addr
 	{
 	public:
-		tcp_addr(unsigned long ip,unsigned short port)
+		network_addr(unsigned long ip,unsigned short port)
 		{
 			m_handle.sin_family = addr_family::ip;
 			m_handle.sin_addr.S_un.S_addr = ip;
 			m_handle.sin_port = port;
+			
 		}
-		tcp_addr(const tcp_addr &other)
+		network_addr(const network_addr &other)
 		{
 			m_handle = other.m_handle;
 		}
-		~tcp_addr() = default;
+		~network_addr() = default;
 		operator SOCKADDR_IN* ()
 		{
 			return &m_handle;
 		}
-		tcp_addr &operator=(const tcp_addr &other)
+
+		operator sockaddr*()
+		{
+			return (sockaddr*)&m_handle;
+		}
+
+		int len() const
+		{
+			return sizeof(SOCKADDR);
+		}
+
+		network_addr &operator=(const network_addr &other)
 		{
 			m_handle = other.m_handle;
 		}
-		template<typename _String>
-		tcp_addr make_addr(const _String &ip, unsigned short port)
+
+		static network_addr make_addr(char *ip, unsigned short port)
 		{
-			return tcp_addr(inet_addr(ip.c_str()), htonl(port));
+			return network_addr(inet_addr(ip), htons(port));
 		}
 
-		tcp_addr make_addr(char *ip, unsigned short port)
+		static network_addr make_addr(unsigned short port)
 		{
-			return tcp_addr(inet_addr(ip), htonl(port));
+			return network_addr(0, htons(port));
 		}
 
-		tcp_addr make_addr(unsigned short port)
-		{
-			return tcp_addr(0, htonl(port));
-		}
+		//template<typename _String>
+		//static network_addr make_addr(const _String &ip, unsigned short port)
+		//{
+		//	return network_addr(inet_addr(ip.c_str()), htonl(port));
+		//}
 	private:
 		SOCKADDR_IN m_handle;
 	};
@@ -214,6 +227,7 @@ namespace stdx
 		void send(SOCKET sock,const char* data,const size_t &size,std::function<void(network_send_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
+			context_ptr->this_socket = sock;
 			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
 			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
 			{
@@ -238,7 +252,7 @@ namespace stdx
 			buf->buf = buffer;
 			buf->len = size;
 			context_ptr->buffer = buf;
-			if (WSASend(sock, buf, size, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			if (WSASend(sock, buf, 1, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -248,7 +262,8 @@ namespace stdx
 				std::exception_ptr error(nullptr);
 				try
 				{
-					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol),&(context_ptr->size), false, NULL))
+					DWORD flag = 0;
+					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol),&(context_ptr->size), false, &flag))
 					{
 						//在这里出错
 						_ThrowWSAError
@@ -274,6 +289,7 @@ namespace stdx
 		void recv(SOCKET sock,const size_t &size,std::function<void(network_recv_event,std::exception_ptr)> &&callback)
 		{
 			auto *context_ptr = new network_io_context;
+			context_ptr->this_socket = sock;
 			char *buf = (char*)std::calloc(sizeof(char), size);
 			WSABUF *buffer = new WSABUF;
 			buffer->buf = buf;
@@ -303,7 +319,8 @@ namespace stdx
 				std::exception_ptr error(nullptr);
 				try
 				{
-					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, NULL))
+					DWORD flag = 0;
+					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false,&flag))
 					{
 						//在这里出错
 						_ThrowWSAError
@@ -323,6 +340,14 @@ namespace stdx
 				}
 				delete call;
 			}, m_iocp);
+		}
+
+		void connect(SOCKET sock,stdx::network_addr &addr) 
+		{
+			if (WSAConnect(sock, addr, addr.len(), NULL, NULL, NULL, NULL) == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
 		}
 	private:
 		iocp_t m_iocp;

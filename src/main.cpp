@@ -24,9 +24,44 @@ int main()
 	{
 		std::cerr << e.what();
 	}*/
-	uint32 a = 0xFFFFFFFF;
-	byte b = get_byte(4, &a);
-	std::cout << b <<std::endl;
+	stdx::_NetworkIOService service;
+	SOCKET s(service.create_wsasocket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp));
+	stdx::network_addr addr(inet_addr("192.168.1.2"),htons(25565U));
+	try
+	{
+		service.connect(s, addr);
+	}
+	catch (const std::exception&e)
+	{
+		std::cerr << e.what();
+		return 0;
+	}
+	std::string str("hello world");
+	try
+	{
+		service.send(s, str.c_str(), str.size(), [](stdx::network_send_event e, std::exception_ptr error)
+		{
+			if (error)
+			{
+				try
+				{
+					std::rethrow_exception(error);
+				}
+				catch (const std::exception&e)
+				{
+					std::cerr << e.what();
+				}
+			}
+			else
+			{
+				std::cout << "send ok!";
+			}
+		});
+	}
+	catch (std::exception &e)
+	{
+		std::cerr << e.what();
+	}
 	std::cin.get();
 	return 0;
 }
