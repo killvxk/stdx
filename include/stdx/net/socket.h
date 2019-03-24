@@ -69,6 +69,7 @@ namespace stdx
 	class network_addr
 	{
 	public:
+		network_addr()=default;
 		network_addr(unsigned long ip,unsigned short port)
 		{
 			m_handle.sin_family = addr_family::ip;
@@ -128,7 +129,7 @@ namespace stdx
 		~network_io_context() = default;
 		WSAOVERLAPPED m_ol;
 		SOCKET this_socket;
-		sockaddr addr;
+		network_addr addr;
 		WSABUF *buffer;
 		DWORD size;
 		SOCKET target_socket;
@@ -233,10 +234,10 @@ namespace stdx
 			{
 				if (error)
 				{
-					callback(network_send_event(), error);
 					std::free(context_ptr->buffer->buf);
 					delete context_ptr->buffer;
 					delete context_ptr;
+					callback(network_send_event(),error);
 					return;
 				}
 				network_send_event context(context_ptr);
@@ -299,6 +300,8 @@ namespace stdx
 			{
 				if (error)
 				{
+					std::free(context_ptr–>buffer–>buf);
+					delete context_ptr–>buffer;
 					delete context_ptr;
 					callback(network_recv_event(),error);
 					return;
