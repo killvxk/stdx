@@ -26,7 +26,7 @@ int main()
 	}*/
 	stdx::_NetworkIOService service;
 	SOCKET s(service.create_wsasocket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp));
-	stdx::network_addr addr(inet_addr("192.168.1.2"),htons(25565U));
+	stdx::network_addr addr(inet_addr("192.168.1.2"),25565U);
 	try
 	{
 		service.connect(s, addr);
