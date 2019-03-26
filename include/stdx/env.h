@@ -30,4 +30,5 @@
 #define uint64 unsigned long long
 #endif // WIN32
 
-#define get_byte(x,ptr) *((byte*)ptr+(x)) 
+#define get_byte(x,ptr) *((byte*)ptr+(x))
+#define delete_copy(type) type(const type &)=delete

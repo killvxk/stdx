@@ -241,6 +241,7 @@ namespace stdx
 				CloseHandle(m_iocp);
 			}
 		}
+		delete_copy(_IOCP<_IOContext>);
 		void bind(const HANDLE &file_handle)
 		{
 			if (CreateIoCompletionPort(file_handle, m_iocp, (ULONG_PTR)file_handle, 0) == NULL)
@@ -371,6 +372,7 @@ namespace stdx
 		_FileIOService(const iocp_t &iocp)
 			:m_iocp(iocp)
 		{}
+		delete_copy(_FileIOService);
 		~_FileIOService() = default;
 		HANDLE create_file(const std::string &path,DWORD access_type,DWORD file_open_type,DWORD shared_model)
 		{

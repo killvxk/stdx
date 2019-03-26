@@ -185,8 +185,9 @@ namespace stdx
 		_NetworkIOService(const iocp_t &iocp)
 			:m_iocp(iocp)
 		{}
+		delete_copy(_NetworkIOService);
 		~_NetworkIOService() = default;
-		SOCKET create_socket(int addr_family, int sock_type, int protocl)
+		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocl)
 		{
 			SOCKET sock = socket(addr_family,sock_type,protocl);
 			if (sock == INVALID_SOCKET)
@@ -196,7 +197,7 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
-		SOCKET create_wsasocket(int addr_family,int sock_type,int protocl)
+		SOCKET create_wsasocket(const int &addr_family,const int &sock_type,const int &protocl)
 		{
 			SOCKET sock = WSASocket(addr_family, sock_type,protocl, NULL, 0,WSA_FLAG_OVERLAPPED);
 			if (sock == INVALID_SOCKET)
@@ -287,7 +288,8 @@ namespace stdx
 				callback(context,std::exception_ptr(nullptr));
 			};
 			context_ptr->callback = call;
-			if (WSARecv(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+
+			if (WSARecv(sock, &(context_ptr->buffer), 1, &(context_ptr->size),&(_NetworkIOService::recv_flag), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -336,6 +338,7 @@ namespace stdx
 			{
 				_ThrowWSAError
 			}
+			m_iocp.bind(s);
 			return s;
 		}
 
@@ -434,7 +437,7 @@ namespace stdx
 				callback(context, std::exception_ptr(nullptr));
 			};
 			context_ptr->callback = call;
-			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL,context_ptr->addr,(LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size),&(_NetworkIOService::recv_flag),context_ptr->addr,(LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -468,8 +471,72 @@ namespace stdx
 		}
 	private:
 		iocp_t m_iocp;
+		static DWORD recv_flag;
 	};
+	DWORD _NetworkIOService::recv_flag = 0;
 
+	class network_io_service
+	{
+		using iocp_t = _NetworkIOService::iocp_t;
+		using impl_t = std::shared_ptr<_NetworkIOService>;
+	public:
+		network_io_service()
+			:m_impl(std::make_shared<_NetworkIOService>())
+		{}
+		network_io_service(const iocp_t &iocp)
+			:m_impl(std::make_shared<_NetworkIOService>(iocp))
+		{}
+		network_io_service(const network_io_service &other)
+			:m_impl(other.m_impl)
+		{}
+		network_io_service(network_io_service &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		network_io_service &operator=(const network_io_service &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		~network_io_service() = default;
+		SOCKET create_socket(const int &addr_family,const int &sock_type,const int &protocl)
+		{
+			return m_impl->create_wsasocket(addr_family, sock_type, protocl);
+		}
+		void send(SOCKET sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->send(sock, data, size, std::move(callback));
+		}
+		void recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->recv(sock, size, std::move(callback));
+		}
+		void connect(SOCKET sock, stdx::network_addr &addr)
+		{
+			m_impl->connect(sock, addr);
+		}
+		SOCKET accept(SOCKET sock, network_addr &addr)
+		{
+			return m_impl->accept(sock, addr);
+		}
+		void listen(SOCKET sock, int backlog)
+		{
+			m_impl->listen(sock, backlog);
+		}
+		void bind(SOCKET sock, network_addr &addr)
+		{
+			m_impl->bind(sock, addr);
+		}
+		void send_to(SOCKET sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->send_to(sock, addr, data, size, std::move(callback));
+		}
+		void recv_from(SOCKET sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->recv_from(sock, addr, size, std::move(callback));
+		}
+	private:
+		impl_t m_impl;
+	};
 	//class _Socket
 	//{
 	//public:
