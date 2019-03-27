@@ -24,38 +24,57 @@ int main()
 	{
 		std::cerr << e.what();
 	}*/
-	stdx::network_io_service service;
+	stdx::_NetworkIOService service;
 	SOCKET s(service.create_socket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp));
 	stdx::network_addr addr("192.168.1.2",25565U);
 	service.bind(s, addr);
 	service.listen(s, 1024);
 	stdx::network_addr c_addr;
-	SOCKET c =service.accept(s, c_addr);
-	try
+	service._AcceptEx(s, 0, [](stdx::network_accept_event e,std::exception_ptr error) 
 	{
-		service.recv(c, 4096, [](stdx::network_recv_event e,std::exception_ptr error) {
-			if (error)
+		if (error)
+		{
+			try
 			{
-				try
-				{
-					std::rethrow_exception(error);
-				}
-				catch (const std::exception&e)
-				{
-					std::cerr << e.what();
-				}
+				std::rethrow_exception(error);
 			}
-			else
+			catch (const std::exception&e)
 			{
-				std::cout << e.buffer;
+				std::cerr << e.what();
 			}
-		});
-	}
-	catch (const std::exception&e)
-	{
-			std::cerr << e.what();
-			return 0;
-	}
+		}
+		else
+		{
+			std::cout << "ok!";
+		}
+	});
+
+	//try
+	//{
+	//	service.recv(c, 4096, [](stdx::network_recv_event e,std::exception_ptr error) {
+	//		if (error)
+	//		{
+	//			try
+	//			{
+	//				std::rethrow_exception(error);
+	//			}
+	//			catch (const std::exception&e)
+	//			{
+	//				std::cerr << e.what();
+	//			}
+	//		}
+	//		else
+	//		{
+	//			std::cout << e.buffer;
+	//		}
+	//	});
+	//}
+	//catch (const std::exception&e)
+	//{
+	//		std::cerr << e.what();
+	//		return 0;
+	//}
+
 	//try
 	//{
 	//	service.connect(s, addr);

@@ -97,6 +97,7 @@ namespace stdx
 		network_addr &operator=(const network_addr &other)
 		{
 			m_handle = other.m_handle;
+			return *this;
 		}
 		const static int addr_len = sizeof(sockaddr);
 	private:
@@ -175,6 +176,36 @@ namespace stdx
 		size_t size;
 	};
 
+	struct network_accept_event
+	{
+		network_accept_event() = default;
+		~network_accept_event() = default;
+		network_accept_event(const network_accept_event &other)
+			:accept(other.accept)
+			,buffer(other.buffer)
+			,size(other.size)
+			,addr(other.addr)
+		{}
+		network_accept_event &operator=(const network_accept_event &other)
+		{
+			accept = other.accept;
+			buffer = other.buffer;
+			size = other.size;
+			addr = other.addr;
+			return *this;
+		}
+		network_accept_event(network_io_context *ptr)
+			:accept(ptr->target_socket)
+			,buffer(ptr->buffer.len-((sizeof(sockaddr)+16)*2),(ptr->buffer.buf+(sizeof(sockaddr)+16)*2))
+			,size(ptr->size)
+			,addr(ptr->addr)
+		{}
+		SOCKET accept;
+		stdx::buffer buffer;
+		size_t size;
+		network_addr addr;
+	};
+
 	class _NetworkIOService
 	{
 	public:
@@ -187,9 +218,9 @@ namespace stdx
 		{}
 		delete_copy(_NetworkIOService);
 		~_NetworkIOService() = default;
-		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocl)
+		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocol)
 		{
-			SOCKET sock = socket(addr_family,sock_type,protocl);
+			SOCKET sock = socket(addr_family,sock_type,protocol);
 			if (sock == INVALID_SOCKET)
 			{
 				_ThrowWSAError
@@ -197,9 +228,9 @@ namespace stdx
 			m_iocp.bind(sock);
 			return sock;
 		}
-		SOCKET create_wsasocket(const int &addr_family,const int &sock_type,const int &protocl)
+		SOCKET create_wsasocket(const int &addr_family,const int &sock_type,const int &protocol)
 		{
-			SOCKET sock = WSASocket(addr_family, sock_type,protocl, NULL, 0,WSA_FLAG_OVERLAPPED);
+			SOCKET sock = WSASocket(addr_family, sock_type,protocol, NULL, 0,WSA_FLAG_OVERLAPPED);
 			if (sock == INVALID_SOCKET)
 			{
 				_ThrowWSAError
@@ -469,9 +500,108 @@ namespace stdx
 				delete call;
 			}, m_iocp);
 		}
+		void close(SOCKET sock)
+		{
+			if (::closesocket(sock) == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+		}
+		void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
+		{
+			GUID id = WSAID_ACCEPTEX;
+			DWORD buf;
+			if (WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), ptr, sizeof(LPFN_ACCEPTEX), &buf, NULL, NULL)==SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+		}
+		void _GetAcceptExSockaddr(SOCKET s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
+		{
+			GUID id = WSAID_GETACCEPTEXSOCKADDRS;
+			DWORD buf;
+			if (WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), ptr, sizeof(LPFN_GETACCEPTEXSOCKADDRS), &buf, NULL, NULL)==SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+		}
+		network_addr _GetSocketAddrEx(SOCKET sock,void *buffer,const size_t &size)
+		{
+			if (!get_addr_ex)
+			{
+				_GetAcceptExSockaddr(sock,&get_addr_ex);
+			}
+			network_addr local;
+			network_addr remote;
+			auto local_ptr = (sockaddr*)local;
+			auto remote_ptr = (sockaddr*)remote;
+			DWORD len = sizeof(sockaddr);
+			get_addr_ex(buffer, size, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16,&local_ptr,(int*)&len,&remote_ptr,(int*)&len);
+			return remote;
+		}
+		void _AcceptEx(SOCKET sock,const size_t &buffer_size,std::function<void(network_accept_event,std::exception_ptr)> &&callback,DWORD addr_family= stdx::addr_family::ip,DWORD socket_type=stdx::socket_type::stream,DWORD protocol = stdx::protocol::tcp)
+		{
+			if (!accept_ex)
+			{
+				_GetAcceptEx(sock, &accept_ex);
+			}
+			network_io_context *context = new network_io_context;
+			context->target_socket = WSASocket(addr_family, socket_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
+			context->buffer.len = buffer_size+ ((sizeof(sockaddr_in) + 16) * 2);
+			context->buffer.buf = (char*)std::calloc(sizeof(char), context->buffer.len);
+			context->this_socket = sock;
+			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
+			*call = [callback,this,buffer_size](network_io_context *context_ptr, std::exception_ptr error)
+			{
+				if (error)
+				{
+					std::free(context_ptr->buffer.buf);
+					delete context_ptr;
+					callback(network_accept_event(), error);
+					return;
+				}
+				context_ptr->addr = _GetSocketAddrEx(context_ptr->this_socket,(void*)context_ptr->buffer.buf,buffer_size);
+				network_accept_event context(context_ptr);
+				delete context_ptr;
+				callback(context, nullptr);
+			};
+			if (!accept_ex(sock,context->target_socket,context->buffer.buf,buffer_size, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16,&(context->size),&(context->m_ol)))
+			{
+				_ThrowWSAError
+			}
+			stdx::threadpool::run([](iocp_t iocp)
+			{
+				auto *context_ptr = iocp.get();
+				std::exception_ptr error(nullptr);
+				try
+				{
+					DWORD flag = 0;
+					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
+					{
+						//在这里出错
+						_ThrowWSAError
+					}
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
+				}
+				auto *call = context_ptr->callback;
+				try
+				{
+					(*call)(context_ptr, error);
+				}
+				catch (const std::exception&)
+				{
+				}
+				delete call;
+			}, m_iocp);
+		}
 	private:
 		iocp_t m_iocp;
 		static DWORD recv_flag;
+		static LPFN_ACCEPTEX accept_ex;
+		static LPFN_GETACCEPTEXSOCKADDRS get_addr_ex;
 	};
 	DWORD _NetworkIOService::recv_flag = 0;
 
@@ -570,20 +700,8 @@ namespace stdx
 	//		:m_handle(handle)
 	//	{
 	//	}
-	//	static LPFN_ACCEPTEX accept_ex;
+	//	
 	//};
-	//void _GetAcceptEx(const SOCKET &s, LPFN_ACCEPTEX *ptr)
-	//{
-	//	GUID id = WSAID_ACCEPTEX;
-	//	DWORD buf;
-	//	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
-	//}
-	//void _GetAcceptExSockaddr(const SOCKET &s, LPFN_GETACCEPTEXSOCKADDRS *ptr)
-	//{
-	//	GUID id = WSAID_GETACCEPTEXSOCKADDRS;
-	//	DWORD buf;
-	//	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &id, sizeof(id), &ptr, sizeof(ptr), &buf, NULL, NULL);
-	//}
 #endif //Win32
 #ifdef LINUX
 
