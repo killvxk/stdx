@@ -25,6 +25,15 @@ namespace stdx
 		};
 	};
 
+	template<typename _T>
+	using promise_ptr = std::shared_ptr<std::promise<_T>>;
+
+	template<typename _T>
+	promise_ptr<_T> make_promise_ptr()
+	{
+		return std::make_shared<std::promise<_T>>();
+	}
+
 	//task_result模板
 	template<typename _T>
 	class task_result
@@ -192,7 +201,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::runable_ptr<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -242,7 +251,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::runable_ptr<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -394,6 +403,7 @@ namespace stdx
 			return future.get().then(std::move(fn));
 		}
 	};
+
 	//Task模板的实现
 	template<typename R>
 	class _Task :public stdx::_BasicTask
@@ -448,7 +458,7 @@ namespace stdx
 			m_lock.unlock();
 			//创建方法
 			auto f = [](stdx::runable_ptr<R> r
-				, std::shared_ptr<std::promise<R>> promise
+				, promise_ptr<R> promise
 				, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>>  next
 				, stdx::spin_lock lock
 				, std::shared_ptr<int> state)
@@ -521,7 +531,7 @@ namespace stdx
 
 	protected:
 		stdx::runable_ptr<R> m_action;
-		std::shared_ptr<std::promise<R>> m_promise;
+		promise_ptr<R> m_promise;
 		std::shared_future<R> m_future;
 		std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> m_next;
 		std::shared_ptr<int> m_state;
@@ -549,7 +559,8 @@ namespace stdx
 		}
 
 	};
-	template<typename _Result>
+
+	/*template<typename _Result>
 	class _TaskCompleteEvent
 	{
 	public:
@@ -610,5 +621,5 @@ namespace stdx
 		}
 	private:
 		impl_t m_impl;
-	};
+	};*/
 }

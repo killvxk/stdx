@@ -351,7 +351,7 @@ namespace stdx
 		};
 	};
 
-	struct file_pointer_move_method
+	struct file_seek_method
 	{
 		enum
 		{
@@ -533,7 +533,7 @@ namespace stdx
 				delete call;
 			},m_iocp);
 		}
-		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
+		void seek(HANDLE file,const int64 &distance,const DWORD &method)
 		{
 			LARGE_INTEGER li;
 			li.QuadPart = distance;
@@ -588,9 +588,9 @@ namespace stdx
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
 		
-		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
+		void seek(HANDLE file,const int64 &distance,const DWORD &method)
 		{
-			return m_impl->set_file_pointer(file,distance,method);
+			return m_impl->seek(file,distance,method);
 		}
 
 	private:
@@ -620,7 +620,7 @@ namespace stdx
 			{
 				throw std::logic_error("this io service has been free");
 			}
-			std::shared_ptr<std::promise<file_read_event>> promise = std::make_shared<std::promise<file_read_event>>();
+			stdx::promise_ptr<file_read_event> promise = stdx::make_promise_ptr<file_read_event>();
 			stdx::task<file_read_event> task([promise]()
 			{
 				return promise->get_future().get();
@@ -630,10 +630,12 @@ namespace stdx
 				if (error)
 				{
 					promise->set_exception(error);
-					return;
 				}
-				promise->set_value(context);
-				task.run();
+				else
+				{
+					promise->set_value(context);
+				}
+				task.run_on_this_thread();
 			});
 			return task;
 		}
@@ -643,7 +645,7 @@ namespace stdx
 			{
 				throw std::logic_error("this io service has been free");
 			}
-			std::shared_ptr<std::promise<file_write_event>> promise = std::make_shared<std::promise<file_write_event>>();
+			stdx::promise_ptr<file_write_event> promise = stdx::make_promise_ptr<file_write_event>();
 			stdx::task<file_write_event> task([promise]()
 			{
 				return promise->get_future().get();
@@ -654,15 +656,18 @@ namespace stdx
 				{
 					promise->set_exception(error);
 				}
-				promise->set_value(context);
-				task.run();
+				else
+				{
+					promise->set_value(context);
+				}
+				task.run_on_this_thread();
 			});
 			return task;
 		}
 
 		void set_pointer(const int64 &distance,const DWORD &method)
 		{
-			m_io_service.set_file_pointer(m_file, distance, method);
+			m_io_service.seek(m_file, distance, method);
 		}
 	private:
 		io_service_t m_io_service;

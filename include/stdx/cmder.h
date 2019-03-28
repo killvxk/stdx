@@ -36,11 +36,6 @@ namespace stdx
 			execute("mem.exe");
 		}
 
-		static void show_windows_version()
-		{
-			execute("winver");
-		}
-
 		static void shutdown(int &secound)
 		{
 			if (secound)

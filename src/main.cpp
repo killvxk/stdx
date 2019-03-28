@@ -24,31 +24,16 @@ int main()
 	{
 		std::cerr << e.what();
 	}*/
-	stdx::_NetworkIOService service;
-	SOCKET s(service.create_socket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp));
-	stdx::network_addr addr("192.168.1.2",25565U);
-	service.bind(s, addr);
-	service.listen(s, 1024);
-	stdx::network_addr c_addr;
-	service._AcceptEx(s, 0, [](stdx::network_accept_event e,std::exception_ptr error) 
+	stdx::network_io_service service;
+	stdx::socket s(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+	stdx::network_addr addr("192.168.1.2",25565);
+	s.bind(addr);
+	s.listen(1024);
+	auto c = s.accept();
+	c.recv(1024).then([](stdx::network_recv_event e) 
 	{
-		if (error)
-		{
-			try
-			{
-				std::rethrow_exception(error);
-			}
-			catch (const std::exception&e)
-			{
-				std::cerr << e.what();
-			}
-		}
-		else
-		{
-			std::cout << "ok!";
-		}
+		std::cout << e.buffer;
 	});
-
 	//try
 	//{
 	//	service.recv(c, 4096, [](stdx::network_recv_event e,std::exception_ptr error) {
