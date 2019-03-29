@@ -79,9 +79,11 @@ namespace stdx
 			:network_addr(inet_addr(ip),port)
 		{}
 		network_addr(const network_addr &other)
-		{
-			m_handle = other.m_handle;
-		}
+			:m_handle(other.m_handle)
+		{}
+		network_addr(network_addr &&other)
+			:m_handle(other.m_handle)
+		{}
 		~network_addr() = default;
 		operator SOCKADDR_IN* ()
 		{
@@ -98,6 +100,13 @@ namespace stdx
 			m_handle = other.m_handle;
 			return *this;
 		}
+
+		network_addr &operator=(network_addr &&other)
+		{
+			m_handle = other.m_handle;
+			return *this;
+		}
+
 		const static int addr_len = sizeof(sockaddr);
 		network_addr &port(const uint16 &port)
 		{
@@ -336,7 +345,6 @@ namespace stdx
 				callback(context,std::exception_ptr(nullptr));
 			};
 			context_ptr->callback = call;
-
 			if (WSARecv(sock, &(context_ptr->buffer), 1, &(context_ptr->size),&(_NetworkIOService::recv_flag), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
@@ -485,7 +493,7 @@ namespace stdx
 				callback(context, std::exception_ptr(nullptr));
 			};
 			context_ptr->callback = call;
-			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size),&(_NetworkIOService::recv_flag),context_ptr->addr,(LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
+			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size), &(_NetworkIOService::recv_flag),context_ptr->addr,(LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
 				_ThrowWSAError
 			}
@@ -539,7 +547,13 @@ namespace stdx
 
 		network_addr &&get_remote_addr(SOCKET sock) const
 		{
-
+			network_addr addr;
+			int len = network_addr::addr_len;
+			if (getpeername(sock, addr, &len) == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+			return std::move(addr);
 		}
 		//void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
 		//{
@@ -931,11 +945,11 @@ namespace stdx
 			m_impl->listen(backlog);
 		}
 
-		self_t &&accept()
+		self_t accept()
 		{
 			network_addr addr;
 			SOCKET s = m_impl->accept(addr);
-			return std::move(socket(m_impl->io_service(),s));
+			return socket(m_impl->io_service(),s);
 		}
 
 		void close()
