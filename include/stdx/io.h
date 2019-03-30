@@ -726,3 +726,27 @@ namespace stdx
 	};
 }
 #endif
+
+#ifdef LINUX
+#include <sys/epoll.h>
+#include <errno.h>
+#define _ThrowLinuxError auto _ERROR_CODE = errno;
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
+class _EPOLL
+{
+public:
+	_EPOLL()
+		:m_handle(epoll_create1(0))
+	{
+		if (m_handle == -1)
+		{
+			_ThrowLinuxError
+		}
+	}
+	~_EPOLL() = default;
+	delete_copy(_EPOLL);
+
+private:
+	int m_handle;
+};
+#endif
