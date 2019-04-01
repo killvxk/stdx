@@ -745,7 +745,6 @@ public:
 	}
 	~_EPOLL() = default;
 	delete_copy(_EPOLL);
-
 private:
 	int m_handle;
 };
