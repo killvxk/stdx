@@ -65,6 +65,15 @@ namespace stdx
 		};
 	};
 
+	struct poll_mode
+	{
+		enum
+		{
+			read = POLLIN,
+			write = POLLOUT
+		};
+	};
+
 	class network_addr
 	{
 	public:
@@ -79,9 +88,6 @@ namespace stdx
 			:network_addr(inet_addr(ip),port)
 		{}
 		network_addr(const network_addr &other)
-			:m_handle(other.m_handle)
-		{}
-		network_addr(network_addr &&other)
 			:m_handle(other.m_handle)
 		{}
 		~network_addr() = default;
@@ -398,6 +404,17 @@ namespace stdx
 			return s;
 		}
 
+		SOCKET accept(SOCKET sock)
+		{
+			SOCKET s = WSAAccept(sock, NULL, 0, NULL, NULL);
+			if (s == INVALID_SOCKET)
+			{
+				_ThrowWSAError
+			}
+			m_iocp.bind(s);
+			return s;
+		}
+
 		void listen(SOCKET sock,int backlog)
 		{
 			if (::listen(sock, backlog) == SOCKET_ERROR)
@@ -534,7 +551,7 @@ namespace stdx
 			}
 		}
 		
-		network_addr &&get_local_addr(SOCKET sock) const
+		network_addr get_local_addr(SOCKET sock) const
 		{
 			network_addr addr;
 			int len = network_addr::addr_len;
@@ -542,10 +559,10 @@ namespace stdx
 			{
 				_ThrowWSAError
 			}
-			return std::move(addr);
+			return addr;
 		}
 
-		network_addr &&get_remote_addr(SOCKET sock) const
+		network_addr get_remote_addr(SOCKET sock) const
 		{
 			network_addr addr;
 			int len = network_addr::addr_len;
@@ -553,7 +570,30 @@ namespace stdx
 			{
 				_ThrowWSAError
 			}
-			return std::move(addr);
+			return addr;
+		}
+
+		bool poll(SOCKET sock,int16 mode,int32 timeout) const
+		{
+			WSAPOLLFD fd;
+			fd.events = mode;
+			int r = WSAPoll(&fd,1,timeout);
+			if (r==0)
+			{
+				return false;
+			}
+			if (r > 0)
+			{
+				if (fd.revents == mode)
+				{
+					return true;
+				}
+			}
+			if (r == SOCKET_ERROR)
+			{
+				_ThrowWSAError
+			}
+			return false;
 		}
 		//void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
 		//{
@@ -707,6 +747,11 @@ namespace stdx
 			return m_impl->accept(sock, addr);
 		}
 
+		SOCKET accept(SOCKET sock)
+		{
+			return m_impl->accept(sock);
+		}
+
 		void listen(SOCKET sock, int backlog)
 		{
 			m_impl->listen(sock, backlog);
@@ -732,16 +777,19 @@ namespace stdx
 			m_impl->close(sock);
 		}
 
-		network_addr &&get_local_addr(SOCKET sock) const
+		network_addr get_local_addr(SOCKET sock) const
 		{
-			return std::move(m_impl->get_local_addr(sock));
+			return m_impl->get_local_addr(sock);
 		}
 
-		network_addr &&get_remote_addr(SOCKET sock) const
+		network_addr get_remote_addr(SOCKET sock) const
 		{
-			return std::move(m_impl->get_remote_addr(sock));
+			return m_impl->get_remote_addr(sock);
 		}
-
+		bool poll(SOCKET sock, int16 mode, int32 timeout) const
+		{
+			return m_impl->poll(sock, mode, timeout);
+		}
 		operator bool() const
 		{
 			return (bool)m_impl;
@@ -886,6 +934,11 @@ namespace stdx
 			return m_io_service.accept(m_handle,addr);
 		}
 
+		SOCKET accept()
+		{
+			return m_io_service.accept(m_handle);
+		}
+
 		void close()
 		{
 			m_io_service.close(m_handle);
@@ -901,14 +954,14 @@ namespace stdx
 			return m_io_service;
 		}
 
-		network_addr &&local_addr() const
+		network_addr local_addr() const
 		{
-			return std::move(m_io_service.get_local_addr(m_handle));
+			return m_io_service.get_local_addr(m_handle);
 		}
 
-		network_addr &&remote_addr() const
+		network_addr remote_addr() const
 		{
-			return std::move(m_io_service.get_remote_addr(m_handle));
+			return m_io_service.get_remote_addr(m_handle);
 		}
 	private:
 		io_service_t m_io_service;
@@ -945,10 +998,15 @@ namespace stdx
 			m_impl->listen(backlog);
 		}
 
+		self_t accept(network_addr &addr)
+		{
+			SOCKET s = m_impl->accept(addr);
+			return socket(m_impl->io_service(), s);
+		}
+
 		self_t accept()
 		{
-			network_addr addr;
-			SOCKET s = m_impl->accept(addr);
+			SOCKET s = m_impl->accept();
 			return socket(m_impl->io_service(),s);
 		}
 
@@ -962,14 +1020,14 @@ namespace stdx
 			m_impl->connect(addr);
 		}
 
-		network_addr &&local_addr() const
+		network_addr local_addr() const
 		{
-			return std::move(m_impl->local_addr());
+			return m_impl->local_addr();
 		}
 
-		network_addr &&remote_addr() const
+		network_addr remote_addr() const
 		{
-			return std::move(m_impl->remote_addr());
+			return m_impl->remote_addr();
 		}
 
 		stdx::task<network_send_event> send(const char *data, const size_t &size)

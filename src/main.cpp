@@ -26,7 +26,7 @@ int main()
 				c.close();
 			});
 	});*/
-	stdx::message_box::show(NULL,"hello","body",stdx::message_button::ok,NULL);
+	/*stdx::message_box::show(NULL,"hello","body",stdx::message_button::ok,NULL);*/
 	std::cin.get();
 	return 0;
 }
