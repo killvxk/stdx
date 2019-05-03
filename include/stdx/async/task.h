@@ -560,6 +560,25 @@ namespace stdx
 
 	};
 
+
+	//template<typename _R,typename _Fn,typename _MakerFn>
+	//void task_recursive(_MakerFn &&maker,_Fn &&fn)
+	//{
+	//	stdx::task<_R> task = maker();
+	//	task.then([maker, fn](stdx::task_result<_R> result)
+	//	{
+	//		try
+	//		{
+	//			fn(result.get());
+	//			stdx::task<_R> task = maker();
+	//		}
+	//		catch (const std::exception&)
+	//		{
+	//			//cancel
+	//		}
+	//	});
+	//}
+
 	/*template<typename _Result>
 	class _TaskCompleteEvent
 	{

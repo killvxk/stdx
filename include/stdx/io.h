@@ -732,6 +732,20 @@ namespace stdx
 #include <errno.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
+
+struct epoll_events
+{
+	enum 
+	{
+		in = EPOLLIN,
+		out = EPOLLOUT,
+		err = EPOLLERR,
+		hup = EPOLLHUP,
+		et = EPOLLET,
+		once = EPOLLONESHOT
+	};
+};
+
 class _EPOLL
 {
 public:
@@ -745,6 +759,33 @@ public:
 	}
 	~_EPOLL() = default;
 	delete_copy(_EPOLL);
+	void add_event(int fd,const uint32 &events)
+	{
+		epoll_event e;
+		e.events = events;
+		e.data.fd = fd;
+		if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
+		{
+			_ThrowLinuxError
+		}
+	}
+	void del_event(int fd)
+	{
+		epoll_event e;
+		e.data.fd = fd;
+		if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
+		{
+			_ThrowLinuxError
+		}
+	}
+
+	void wait(int fd,epoll_event *event_ptr,int maxevents,int timeout)
+	{
+		if (epoll_wait(m_handle,event_ptr,maxevent,timeout)==-1)
+		{
+			_ThrowLinuxError
+		}
+	}
 private:
 	int m_handle;
 };
