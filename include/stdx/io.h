@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <memory>
 #include <stdexcept>
+#include <system_error>
 #include <string>
 #include <stdx/async/task.h>
 #include <stdx/env.h>
@@ -76,7 +77,7 @@ namespace stdx
 	//自动释放缓存区
 	class buffer
 	{
-		using impl_t = std::shared_ptr<_Buffer>;
+		using impl_t = std::shared_ptr<stdx::_Buffer>;
 	public:
 		buffer(size_t size = 4096)
 			:m_impl(std::make_shared<_Buffer>(size))
@@ -728,6 +729,7 @@ namespace stdx
 #endif
 
 #ifdef LINUX
+#include <string.h>
 #include <sys/epoll.h>
 #include <errno.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
@@ -748,45 +750,55 @@ struct epoll_events
 
 class _EPOLL
 {
-public:
+	public:
 	_EPOLL()
 		:m_handle(epoll_create1(0))
 	{
 		if (m_handle == -1)
 		{
-			_ThrowLinuxError
+
+			 _ThrowLinuxError
 		}
 	}
 	~_EPOLL() = default;
-	delete_copy(_EPOLL);
-	void add_event(int fd,const uint32 &events)
+	void add_event(int fd, const uint32 &events)
 	{
-		epoll_event e;
-		e.events = events;
-		e.data.fd = fd;
-		if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
-		{
-			_ThrowLinuxError
-		}
+			epoll_event e;
+			 e.events = events;
+			e.data.fd = fd;
+			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
+			{
+				_ThrowLinuxError
+			}
 	}
 	void del_event(int fd)
 	{
-		epoll_event e;
-		e.data.fd = fd;
-		if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
-		{
-			_ThrowLinuxError
-		}
+			epoll_event e;
+			e.data.fd = fd;
+			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
+			{
+				_ThrowLinuxError
+			}
 	}
 
-	void wait(int fd,epoll_event *event_ptr,int maxevents,int timeout)
+	void wait(int fd, epoll_event *event_ptr, int maxevents, int timeout)
 	{
-		if (epoll_wait(m_handle,event_ptr,maxevent,timeout)==-1)
-		{
-			_ThrowLinuxError
-		}
+			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
+			{
+				_ThrowLinuxError
+			}
 	}
 private:
 	int m_handle;
+};
+class epoll
+{
+	using impl_t = std::shared_ptr<_EPOLL>;
+	public:
+		epoll();
+		~epoll();
+
+	private:
+
 };
 #endif

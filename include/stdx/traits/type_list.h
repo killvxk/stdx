@@ -112,7 +112,7 @@ namespace stdx
 	template<typename _Type,typename _First,typename _Secound,typename ..._Types>
 	struct _TypeErase<_Type,type_list<_First,_Secound,_Types...>>
 	{
-		using type = _TypeList<_First,_Secound, _TypeErase<_Type,type_list<_Types...>>>::type;
+		using type = typename _TypeList<_First,_Secound, _TypeErase<_Type,type_list<_Types...>>>::type;
 	};
 
 	template<typename _Type, typename _Secound, typename ..._Types>
