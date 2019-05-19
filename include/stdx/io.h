@@ -1,7 +1,5 @@
 ﻿#pragma once
 #include <memory>
-#include <stdexcept>
-#include <system_error>
 #include <string>
 #include <stdx/async/task.h>
 #include <stdx/env.h>
@@ -794,11 +792,35 @@ private:
 class epoll
 {
 	using impl_t = std::shared_ptr<_EPOLL>;
-	public:
-		epoll();
-		~epoll();
+public:
+	epoll()
+		:m_impl(std::make_shared<_EPOLL>())
+	{}
 
-	private:
+	~epoll() = default;
 
+	void add_event(int fd, const uint32 &events)
+	{
+		m_impl->add_event(fd, events);
+	}
+
+	void del_event(int fd)
+	{
+		m_impl->del_event(fd);
+	}
+
+	void wait(int fd, epoll_event *event_ptr, int maxevents, int timeout)
+	{
+		m_impl->wait(fd, event_ptr, maxevents, timeout);
+	}
+
+	epoll_event wait(int fd, int timeout)
+	{
+		epoll_event ev;
+		this->wait(fd, &ev, 1, timeout);
+		return ev;
+	}
+private:
+	impl_t m_impl;
 };
 #endif

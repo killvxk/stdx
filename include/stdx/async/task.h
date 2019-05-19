@@ -7,6 +7,7 @@
 #include <stdx/traits/value_type.h>
 #include <stdx/function.h>
 #include <stdx/tuple.h>
+#include <stdx/env.h>
 namespace stdx
 {
 	//Task状态

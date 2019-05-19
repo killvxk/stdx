@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <vector>
 
 namespace stdx
@@ -11,7 +11,7 @@ namespace stdx
 			smaller = 1
 		};
 	};
-	//¿ìËÙÅÅĞò·½·¨(´Ó´óµ½Ğ¡)
+	//å¿«é€Ÿæ’åºæ–¹æ³•(ä»å¤§åˆ°å°)
 	template<typename _T, typename _TContainer = std::vector<_T>>
 	void quicksort_bigger(_TContainer &container, size_t begin, size_t end)
 	{
@@ -49,7 +49,7 @@ namespace stdx
 		quicksort_bigger<_T, _TContainer>(container, begin_ps, begin);
 		quicksort_bigger<_T, _TContainer>(container, begin + 1, end_ps + 1);
 	}
-	//¿ìËÙÅÅĞò·½·¨(´ÓĞ¡µ½´ó)
+	//å¿«é€Ÿæ’åºæ–¹æ³•(ä»å°åˆ°å¤§)
 	template<typename T, typename TContainer = std::vector<T>>
 	void quicksort_smaller(TContainer &container, size_t begin, size_t end)
 	{
@@ -86,63 +86,5 @@ namespace stdx
 		container[begin] = basic;
 		quicksort_smaller<T, TContainer>(container, begin_ps, begin);
 		quicksort_smaller<T, TContainer>(container, begin + 1, end_ps + 1);
-	}
-
-	//½«×Ö·û´®·Ö¸î³ÉÁ½¸ö²¿·Ö
-	template<typename _TString = std::string>
-	std::pair<_TString, _TString> split_to_double(const _TString &str, const _TString &pattern)
-	{
-		//Èç¹ûÊÇ¿ÕÔò±¨´í
-		if (pattern.empty())
-		{
-			throw std::invalid_argument("²ÎÊı pattern ²»ÄÜÎª¿Õ×Ö·û´®,ÎŞ·¨¸ù¾İpattern·Ö¸îstr");
-		}
-		//¶¨ÒåÒ»¸öpairÀ´´¢´æÊı¾İ
-		auto pair = std::make_pair<std::string, std::string>("", "");
-		//Ê¹ÓÃSTL·Ö¸î
-		//ÏÈÕÒµ½Òª±»·Ö¸î×Ö·û´®µÄÎ»ÖÃ
-		size_t pos = str.find(pattern);
-		//Èç¹ûÕÒ²»µ½
-		if (pos == str.npos)
-		{
-			//ÅĞ¶ÏstrÊÇ·ñÎª¿Õ
-			if (!str.empty())
-			{
-				//Èç¹û²»ÊÇËµÃ÷Ã»ÓĞÕâ¸ö×Ö·û´®
-				//°ÑÈ«²¿ÉèÖÃµ½firstÏî
-				pair.first = str;
-			}
-		}
-		//ÕÒµ½ÁË
-		else
-		{
-			//ÉèÖÃfirstÏî
-			pair.first = str.substr(0, pos);
-			//ÉèÖÃsecondÏî,×¢ÒâÆ«ÒÆÁ¿
-			pair.second = str.substr(pos + pattern.size(), str.size());
-		}
-		return pair;
-	}
-
-	//½«×Ö·û´®·Ö¸î³É¼¸¸ö²¿·Ö
-	template<typename _TString = std::string>
-	std::vector<_TString> split_string(const _TString &str, const _TString &pattern)
-	{
-		//´´½¨vector´¢´æ½á¹û
-		std::vector<_TString> result;
-		//ÏÈ·Ö¸î³ÉÒ»°ë
-		auto pair = split_to_half<_TString>(str, pattern);
-		//½«first push_back
-		result.push_back(pair.first);
-		//²é¿´ÊÇ·ñĞèÒª¼ÌĞø·Ö¸î
-		while (!pair.second.empty())
-		{
-			//¼ÌĞø·Ö¸îÒ»°ë
-			pair = split_to_half(pair.second, pattern);
-			//½«first push_back
-			result.push_back(pair.first);
-		}
-		//·µ»Ø½á¹û
-		return result;
 	}
 }

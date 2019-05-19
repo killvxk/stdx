@@ -33,3 +33,7 @@
 #define get_byte(x,ptr) *((byte*)ptr+(x))
 #define delete_copy(type) type(const type &)=delete
 #define delete_move(type) type(type&&)=delete
+#define empty_cstr ""
+
+#include <stdexcept>
+#include <system_error>
