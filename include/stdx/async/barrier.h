@@ -5,22 +5,22 @@
 
 namespace stdx
 {
-	//ÆÁÕÏ
+	//å±éšœ
 	class _Barrier
 	{
 	public:
-		//Ä¬ÈÏ¹¹Ôìº¯Êı
+		//é»˜è®¤æ„é€ å‡½æ•°
 		_Barrier()
 			:mutex(std::make_shared<std::mutex>())
 			, notify_count(0)
 			, cv(std::make_shared<std::condition_variable>())
 		{}
-		//Îö¹¹º¯Êı
+		//ææ„å‡½æ•°
 		~_Barrier()
 		{
 		}
 
-		//µÈ´ıÍ¨¹ı
+		//ç­‰å¾…é€šè¿‡
 		void wait()
 		{
 			std::unique_lock<std::mutex> lock(*mutex);
@@ -28,11 +28,11 @@ namespace stdx
 			cv->wait(lock, [&n]() { return (int)n; });
 			notify_count -= 1;
 		}
-		//Í¨¹ı
+		//é€šè¿‡
 		void pass()
 		{
+                        notify_count+ï¼1;
 			cv->notify_one();
-			notify_count += 1;
 		}
 		template<class _Rep,class _Period>
 			bool wait_for(const std::chrono::duration<_Rep, _Period> &time)
