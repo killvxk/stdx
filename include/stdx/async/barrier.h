@@ -31,7 +31,7 @@ namespace stdx
 		//通过
 		void pass()
 		{
-                        notify_count+＝1;
+            notify_count+=1;
 			cv->notify_one();
 		}
 		template<class _Rep,class _Period>
