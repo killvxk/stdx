@@ -3,8 +3,30 @@
 #include <string>
 #include <stdx/async/task.h>
 #include <stdx/env.h>
+//#include <allocators>
 namespace stdx
 {
+
+	//struct allocator
+	//{
+	//	static std::allocator<char> m_impl;
+
+	//	static void *alloc(const size_t &size)
+	//	{
+	//		return m_impl.allocate(size);
+	//	}
+
+	//	static void *alloc(const size_t &size, const size_t &count)
+	//	{
+	//		return m_impl.allocate(size*count);
+	//	}
+
+	//	static void dealloc(void *ptr,const size_t &size)
+	//	{
+	//		return m_impl.deallocate((char*)ptr,size);
+	//	}
+	//};
+
 	//自动释放缓存区实现
 	class _Buffer
 	{

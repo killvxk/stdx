@@ -331,6 +331,7 @@ namespace stdx
 				t->run();
 				return t;
 			}
+			*next = t;
 			lock.unlock();
 			return t;
 		}
@@ -354,6 +355,7 @@ namespace stdx
 				t->run();
 				return t;
 			}
+			*next = t;
 			lock.unlock();
 			return t;
 		}

@@ -595,6 +595,7 @@ namespace stdx
 			}
 			return false;
 		}
+
 		//void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
 		//{
 		//	GUID id = WSAID_ACCEPTEX;
@@ -963,6 +964,16 @@ namespace stdx
 		{
 			return m_io_service.get_remote_addr(m_handle);
 		}
+
+		void always_recv(const size_t &size,const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		{
+			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
+			{
+				call(r);
+				always_recv(size, call);
+			});
+		}
+
 	private:
 		io_service_t m_io_service;
 		SOCKET m_handle;
@@ -1050,6 +1061,10 @@ namespace stdx
 			return m_impl->recv_from(addr,size);
 		}
 
+		void always_recv(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		{
+			return m_impl->always_recv(size, call);
+		}
 	private:
 		impl_t m_impl;
 		socket(const io_service_t &io_service, SOCKET s)
