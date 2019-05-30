@@ -179,7 +179,7 @@ namespace stdx
 						//进入自旋锁
 						lock.lock();
 						//获取任务
-						runable_ptr t  = tasks->front();
+						runable_ptr t(tasks->front());
 						//从queue中pop
 						tasks->pop();
 						//解锁

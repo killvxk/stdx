@@ -38,14 +38,24 @@ int main()
 	watch.begin();
 	for (size_t i = 0; i < 1000; i++)
 	{
-		concurrency::create_task([]() 
+		stdx::async([]()
+		{
+			return 1 + 1;
+		});
+	}
+	watch.end();
+	std::cout << "My Task:" << watch.time() << std::endl;
+	watch.clean();
+	watch.begin();
+	for (size_t i = 0; i < 1000; i++)
+	{
+		concurrency::create_task([]()
 		{
 			return 1 + 1;
 		});
 	}
 	watch.end();
 	std::cout << "PPL:" << watch.time() << std::endl;
-	watch.clean();
-	watch.begin();
+	std::cin.get();
 	return 0;
 }
