@@ -137,7 +137,7 @@ namespace stdx
 		template<typename _Fn, typename ..._Args>
 		void run_task(_Fn &&task, _Args &&...args)
 		{
-			if (m_free_count == 0)
+			if (m_free_count ==0)
 			{
 				add_thread();
 				m_free_count.add();
@@ -179,7 +179,7 @@ namespace stdx
 						//进入自旋锁
 						lock.lock();
 						//获取任务
-						runable_ptr t(tasks->front());
+						runable_ptr t(std::move(tasks->front()));
 						//从queue中pop
 						tasks->pop();
 						//解锁
@@ -187,7 +187,10 @@ namespace stdx
 						//执行任务
 						try
 						{
-							t->run();
+							if (t)
+							{
+								t->run();
+							}
 						}
 						catch (const std::exception &)
 						{

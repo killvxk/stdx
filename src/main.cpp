@@ -34,28 +34,6 @@ int main()
 	}
 	std::cin.get();*/
 #pragma endregion
-	stdx::stop_watcher watch;
-	watch.begin();
-	for (size_t i = 0; i < 1000; i++)
-	{
-		stdx::async([]()
-		{
-			return 1 + 1;
-		});
-	}
-	watch.end();
-	std::cout << "My Task:" << watch.time() << std::endl;
-	watch.clean();
-	watch.begin();
-	for (size_t i = 0; i < 1000; i++)
-	{
-		concurrency::create_task([]()
-		{
-			return 1 + 1;
-		});
-	}
-	watch.end();
-	std::cout << "PPL:" << watch.time() << std::endl;
 	std::cin.get();
 	return 0;
 }
