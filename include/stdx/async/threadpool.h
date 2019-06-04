@@ -2,7 +2,7 @@
 #include <thread>
 #include <queue>
 #include <stdx/async/barrier.h>
-#include <stdx/async/spin_lock.h>
+#include <stdx/async/atomic_queue.h>
 #include <stdx/function.h>
 #include <memory>
 
@@ -142,8 +142,7 @@ namespace stdx
 				add_thread();
 				m_free_count.add();
 			}
-			runable_ptr c = stdx::make_runable<void>(std::bind(std::move(task),args...));
-			m_task_queue->push(c);
+			m_task_queue->emplace(stdx::make_runable<void>(std::move(task), args...));
 			m_barrier.pass();
 		}
 
