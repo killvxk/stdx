@@ -814,7 +814,13 @@ namespace stdx
 
 		delete_copy(_Socket);
 
-		~_Socket() = default;
+		~_Socket()
+		{
+			if (m_handle)
+			{
+				this->close();
+			}
+		}
 
 		stdx::task<stdx::network_send_event> send(const char *data, const size_t &size)
 		{
@@ -943,6 +949,7 @@ namespace stdx
 		void close()
 		{
 			m_io_service.close(m_handle);
+			m_handle = 0;
 		}
 
 		void connect(network_addr &addr)
@@ -1067,6 +1074,7 @@ namespace stdx
 		}
 	private:
 		impl_t m_impl;
+
 		socket(const io_service_t &io_service, SOCKET s)
 			:m_impl(std::make_shared<_Socket>(io_service,s))
 		{}
