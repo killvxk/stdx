@@ -90,3 +90,119 @@ namespace stdx
 		clock_t m_time;
 	};
 }
+
+#include <new>
+#include <memory>
+namespace stdx
+{
+	using allocator = std::allocator<char>;
+	struct mem_alloc
+	{
+		static void *alloc(const size_t &size)
+		{
+			void *ptr = m_allocator.allocate(size);
+			if (!ptr)
+			{
+				throw std::bad_alloc();
+			}
+			return ptr;
+		}
+		static void dealloc(void *ptr,const size_t &size)
+		{
+			m_allocator.deallocate((char*)ptr,size);
+		}
+		static void *calloc(const size_t &size, const size_t &count)
+		{
+			void *ptr = m_allocator.allocate(size*count);
+			if (!ptr)
+			{
+				throw std::bad_alloc();
+			}
+			return ptr;
+		}
+		static void cdealloc(void *ptr, const size_t &size, const size_t &count)
+		{
+			m_allocator.deallocate((char*)ptr, size*count);
+		}
+		static void *realloc(void *ptr,const size_t &size,const size_t &into_size)
+		{
+			if (size == into_size)
+			{
+				return ptr;
+			}
+			if (size < into_size)
+			{
+				void *new_ptr = m_allocator.allocate(into_size);
+				if (!new_ptr)
+				{
+					throw std::bad_alloc();
+				}
+				::memmove(new_ptr, ptr, size);
+				m_allocator.deallocate((char*)ptr, size);
+				return new_ptr;
+			}
+			else
+			{
+				size_t oversize = size - into_size;
+				m_allocator.deallocate(((char*)(ptr)+(into_size)), oversize);
+				return ptr;
+			}
+		}
+		static allocator m_allocator;
+	};
+
+	void *malloc(const size_t &size)
+	{
+		return stdx::mem_alloc::alloc(size);
+	}
+
+	template<typename _Type>
+	_Type *malloc()
+	{
+		return (_Type*)stdx::malloc(sizeof(_Type));
+	}
+
+	void free(void *ptr,const size_t &size)
+	{
+		return stdx::mem_alloc::dealloc(ptr, size);
+	}
+
+	template<typename _Type>
+	void free(_Type *ptr)
+	{
+		stdx::free(ptr,sizeof(_Type));
+	}
+
+	void *calloc(const size_t &size,const size_t &count)
+	{
+		return stdx::mem_alloc::calloc(size, count);
+	}
+
+	template<typename _Type>
+	_Type *calloc(const size_t &count)
+	{
+		return (_Type*)stdx::mem_alloc::calloc(sizeof(_Type),count);
+	}
+
+	void cfree(void *ptr,const size_t &size,const size_t &count)
+	{
+		stdx::mem_alloc::cdealloc(ptr, size, count);
+	}
+
+	template<typename _Type>
+	void cfree(_Type *ptr, const size_t &count)
+	{
+		stdx::mem_alloc::cdealloc(ptr, sizeof(_Type),count);
+	}
+
+	void *realloc(void *ptr, const size_t &size, const size_t &into_size)
+	{
+		return stdx::mem_alloc::realloc(ptr, size, into_size);
+	}
+
+	template<typename _Type>
+	_Type *realloc(_Type *ptr, const size_t &into_size)
+	{
+		return (_Type*)stdx::mem_alloc::realloc(ptr, sizeof(_Type), into_size);
+	}
+}

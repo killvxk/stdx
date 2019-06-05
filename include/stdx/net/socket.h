@@ -276,6 +276,7 @@ namespace stdx
 			auto *context_ptr = new network_io_context;
 			context_ptr->this_socket = sock;
 			char *buffer = (char*)std::calloc(sizeof(char), size);
+			//char *buffer = stdx::calloc<char>(size);
 			std::strncpy(buffer, data, size);
 			context_ptr->buffer.buf = buffer;
 			context_ptr->buffer.len = size;
@@ -291,6 +292,7 @@ namespace stdx
 				}
 				network_send_event context(context_ptr);
 				std::free(context_ptr->buffer.buf);
+				//stdx::cfree<char>(context_ptr->buffer.buf, context_ptr->buffer.len);
 				delete context_ptr;
 				callback(context, nullptr);
 			};
@@ -334,6 +336,7 @@ namespace stdx
 			auto *context_ptr = new network_io_context;
 			context_ptr->this_socket = sock;
 			char *buf = (char*)std::calloc(sizeof(char), size);
+			//char *buf = stdx::calloc<char>(size);
 			context_ptr->buffer.buf = buf;
 			context_ptr->buffer.len = size;
 			auto *call = new std::function <void(network_io_context*,std::exception_ptr)>;
