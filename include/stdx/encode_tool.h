@@ -1,25 +1,25 @@
-#pragma once
-#include <boost/locale.hpp>
-
-//Ô¼¶¨:MYSQLÊ¹ÓÃUTF8×Ö·û¼¯
-//Ô¼¶¨:ÍøÒ³Óë±íµ¥Ê¹ÓÃUTF8×Ö·û¼¯
-//Ô¼¶¨:WindowsÊ¹ÓÃGBK±àÂë
-//¶¨Òåºê±ãÓÚUTF8×ª»»GBK
-#define UTF_TO_GBK(str) boost::locale::conv::between(str,"gbk","utf8")
-#ifdef WIN32 
-//WIN32 ×Ö·û¼¯ÎªGBK
-//»ñÈ¡GBK×Ö·û´® Ö±½Ó·µ»Ø
-#define GBK(str) str 
-//»ñÈ¡YTF8×Ö·û´® ½øĞĞ×ªÂë
-#define UTF8(str) boost::locale::conv::between(str,"utf8","gbk")
-//MYSQL,±íµ¥ÊäÈëµÈ×ª»»±¾µØ±àÂë UTF8×ªGBK
-#define LOCAL(str) UTF_TO_GBK(str)
-#else
-//Linux ×Ö·û¼¯ÎªUTF8
-//»ñÈ¡UTF8×Ö·û´® Ö±½Ó·µ»Ø
-#define UTF8(str) str
-//»ñÈ¡GBK×Ö·û´® ½øĞĞ×ªÂë
-#define GBK(str) boost::locale::conv::between(str,"gbk","utf8")
-//MYSQL,±íµ¥ÊäÈëµÈ×ª»»±¾µØ±àÂë Ö±½Ó·µ»Ø
-#define LOCAL(str) str
-#endif
+ï»¿//#pragma once
+//#include <boost/locale.hpp>
+//
+////çº¦å®š:MYSQLä½¿ç”¨UTF8å­—ç¬¦é›†
+////çº¦å®š:ç½‘é¡µä¸è¡¨å•ä½¿ç”¨UTF8å­—ç¬¦é›†
+////çº¦å®š:Windowsä½¿ç”¨GBKç¼–ç 
+////å®šä¹‰å®ä¾¿äºUTF8è½¬æ¢GBK
+//#define UTF_TO_GBK(str) boost::locale::conv::between(str,"gbk","utf8")
+//#ifdef WIN32 
+////WIN32 å­—ç¬¦é›†ä¸ºGBK
+////è·å–GBKå­—ç¬¦ä¸² ç›´æ¥è¿”å›
+//#define GBK(str) str 
+////è·å–YTF8å­—ç¬¦ä¸² è¿›è¡Œè½¬ç 
+//#define UTF8(str) boost::locale::conv::between(str,"utf8","gbk")
+////MYSQL,è¡¨å•è¾“å…¥ç­‰è½¬æ¢æœ¬åœ°ç¼–ç  UTF8è½¬GBK
+//#define LOCAL(str) UTF_TO_GBK(str)
+//#else
+////Linux å­—ç¬¦é›†ä¸ºUTF8
+////è·å–UTF8å­—ç¬¦ä¸² ç›´æ¥è¿”å›
+//#define UTF8(str) str
+////è·å–GBKå­—ç¬¦ä¸² è¿›è¡Œè½¬ç 
+//#define GBK(str) boost::locale::conv::between(str,"gbk","utf8")
+////MYSQL,è¡¨å•è¾“å…¥ç­‰è½¬æ¢æœ¬åœ°ç¼–ç  ç›´æ¥è¿”å›
+//#define LOCAL(str) str
+//#endif

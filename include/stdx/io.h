@@ -5,27 +5,6 @@
 //#include <allocators>
 namespace stdx
 {
-
-	//struct allocator
-	//{
-	//	static std::allocator<char> m_impl;
-
-	//	static void *alloc(const size_t &size)
-	//	{
-	//		return m_impl.allocate(size);
-	//	}
-
-	//	static void *alloc(const size_t &size, const size_t &count)
-	//	{
-	//		return m_impl.allocate(size*count);
-	//	}
-
-	//	static void dealloc(void *ptr,const size_t &size)
-	//	{
-	//		return m_impl.deallocate((char*)ptr,size);
-	//	}
-	//};
-
 	//自动释放缓存区实现
 	class _Buffer
 	{
@@ -256,100 +235,188 @@ namespace stdx
 #endif
 
 #ifdef LINUX
+#include <memory>
+#include <system_error>
+#include <string>
 #include <string.h>
 #include <sys/epoll.h>
 #include <errno.h>
+#include <aio.h>
+#include <queue>
+#include <unordered_map>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
 
-struct epoll_events
+namespace stdx
 {
-	enum 
+	struct epoll_events
 	{
-		in = EPOLLIN,
-		out = EPOLLOUT,
-		err = EPOLLERR,
-		hup = EPOLLHUP,
-		et = EPOLLET,
-		once = EPOLLONESHOT
-	};
-};
-
-class _EPOLL
-{
-	public:
-	_EPOLL()
-		:m_handle(epoll_create1(0))
-	{
-		if (m_handle == -1)
+		enum
 		{
-
-			 _ThrowLinuxError
-		}
-	}
-	~_EPOLL() = default;
-	void add_event(int fd, const uint32 &events)
+			in = EPOLLIN,
+			out = EPOLLOUT,
+			err = EPOLLERR,
+			hup = EPOLLHUP,
+			et = EPOLLET,
+			once = EPOLLONESHOT
+		};
+	};
+	class _EPOLL
 	{
+	public:
+		_EPOLL()
+			:m_handle(epoll_create1(0))
+		{
+			if (m_handle == -1)
+			{
+				_ThrowLinuxError
+			}
+		}
+		~_EPOLL() = default;
+		void add_event(int fd, const uint32 &events)
+		{
 			epoll_event e;
-			 e.events = events;
+			e.events = events;
 			e.data.fd = fd;
 			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
 			{
 				_ThrowLinuxError
 			}
-	}
-	void del_event(int fd)
-	{
+		}
+		void del_event(int fd)
+		{
 			epoll_event e;
 			e.data.fd = fd;
 			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
 			{
 				_ThrowLinuxError
 			}
-	}
+		}
 
-	void wait(int fd, epoll_event *event_ptr, int maxevents, int timeout)
-	{
+		void wait(epoll_event *event_ptr, int maxevents, int timeout) const
+		{
 			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
 			{
 				_ThrowLinuxError
 			}
-	}
-private:
-	int m_handle;
-};
-class epoll
-{
-	using impl_t = std::shared_ptr<_EPOLL>;
-public:
-	epoll()
-		:m_impl(std::make_shared<_EPOLL>())
-	{}
-
-	~epoll() = default;
-
-	void add_event(int fd, const uint32 &events)
+		}
+	private:
+		int m_handle;
+	};
+	class epoll
 	{
-		m_impl->add_event(fd, events);
-	}
+		using impl_t = std::shared_ptr<_EPOLL>;
+	public:
+		epoll()
+			:m_impl(std::make_shared<_EPOLL>())
+		{}
+		epoll(const epoll &other)
+			:m_impl(other.m_impl)
+		{}
+		~epoll() = default;
+		epoll &operator=(const epoll &other)
+		{
+			m_impl = other.m_impl;
+		}
+		void add_event(int fd, const uint32 &events)
+		{
+			m_impl->add_event(fd, events);
+		}
 
-	void del_event(int fd)
-	{
-		m_impl->del_event(fd);
-	}
+		void del_event(int fd)
+		{
+			m_impl->del_event(fd);
+		}
 
-	void wait(int fd, epoll_event *event_ptr, int maxevents, int timeout)
-	{
-		m_impl->wait(fd, event_ptr, maxevents, timeout);
-	}
+		void wait(epoll_event *event_ptr, int maxevents, int timeout) const
+		{
+			m_impl->wait(event_ptr, maxevents, timeout);
+		}
 
-	epoll_event wait(int fd, int timeout)
+		epoll_event wait(int timeout) const
+		{
+			epoll_event ev;
+			this->wait(&ev, 1, timeout);
+			return ev;
+		}
+	private:
+		impl_t m_impl;
+	};
+	struct file_io_context
 	{
-		epoll_event ev;
-		this->wait(fd, &ev, 1, timeout);
-		return ev;
-	}
-private:
-	impl_t m_impl;
-};
+		int file;
+		char* buffer;
+		uint32 size;
+		off_t offset;
+		bool eof;
+		std::function<void(file_io_context&)> callback;
+	};
+	template<typename _IOContext>
+	class _IOCP
+	{
+		using fd_t = int;
+		using ev_t = int;
+		using context_ptr_t = std::shared_ptr<_IOContext>;
+		using queue_t = std::queue<context_ptr_t>;
+		using evmap_t = std::unordered_map<ev_t, queue_t>;
+		using map_t = std::unordered_map<fd_t, evmap_t>;
+	public:
+		_IOCP()
+			:m_epoll()
+		{}
+		_IOCP(const epoll &ep)
+			:m_epoll(ep)
+		{}
+		~_IOCP() = default;
+		context_ptr_t wait()
+		{
+			ev_t ev = m_epoll.wait(0);
+			fd_t fd = ev.data.fd;
+			context_ptr_t context((m_contexts[fd])[ev]).front();
+			((m_contexts[fd])[ev]).pop();
+			return context;
+		}
+		void push(int fd, const int &evt,const context_ptr_t &context)
+		{
+			evt = evt | epoll_events::once;
+			((m_contexts[fd])[evt]).push(context);
+			m_epoll.add_event(fd, evt);
+		}
+		void bind(const int &fd)
+		{
+			m_contexts.insert(fd, evmap_t());
+			(m_contexts[fd]).insert(stdx::epoll_events::in|stdx::epoll_events::once,queue_t());
+			(m_contexts[fd]).insert(stdx::epoll_events::out | stdx::epoll_events::once, queue_t());
+		}
+	private:
+		stdx::epoll m_epoll;
+		map_t m_contexts;
+		std::unordered_map<fd_t,int> m_locks;
+	};
+
+	template<typename _IOContext>
+	class iocp
+	{
+		using impl_t = std::shared_ptr<_IOCP<_IOContext>>;
+	public:
+		iocp()
+			:m_impl(std::make_shared<_IOCP<_IOContext>>())
+		{}
+		~iocp()=default;
+		std::shared_ptr<_IOContext> wait()
+		{
+			return m_impl->wait();
+		}
+		void push(int fd, const int &evt, const std::shared_ptr<_IOContext> &context)
+		{
+			return m_impl->push(fd, evt, context);
+		}
+		void bind(const int &fd)
+		{
+			return m_impl->bind(fd);
+		}
+	private:
+		impl_t m_impl;
+	};
+}
 #endif

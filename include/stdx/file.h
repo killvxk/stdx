@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <stdx/io.h>
 #include <stdx/async/task.h>
 #ifdef WIN32
@@ -34,7 +34,7 @@ namespace stdx
 		bool eof;
 		std::function<void(file_io_context*, std::exception_ptr)> *callback;
 	};
-	//ÎÄ¼ş¶ÁÈ¡Íê³ÉÊÂ¼ş
+	//æ–‡ä»¶è¯»å–å®Œæˆäº‹ä»¶
 	struct file_read_event
 	{
 		file_read_event() = default;
@@ -72,7 +72,7 @@ namespace stdx
 		bool eof;
 	};
 
-	//ÎÄ¼şĞ´ÈëÍê³ÉÊÂ¼ş
+	//æ–‡ä»¶å†™å…¥å®Œæˆäº‹ä»¶
 	struct file_write_event
 	{
 		file_write_event() = default;
@@ -98,7 +98,7 @@ namespace stdx
 		HANDLE file;
 		size_t size;
 	};
-	//ÎÄ¼ş·ÃÎÊÀàĞÍ
+	//æ–‡ä»¶è®¿é—®ç±»å‹
 	struct file_access_type
 	{
 		enum
@@ -110,7 +110,7 @@ namespace stdx
 		};
 	};
 
-	//ÎÄ¼ş¹²ÏíÀàĞÍ
+	//æ–‡ä»¶å…±äº«ç±»å‹
 	struct file_shared_model
 	{
 		enum
@@ -122,7 +122,7 @@ namespace stdx
 		};
 	};
 
-	//ÎÄ¼ş´ò¿ªÀàĞÍ
+	//æ–‡ä»¶æ‰“å¼€ç±»å‹
 	struct file_open_type
 	{
 		enum
@@ -143,7 +143,7 @@ namespace stdx
 			current = FILE_CURRENT
 		};
 	};
-	//ÎÄ¼şIO·şÎñÊµÏÖ
+	//æ–‡ä»¶IOæœåŠ¡å®ç°
 	class _FileIOService
 	{
 	public:
@@ -194,7 +194,7 @@ namespace stdx
 			context->callback = call;
 			if (!ReadFile(file, context->buffer, size, &(context->size), &(context->m_ol)))
 			{
-				//´¦Àí´íÎó
+				//å¤„ç†é”™è¯¯
 				DWORD code = GetLastError();
 				if (code != ERROR_IO_PENDING)
 				{
@@ -330,7 +330,7 @@ namespace stdx
 		iocp_t m_iocp;
 	};
 
-	//ÎÄ¼şIO·şÎñ
+	//æ–‡ä»¶IOæœåŠ¡
 	class file_io_service
 	{
 		using impl_t = std::shared_ptr<_FileIOService>;
@@ -379,7 +379,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	//Òì²½ÎÄ¼şÁ÷ÊµÏÖ
+	//å¼‚æ­¥æ–‡ä»¶æµå®ç°
 	class _AsyncFileStream
 	{
 		using io_service_t = file_io_service;
@@ -396,7 +396,7 @@ namespace stdx
 		{
 			CloseHandle(m_file);
 		}
-		stdx::task<file_read_event> read(size_t size, size_t offset)
+		stdx::task<file_read_event> read(const size_t &size,const size_t &offset)
 		{
 			if (!m_io_service)
 			{
@@ -418,6 +418,39 @@ namespace stdx
 					promise->set_value(context);
 				}
 				task.run_on_this_thread();
+			});
+			return task;
+		}
+		void always_read(const size_t &size,const size_t &offset,const std::function<void(stdx::task_result<stdx::file_read_event>)> &call)
+		{
+			this->read(size, offset).then([call,offset,size,this](stdx::task_result<stdx::file_read_event> r) mutable
+			{
+				call(r);
+				auto e = r.get();
+				if (!(e.eof))
+				{
+					always_read(size,e.buffer.size()+offset,call);
+				}
+			});
+		}
+		stdx::task<std::string> read_to_end(const size_t &size,const size_t &offset)
+		{
+			stdx::promise_ptr<std::string> promise = stdx::make_promise_ptr<std::string>();
+			stdx::task<std::string> task([promise]()
+			{
+				return promise->get_future().get();
+			});
+			std::shared_ptr<std::string> buffer_ptr = std::make_shared<std::string>();
+			this->always_read(size, offset, [buffer_ptr,promise,task](stdx::task_result<stdx::file_read_event> r) mutable
+			{
+				auto e = r.get();
+				auto buffer = e.buffer;
+				buffer_ptr->append(buffer);
+				if (e.eof)
+				{
+					promise->set_value(std::move(*buffer_ptr));
+					task.run_on_this_thread();
+				}
 			});
 			return task;
 		}
@@ -502,6 +535,11 @@ namespace stdx
 		{
 			m_impl->set_pointer(distance, method);
 			return *this;
+		}
+
+		stdx::task<std::string> read_to_end(const size_t &size, const size_t &offset)
+		{
+			return m_impl->read_to_end(size, offset);
 		}
 	private:
 		impl_t m_impl;

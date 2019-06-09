@@ -1,42 +1,42 @@
-#pragma once
-#ifdef ENABLE_MYSQL
+ï»¿#pragma once
+//#ifdef ENABLE_MYSQL
 
-#include <stdx/encode_tool.h>
-#include <jdbc/mysql_driver.h>
-#include <jdbc/mysql_connection.h>
-namespace ziran
-{
-	namespace tools
-	{
-		namespace mysql
-		{
-			//´´½¨MYSQLÁ¬½Ó
-			std::shared_ptr<sql::Connection> make_mysql_connection(const std::string &host_name, const std::string &user, const std::string &pwd)
-			{
-				//»ñÈ¡MYSQLÇı¶¯
-				sql::mysql::MySQL_Driver *driver = sql::mysql::get_driver_instance();
-				//Á¬½ÓMYSQLÊı¾İ¿â
-				auto *conn = driver->connect(host_name.c_str(), user.c_str(), pwd.c_str());
-				//´´½¨ÖÇÄÜÖ¸Õë
-				std::shared_ptr<sql::Connection> conn_ptr(conn, [](sql::Connection *conn) {
-					if (!conn->isClosed())
-					{
-						conn->close();
-					}
-				});
-				return conn_ptr;
-			}
-			//´´½¨MYSQLÁ¬½Ó (ÖØÔØ°æ±¾)
-			std::shared_ptr<sql::Connection> make_mysql_connection(const std::string &host_name, const std::string &user, const std::string &pwd, const std::string &db_name)
-			{
-				//µ÷ÓÃÖ®Ç°µÄ°æ±¾
-				auto conn = make_mysql_connection(host_name, user, pwd);
-				//ÉèÖÃÒªÊ¹ÓÃµÄÊı¾İ¿â
-				conn->setSchema(db_name.c_str());
-				//·µ»ØÁ¬½Ó
-				return conn;
-			}
-		}
-	}
-}
-#endif // ENABLE_MYSQL
+//#include <stdx/encode_tool.h>
+//#include <jdbc/mysql_driver.h>
+//#include <jdbc/mysql_connection.h>
+//namespace ziran
+//{
+//	namespace tools
+//	{
+//		namespace mysql
+//		{
+//			//åˆ›å»ºMYSQLè¿æ¥
+//			std::shared_ptr<sql::Connection> make_mysql_connection(const std::string &host_name, const std::string &user, const std::string &pwd)
+//			{
+//				//è·å–MYSQLé©±åŠ¨
+//				sql::mysql::MySQL_Driver *driver = sql::mysql::get_driver_instance();
+//				//è¿æ¥MYSQLæ•°æ®åº“
+//				auto *conn = driver->connect(host_name.c_str(), user.c_str(), pwd.c_str());
+//				//åˆ›å»ºæ™ºèƒ½æŒ‡é’ˆ
+//				std::shared_ptr<sql::Connection> conn_ptr(conn, [](sql::Connection *conn) {
+//					if (!conn->isClosed())
+//					{
+//						conn->close();
+//					}
+//				});
+//				return conn_ptr;
+//			}
+//			//åˆ›å»ºMYSQLè¿æ¥ (é‡è½½ç‰ˆæœ¬)
+//			std::shared_ptr<sql::Connection> make_mysql_connection(const std::string &host_name, const std::string &user, const std::string &pwd, const std::string &db_name)
+//			{
+//				//è°ƒç”¨ä¹‹å‰çš„ç‰ˆæœ¬
+//				auto conn = make_mysql_connection(host_name, user, pwd);
+//				//è®¾ç½®è¦ä½¿ç”¨çš„æ•°æ®åº“
+//				conn->setSchema(db_name.c_str());
+//				//è¿”å›è¿æ¥
+//				return conn;
+//			}
+//		}
+//	}
+//}
+//#endif // ENABLE_MYSQL

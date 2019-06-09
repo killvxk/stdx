@@ -28,12 +28,12 @@ int main()
 			/*std::string data = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\rContent-Length:38\r\n\r\n<html><body><h1>OK!</h1></body></html>";
 			c.send(data.c_str(), data.size());*/
 			stdx::async_file_stream stream(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open, stdx::file_shared_model::shared_read);
-			stream.read(57,0).then([c](stdx::file_read_event e)mutable 
+			stream.read_to_end(8192,0).then([c](std::string e)mutable 
 			{
-				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\rContent-Length:";
-				str.append(std::to_string(e.buffer.size()));
+				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";
+				str.append(std::to_string(e.size()));
 				str.append("\r\n\r\n");
-				str.append(e.buffer);
+				str.append(e);
 				c.send(str.c_str(), str.size());
 			});
 		});
