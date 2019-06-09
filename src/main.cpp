@@ -1,9 +1,8 @@
 ﻿#include <stdx/io.h>
 #include <stdx/net/socket.h>
-#include <stdx/sys/window.h>
 #include <iostream>
 #include <stdx/string.h>
-#include <ppl.h>
+#include <stdx/file.h>
 int main()
 {
 #pragma region web_test
@@ -20,13 +19,23 @@ int main()
 		return -1;
 	}
 	s.listen(1024);
+	stdx::file_io_service file_io_service;
 	while (true)
 	{
 		auto c = s.accept();
-		c.always_recv(1024, [c](stdx::task_result<stdx::network_recv_event> e) mutable
+		c.always_recv(1024, [c,file_io_service](stdx::task_result<stdx::network_recv_event> e) mutable
 		{
-			std::string data = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\rContent-Length:38\r\n\r\n<html><body><h1>OK!</h1></body></html>";
-			c.send(data.c_str(), data.size());
+			/*std::string data = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\rContent-Length:38\r\n\r\n<html><body><h1>OK!</h1></body></html>";
+			c.send(data.c_str(), data.size());*/
+			stdx::async_file_stream stream(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open, stdx::file_shared_model::shared_read);
+			stream.read(57,0).then([c](stdx::file_read_event e)mutable 
+			{
+				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\rContent-Length:";
+				str.append(std::to_string(e.buffer.size()));
+				str.append("\r\n\r\n");
+				str.append(e.buffer);
+				c.send(str.c_str(), str.size());
+			});
 		});
 	}
 	std::cin.get();
