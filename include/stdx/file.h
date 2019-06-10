@@ -421,19 +421,18 @@ namespace stdx
 			});
 			return task;
 		}
-		void always_read(const size_t &size,const size_t &offset,const std::function<void(stdx::task_result<stdx::file_read_event>)> &call)
+		void read_utill(const size_t &size,const size_t &offset,const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
 		{
 			this->read(size, offset).then([call,offset,size,this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
-				call(r);
-				auto e = r.get();
-				if (!(e.eof))
+				if (!(call(r)))
 				{
-					always_read(size,e.buffer.size()+offset,call);
+					auto e = r.get();
+					read_utill(size,e.buffer.size()+offset,call);
 				}
 			});
 		}
-		stdx::task<std::string> read_to_end(const size_t &size,const size_t &offset)
+		stdx::task<std::string> read_utill_eof(const size_t &size,const size_t &offset)
 		{
 			stdx::promise_ptr<std::string> promise = stdx::make_promise_ptr<std::string>();
 			stdx::task<std::string> task([promise]()
@@ -441,7 +440,7 @@ namespace stdx
 				return promise->get_future().get();
 			});
 			std::shared_ptr<std::string> buffer_ptr = std::make_shared<std::string>();
-			this->always_read(size, offset, [buffer_ptr,promise,task](stdx::task_result<stdx::file_read_event> r) mutable
+			this->read_utill(size, offset, [buffer_ptr,promise,task](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				auto e = r.get();
 				auto buffer = e.buffer;
@@ -450,6 +449,11 @@ namespace stdx
 				{
 					promise->set_value(std::move(*buffer_ptr));
 					task.run_on_this_thread();
+					return true;
+				}
+				else
+				{
+					return false;
 				}
 			});
 			return task;
@@ -537,9 +541,14 @@ namespace stdx
 			return *this;
 		}
 
-		stdx::task<std::string> read_to_end(const size_t &size, const size_t &offset)
+		void read_utill(const size_t &size, const size_t &offset, const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
 		{
-			return m_impl->read_to_end(size, offset);
+			return m_impl->read_utill(size, offset, call);
+		}
+
+		stdx::task<std::string> read_utill_eof(const size_t &size, const size_t &offset)
+		{
+			return m_impl->read_utill_eof(size, offset);
 		}
 	private:
 		impl_t m_impl;

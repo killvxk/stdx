@@ -990,12 +990,23 @@ namespace stdx
 			return m_io_service.get_remote_addr(m_handle);
 		}
 
-		void always_recv(const size_t &size,const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		void recv_utill(const size_t &size,const std::function<bool(stdx::task_result<network_recv_event>)> &call)
 		{
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
 			{
+				if (!(call(r)))
+				{
+					recv_utill(size, call);
+				}
+			});
+		}
+
+		void recv_utill_exception(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		{
+			this->recv_utill(size, [call](stdx::task_result<network_recv_event> r) 
+			{
 				call(r);
-				always_recv(size, call);
+				return false;
 			});
 		}
 
@@ -1086,9 +1097,14 @@ namespace stdx
 			return m_impl->recv_from(addr,size);
 		}
 
-		void always_recv(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		void recv_utill(const size_t &size, const std::function<bool(stdx::task_result<network_recv_event>)> &call)
 		{
-			return m_impl->always_recv(size, call);
+			return m_impl->recv_utill(size, call);
+		}
+
+		void recv_utill_exception(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		{
+			return m_impl->recv_utill_exception(size, call);
 		}
 	private:
 		impl_t m_impl;
