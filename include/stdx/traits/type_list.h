@@ -142,7 +142,7 @@ namespace stdx
 		{
 			enum
 			{
-				value = _IsSame(_First, _T);
+				value = is_same(_First, _T);
 			};
 		};
 	};
@@ -163,7 +163,7 @@ namespace stdx
 		{
 			enum
 			{
-				value = _IsSame(_First, _T) || _IsSame(_Secound,_T);
+				value = is_same(_First, _T) || _IsSame(_Secound,_T);
 			};
 		};
 	};
@@ -185,7 +185,7 @@ namespace stdx
 		{
 			enum
 			{
-				value = _IsSame(First, _T) || _IsSame(Secound, _T) || type_list<_More...>::include<_T>::value;
+				value = is_same(First, _T) || is_same(Secound, _T) || type_list<_More...>::include<_T>::value;
 			};
 		};
 	};
