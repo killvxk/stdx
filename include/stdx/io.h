@@ -235,6 +235,7 @@ namespace stdx
 #endif
 
 #ifdef LINUX
+//仍未完成
 #include <memory>
 #include <system_error>
 #include <string>
@@ -342,81 +343,81 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	struct file_io_context
-	{
-		int file;
-		char* buffer;
-		uint32 size;
-		off_t offset;
-		bool eof;
-		std::function<void(file_io_context&)> callback;
-	};
-	template<typename _IOContext>
-	class _IOCP
-	{
-		using fd_t = int;
-		using ev_t = int;
-		using context_ptr_t = std::shared_ptr<_IOContext>;
-		using queue_t = std::queue<context_ptr_t>;
-		using evmap_t = std::unordered_map<ev_t, queue_t>;
-		using map_t = std::unordered_map<fd_t, evmap_t>;
-	public:
-		_IOCP()
-			:m_epoll()
-		{}
-		_IOCP(const epoll &ep)
-			:m_epoll(ep)
-		{}
-		~_IOCP() = default;
-		context_ptr_t wait()
-		{
-			ev_t ev = m_epoll.wait(0);
-			fd_t fd = ev.data.fd;
-			context_ptr_t context((m_contexts[fd])[ev]).front();
-			((m_contexts[fd])[ev]).pop();
-			return context;
-		}
-		void push(int fd, const int &evt,const context_ptr_t &context)
-		{
-			evt = evt | epoll_events::once;
-			((m_contexts[fd])[evt]).push(context);
-			m_epoll.add_event(fd, evt);
-		}
-		void bind(const int &fd)
-		{
-			m_contexts.insert(fd, evmap_t());
-			(m_contexts[fd]).insert(stdx::epoll_events::in|stdx::epoll_events::once,queue_t());
-			(m_contexts[fd]).insert(stdx::epoll_events::out | stdx::epoll_events::once, queue_t());
-		}
-	private:
-		stdx::epoll m_epoll;
-		map_t m_contexts;
-		std::unordered_map<fd_t,int> m_locks;
-	};
+	//struct file_io_context
+	//{
+	//	int file;
+	//	char* buffer;
+	//	uint32 size;
+	//	off_t offset;
+	//	bool eof;
+	//	std::function<void(file_io_context&)> callback;
+	//};
+	//template<typename _IOContext>
+	//class _IOCP
+	//{
+	//	using fd_t = int;
+	//	using ev_t = int;
+	//	using context_ptr_t = std::shared_ptr<_IOContext>;
+	//	using queue_t = std::queue<context_ptr_t>;
+	//	using evmap_t = std::unordered_map<ev_t, queue_t>;
+	//	using map_t = std::unordered_map<fd_t, evmap_t>;
+	//public:
+	//	_IOCP()
+	//		:m_epoll()
+	//	{}
+	//	_IOCP(const epoll &ep)
+	//		:m_epoll(ep)
+	//	{}
+	//	~_IOCP() = default;
+	//	context_ptr_t wait()
+	//	{
+	//		ev_t ev = m_epoll.wait(0);
+	//		fd_t fd = ev.data.fd;
+	//		context_ptr_t context((m_contexts[fd])[ev]).front();
+	//		((m_contexts[fd])[ev]).pop();
+	//		return context;
+	//	}
+	//	void push(int fd, const int &evt,const context_ptr_t &context)
+	//	{
+	//		evt = evt | epoll_events::once;
+	//		((m_contexts[fd])[evt]).push(context);
+	//		m_epoll.add_event(fd, evt);
+	//	}
+	//	void bind(const int &fd)
+	//	{
+	//		m_contexts.insert(fd, evmap_t());
+	//		(m_contexts[fd]).insert(stdx::epoll_events::in|stdx::epoll_events::once,queue_t());
+	//		(m_contexts[fd]).insert(stdx::epoll_events::out | stdx::epoll_events::once, queue_t());
+	//	}
+	//private:
+	//	stdx::epoll m_epoll;
+	//	map_t m_contexts;
+	//	std::unordered_map<fd_t,int> m_locks;
+	//};
 
-	template<typename _IOContext>
-	class iocp
-	{
-		using impl_t = std::shared_ptr<_IOCP<_IOContext>>;
-	public:
-		iocp()
-			:m_impl(std::make_shared<_IOCP<_IOContext>>())
-		{}
-		~iocp()=default;
-		std::shared_ptr<_IOContext> wait()
-		{
-			return m_impl->wait();
-		}
-		void push(int fd, const int &evt, const std::shared_ptr<_IOContext> &context)
-		{
-			return m_impl->push(fd, evt, context);
-		}
-		void bind(const int &fd)
-		{
-			return m_impl->bind(fd);
-		}
-	private:
-		impl_t m_impl;
-	};
+	//template<typename _IOContext>
+	//class iocp
+	//{
+	//	using impl_t = std::shared_ptr<_IOCP<_IOContext>>;
+	//public:
+	//	iocp()
+	//		:m_impl(std::make_shared<_IOCP<_IOContext>>())
+	//	{}
+	//	~iocp()=default;
+	//	std::shared_ptr<_IOContext> wait()
+	//	{
+	//		return m_impl->wait();
+	//	}
+	//	void push(int fd, const int &evt, const std::shared_ptr<_IOContext> &context)
+	//	{
+	//		return m_impl->push(fd, evt, context);
+	//	}
+	//	void bind(const int &fd)
+	//	{
+	//		return m_impl->bind(fd);
+	//	}
+	//private:
+	//	impl_t m_impl;
+	//};
 }
 #endif
