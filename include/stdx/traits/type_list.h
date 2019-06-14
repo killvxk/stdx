@@ -163,7 +163,7 @@ namespace stdx
 		{
 			enum
 			{
-				value = is_same(_First, _T) || _IsSame(_Secound,_T);
+				value = is_same(_First, _T) || is_same(_Secound,_T);
 			};
 		};
 	};
