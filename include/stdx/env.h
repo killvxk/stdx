@@ -22,13 +22,16 @@
 #define uint unsigned int
 #define int16 short
 #define uint16 unsigned short
+
 #ifdef WIN32
 #define int64 __int64
 #define uint64 unsigned __int64
-#else
-#define int64 long long
-#define uint64 unsigned long long
-#endif // WIN32
+#endif
+
+#ifdef LINUX
+#define int64 int64_t
+#define uint64 uint64_t
+#endif
 
 #define get_byte(x,ptr) *((byte*)ptr+(x))
 #define delete_copy(type) type(const type &)=delete
