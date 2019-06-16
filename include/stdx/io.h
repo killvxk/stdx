@@ -343,6 +343,117 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	
+	using ready_bit = std::atomic_int;
+
+	template<typename _IOContext>
+	struct context_model
+	{
+		context_model()
+			:m_ready_bit(0)
+			, m_contexts()
+		{}
+		context_model(context_model &&other)
+			:m_ready_bit((int)other.m_ready_bit)
+			, m_contexts(std::move(other.m_contexts))
+		{}
+		~context_model() = default;
+
+		ready_bit m_ready_bit;
+		std::queue<_IOContext*> m_contexts;
+
+		bool empty()
+		{
+			return m_contexts.empty();
+		}
+	};
+
+	union  key_builder
+	{
+		struct
+		{
+			int32_t fd;
+			int32_t ev;
+		};
+		int64_t value;
+	};
+
+	template<typename _IOContext>
+	class _IOCP
+	{
+		using key_t = int64_t;
+	public:
+		_IOCP()
+			:m_epoll()
+			, m_map()
+		{}
+		~_IOCP() = default;
+
+		template<typename _Type>
+		void bind(const _Type &handle)
+		{
+			key_builder key;
+			key.fd = (int)handle;
+			key.ev = stdx::epoll_events::in;
+			m_map.emplace(key.value, std::move(context_model<_IOContext>()));
+			m_epoll.add_event(key.fd, stdx::epoll_events::in | stdx::epoll_events::et);
+		}
+
+		_IOContext *get()
+		{
+			//循环wait直到context可用
+			while (true)
+			{
+				auto ev = m_epoll.wait(-1);
+				key_builder key;
+				key.fd = ev.data.fd;
+				if (ev.events & stdx::epoll_events::in)
+				{
+					key.ev = stdx::epoll_events::in;
+					context_model<_IOContext> &model = m_map[key.value];
+					int bit = model.m_ready_bit.load();
+					if (!model.empty())
+					{
+						auto context(std::move(model.m_contexts.front()));
+						model.m_contexts.pop();
+						model.m_ready_bit.store(bit);
+						return context;
+					}
+					else
+					{
+						bit += 1;
+						model.m_ready_bit.store(bit);
+					}
+				}
+				else
+				{
+
+				}
+			}
+		}
+
+		void push_read(int fd, int ev, _IOContext *context)
+		{
+			key_builder key;
+			key.fd = fd;
+			key.ev = ev;
+			context_model<_IOContext> &model = m_map[key.value];
+			int bit = model.m_ready_bit.load();
+			if (!bit)
+			{
+				model.m_contexts.emplace(context);
+				model.m_ready_bit.store(bit);
+			}
+			else
+			{
+				//执行callback
+				model.m_ready_bit -= 1;
+				model.m_ready_bit.store(bit);
+				(*context)();
+			}
+		}
+	private:
+		stdx::epoll m_epoll;
+		std::unordered_map<key_t, context_model<_IOContext>> m_map;
+	};
 }
 #endif
