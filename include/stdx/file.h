@@ -315,7 +315,7 @@ namespace stdx
 				delete call;
 			}, m_iocp);
 		}
-		void seek(HANDLE file, const int64 &distance, const DWORD &method)
+		void seek_file(HANDLE file, const int64 &distance, const DWORD &method)
 		{
 			LARGE_INTEGER li;
 			li.QuadPart = distance;
@@ -325,6 +325,10 @@ namespace stdx
 				_ThrowWinError
 			}
 			return;
+		}
+		void close_file(HANDLE file)
+		{
+			CloseHandle(file);
 		}
 	private:
 		iocp_t m_iocp;
@@ -370,31 +374,37 @@ namespace stdx
 			return m_impl->write_file(file, buffer, size, std::move(callback));
 		}
 
-		void seek(HANDLE file, const int64 &distance, const DWORD &method)
+		void seek_file(HANDLE file, const int64 &distance, const DWORD &method)
 		{
-			return m_impl->seek(file, distance, method);
+			return m_impl->seek_file(file, distance, method);
 		}
-
+		void close_file(HANDLE file)
+		{
+			return m_impl->close_file(file);
+		}
 	private:
 		impl_t m_impl;
 	};
 
 	//异步文件流实现
-	class _AsyncFileStream
+	class _FileStream
 	{
 		using io_service_t = file_io_service;
 	public:
-		_AsyncFileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
+		_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
 			:m_io_service(io_service)
 			, m_file(m_io_service.create_file(path, access_type, open_type, shared_model))
 		{}
-		_AsyncFileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type)
+		_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type)
 			:m_io_service(io_service)
 			, m_file(m_io_service.create_file(path, access_type, open_type, file_shared_model::shared_read))
 		{}
-		~_AsyncFileStream()
+		~_FileStream()
 		{
-			CloseHandle(m_file);
+			if (m_file)
+			{
+				m_io_service.close_file(m_file);
+			}
 		}
 		stdx::task<file_read_event> read(const size_t &size,const size_t &offset)
 		{
@@ -486,36 +496,45 @@ namespace stdx
 
 		void set_pointer(const int64 &distance, const DWORD &method)
 		{
-			m_io_service.seek(m_file, distance, method);
+			m_io_service.seek_file(m_file, distance, method);
+		}
+
+		void close()
+		{
+			if (m_file)
+			{
+				m_io_service.close_file(m_file);
+				m_file = nullptr;
+			}
 		}
 	private:
 		io_service_t m_io_service;
 		HANDLE m_file;
 	};
-	class async_file_stream
+	class file_stream
 	{
-		using impl_t = std::shared_ptr<_AsyncFileStream>;
+		using impl_t = std::shared_ptr<_FileStream>;
 		using io_service_t = file_io_service;
 	public:
-		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
-			:m_impl(std::make_shared<_AsyncFileStream>(io_service, path, access_type, open_type, shared_model))
+		explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
+			:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, shared_model))
 		{}
 
-		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
-			:m_impl(std::make_shared<_AsyncFileStream>(io_service, path, access_type, open_type, file_shared_model::shared_read))
+		explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
+			:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, file_shared_model::unique))
 		{}
 
-		async_file_stream(const async_file_stream &other)
+		file_stream(const file_stream &other)
 			:m_impl(other.m_impl)
 		{}
 
-		async_file_stream(async_file_stream &&other)
+		file_stream(file_stream &&other)
 			:m_impl(std::move(other.m_impl))
 		{}
 
-		~async_file_stream() = default;
+		~file_stream() = default;
 
-		async_file_stream &operator=(const async_file_stream &other)
+		file_stream &operator=(const file_stream &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
@@ -535,7 +554,7 @@ namespace stdx
 			return m_impl->write(str.c_str(), str.size());
 		}
 
-		async_file_stream set_pointer(const int64 &distance, const DWORD &method)
+		file_stream set_pointer(const int64 &distance, const DWORD &method)
 		{
 			m_impl->set_pointer(distance, method);
 			return *this;
@@ -550,9 +569,29 @@ namespace stdx
 		{
 			return m_impl->read_utill_eof(size, offset);
 		}
+
+		void close()
+		{
+			return m_impl->close();
+		}
 	private:
 		impl_t m_impl;
 	};
 }
+#define _EnableFileOperation
 #undef _ThrowWinError
 #endif // WIN32
+#ifdef LINUX
+#define _EnableFileOperation
+#endif //LINUX
+
+#ifdef _EnableFileOperation
+namespace stdx
+{
+	stdx::file_stream open_file(const stdx::file_io_service &m_io_service,const std::string &path,const int32 &access_type,const int32 &open_type)
+	{
+		return stdx::file_stream(m_io_service, path, access_type, open_type);
+	}
+}
+#undef _EnableFileOperation
+#endif // _EnableFileOperation

@@ -25,7 +25,7 @@ int main()
 		auto c = s.accept();
 		c.recv_utill_exception(1024, [c,file_io_service](stdx::task_result<stdx::network_recv_event> e) mutable
 		{
-			stdx::async_file_stream stream(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open, stdx::file_shared_model::shared_read);
+			stdx::file_stream stream(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open, stdx::file_shared_model::shared_read);
 			stream.read_utill_eof(8192,0).then([c](std::string e)mutable 
 			{
 				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";

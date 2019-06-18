@@ -836,7 +836,7 @@ namespace stdx
 		{
 			if (m_handle)
 			{
-				this->close();
+				m_io_service.close(m_handle);
 			}
 		}
 
@@ -966,8 +966,11 @@ namespace stdx
 
 		void close()
 		{
-			m_io_service.close(m_handle);
-			m_handle = 0;
+			if (m_handle)
+			{
+				m_io_service.close(m_handle);
+				m_handle = NULL;
+			}
 		}
 
 		void connect(network_addr &addr)
