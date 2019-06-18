@@ -993,11 +993,12 @@ namespace stdx
 			return m_io_service.get_remote_addr(m_handle);
 		}
 
+		//返回true则继续
 		void recv_utill(const size_t &size,const std::function<bool(stdx::task_result<network_recv_event>)> &call)
 		{
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
 			{
-				if (!(call(r)))
+				if ((call(r)))
 				{
 					recv_utill(size, call);
 				}
@@ -1009,7 +1010,7 @@ namespace stdx
 			this->recv_utill(size, [call](stdx::task_result<network_recv_event> r) 
 			{
 				call(r);
-				return false;
+				return true;
 			});
 		}
 

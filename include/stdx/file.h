@@ -431,11 +431,12 @@ namespace stdx
 			});
 			return task;
 		}
+		//返回true则继续
 		void read_utill(const size_t &size,const size_t &offset,const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
 		{
 			this->read(size, offset).then([call,offset,size,this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
-				if (!(call(r)))
+				if ((call(r)))
 				{
 					auto e = r.get();
 					read_utill(size,e.buffer.size()+offset,call);
@@ -459,11 +460,11 @@ namespace stdx
 				{
 					promise->set_value(std::move(*buffer_ptr));
 					task.run_on_this_thread();
-					return true;
+					return false;
 				}
 				else
 				{
-					return false;
+					return true;
 				}
 			});
 			return task;
