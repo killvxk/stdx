@@ -1,4 +1,8 @@
 ﻿#pragma once
+//类库遵循以下约定
+//所有的Class(除实现Class外,例如:_XxYy)都是引用类型
+//所有的Struct(除另外说明外)都是值类型
+
 //在没有定义任何平台符号的情况下
 //依照编译器判断平台
 
@@ -38,13 +42,56 @@
 #define delete_move(type) type(type&&)=delete
 #define empty_cstr ""
 
+namespace stdx
+{
+	union int64_union
+	{
+		struct 
+		{
+			uint32 low;
+			int32 height;
+		};
+		int64 value;
+	};
+
+	union int32_union
+	{
+		struct
+		{
+			uint16 low;
+			int16 height;
+		};
+		int32 value;
+	};
+
+	union uint64_union
+	{
+		struct
+		{
+			uint32 low;
+			uint32 height;
+		};
+		uint64 value;
+	};
+
+	union uint32_union
+	{
+		struct
+		{
+			uint16 low;
+			uint16 height;
+		};
+		uint32 value;
+	};
+}
+
 #include <stdexcept>
 #include <system_error>
 
 #include <time.h>
 namespace stdx
 {
-	class stop_watcher
+	struct stop_watcher
 	{
 	public:
 		stop_watcher()

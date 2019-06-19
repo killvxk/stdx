@@ -401,12 +401,13 @@ namespace stdx
 		{}
 		~_FileStream()
 		{
-			if (m_file)
+			if (m_file != INVALID_HANDLE_VALUE)
 			{
 				m_io_service.close_file(m_file);
+				m_file = INVALID_HANDLE_VALUE;
 			}
 		}
-		stdx::task<file_read_event> read(const size_t &size,const size_t &offset)
+		stdx::task<file_read_event> read(const size_t &size, const size_t &offset)
 		{
 			if (!m_io_service)
 			{
@@ -432,18 +433,18 @@ namespace stdx
 			return task;
 		}
 		//返回true则继续
-		void read_utill(const size_t &size,const size_t &offset,const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
+		void read_utill(const size_t &size, const size_t &offset, const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
 		{
-			this->read(size, offset).then([call,offset,size,this](stdx::task_result<stdx::file_read_event> r) mutable
+			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				if ((call(r)))
 				{
 					auto e = r.get();
-					read_utill(size,e.buffer.size()+offset,call);
+					read_utill(size, e.buffer.size() + offset, call);
 				}
 			});
 		}
-		stdx::task<std::string> read_utill_eof(const size_t &size,const size_t &offset)
+		stdx::task<std::string> read_utill_eof(const size_t &size, const size_t &offset)
 		{
 			stdx::promise_ptr<std::string> promise = stdx::make_promise_ptr<std::string>();
 			stdx::task<std::string> task([promise]()
@@ -451,7 +452,7 @@ namespace stdx
 				return promise->get_future().get();
 			});
 			std::shared_ptr<std::string> buffer_ptr = std::make_shared<std::string>();
-			this->read_utill(size, offset, [buffer_ptr,promise,task](stdx::task_result<stdx::file_read_event> r) mutable
+			this->read_utill(size, offset, [buffer_ptr, promise, task](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				auto e = r.get();
 				auto buffer = e.buffer;
@@ -502,10 +503,10 @@ namespace stdx
 
 		void close()
 		{
-			if (m_file)
+			if (m_file != INVALID_HANDLE_VALUE)
 			{
 				m_io_service.close_file(m_file);
-				m_file = nullptr;
+				m_file = INVALID_HANDLE_VALUE;
 			}
 		}
 	private:
@@ -589,7 +590,7 @@ namespace stdx
 #ifdef _EnableFileOperation
 namespace stdx
 {
-	stdx::file_stream open_file(const stdx::file_io_service &m_io_service,const std::string &path,const int32 &access_type,const int32 &open_type)
+	stdx::file_stream open_file(const stdx::file_io_service &m_io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
 	{
 		return stdx::file_stream(m_io_service, path, access_type, open_type);
 	}
