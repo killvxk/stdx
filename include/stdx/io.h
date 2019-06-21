@@ -2,7 +2,6 @@
 #include <stdx/env.h>
 #include <memory>
 #include <string>
-//#include <allocators>
 namespace stdx
 {
 	//自动释放缓存区实现
@@ -343,117 +342,92 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
-	using ready_bit = std::atomic_int;
-
-	template<typename _IOContext>
-	struct context_model
+	int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
 	{
-		context_model()
-			:m_ready_bit(0)
-			, m_contexts()
-		{}
-		context_model(context_model &&other)
-			:m_ready_bit((int)other.m_ready_bit)
-			, m_contexts(std::move(other.m_contexts))
-		{}
-		~context_model() = default;
+		return syscall(SYS_io_setup, nr_events, ctx_idp);
+	}
 
-		ready_bit m_ready_bit;
-		std::queue<_IOContext*> m_contexts;
+	int io_destroy(aio_context_t ctx_id)
+	{
+		return syscall(SYS_io_destroy, ctx_id);
+	}
 
-		bool empty()
+	int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
+	{
+		return syscall(SYS_io_submit, ctx_id, nr, iocbpp);
+	}
+
+	int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
+	{
+		return syscall(SYS_io_getevents, ctx_id, min_nr, nr, events, timeout);
+	}
+
+	int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
+	{
+		return syscall(SYS_io_cancel, ctx_id, iocb, result);
+	}
+
+	template<typename _Data>
+	void aio_read(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int res_fd, _Data *ptr)
+	{
+		iocb cb;
+		memset(&cb, 0, sizeof(iocb));
+		cb.aio_lio_opcode = IOCB_CMD_PREAD;
+		cb.aio_fildes = fd;
+		cb.aio_buf = (uint64)buf;
+		cb.aio_nbytes = size;
+		cb.aio_offset = offset;
+		cb.aio_data = (uint64)ptr;
+		cb.aio_flags = IOCB_FLAG_RESFD;
+		cb.aio_resfd = res_fd;
+		if (io_submit(context, 1, &(&(cb))) != 1)
 		{
-			return m_contexts.empty();
+			_ThrowLinuxError
 		}
-	};
+		return;
+	}
 
-	union  key_builder
+	template<typename _Data>
+	void aio_write(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int resfd, _Data *ptr)
 	{
-		struct
+		iocb cb;
+		memset(&cb, 0, sizeof(iocb));
+		cb.aio_lio_opcode = IOCB_CMD_PWRITE;
+		cb.aio_fildes = fd;
+		cb.aio_buf = (uint64)buf;
+		cb.aio_nbytes = size;
+		cb.aio_offset = offset;
+		cb.aio_data = (uint64)ptr;
+		cb.aio_flags = IOCB_FLAG_RESFD;
+		cb.aio_resfd = resfd;
+		if (io_submit(context, 1, &(&(cb))) != 1)
 		{
-			int32_t fd;
-			int32_t ev;
-		};
-		int64_t value;
-	};
+			_ThrowLinuxError
+		}
+		return;
+	}
 
 	template<typename _IOContext>
 	class _IOCP
 	{
-		using key_t = int64_t;
 	public:
-		_IOCP()
-			:m_epoll()
-			, m_map()
-		{}
+		_IOCP(aio_context_t ctxid)
+			:m_ctxid(ctxid)
+			, m_poller()
+			, m_resfd(eventfd(0, 0))
+		{
+			//int n;
+			//if (ioctl(ngx_eventfd, FIONBIO, &n)==-1)
+			//{
+			//	_ThrowLinuxError
+			//}
+			m_poller.add_event(m_resfd, stdx::epoll_events::in | stdx::epoll_events::et)
+		}
 		~_IOCP() = default;
-
-		template<typename _Type>
-		void bind(const _Type &handle)
-		{
-			key_builder key;
-			key.fd = (int)handle;
-			key.ev = stdx::epoll_events::in;
-			m_map.emplace(key.value, std::move(context_model<_IOContext>()));
-			m_epoll.add_event(key.fd, stdx::epoll_events::in | stdx::epoll_events::et);
-		}
-
-		_IOContext *get()
-		{
-			//循环wait直到context可用
-			while (true)
-			{
-				auto ev = m_epoll.wait(-1);
-				key_builder key;
-				key.fd = ev.data.fd;
-				if (ev.events & stdx::epoll_events::in)
-				{
-					key.ev = stdx::epoll_events::in;
-					context_model<_IOContext> &model = m_map[key.value];
-					int bit = model.m_ready_bit.load();
-					if (!model.empty())
-					{
-						auto context(std::move(model.m_contexts.front()));
-						model.m_contexts.pop();
-						model.m_ready_bit.store(bit);
-						return context;
-					}
-					else
-					{
-						bit += 1;
-						model.m_ready_bit.store(bit);
-					}
-				}
-				else
-				{
-
-				}
-			}
-		}
-
-		void push_read(int fd, int ev, _IOContext *context)
-		{
-			key_builder key;
-			key.fd = fd;
-			key.ev = ev;
-			context_model<_IOContext> &model = m_map[key.value];
-			int bit = model.m_ready_bit.load();
-			if (!bit)
-			{
-				model.m_contexts.emplace(context);
-				model.m_ready_bit.store(bit);
-			}
-			else
-			{
-				//执行callback
-				model.m_ready_bit -= 1;
-				model.m_ready_bit.store(bit);
-				(*context)();
-			}
-		}
 	private:
-		stdx::epoll m_epoll;
-		std::unordered_map<key_t, context_model<_IOContext>> m_map;
+		aio_context_t m_ctxid;
+		stdx::epoll m_poller;
+		int m_resfd;
 	};
 }
 #endif
