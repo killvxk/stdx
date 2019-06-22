@@ -7,7 +7,7 @@ int main()
 {
 #pragma region web_test
 	stdx::network_io_service service;
-	stdx::socket s(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+	stdx::socket s = stdx::open_socket(service,stdx::addr_family::ip,stdx::socket_type::stream,stdx::protocol::tcp);
 	try
 	{
 		stdx::network_addr addr("0.0.0.0", 5000);
@@ -27,7 +27,7 @@ int main()
 		{
 			try
 			{
-				stdx::file_stream stream(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open, stdx::file_shared_model::shared_read);
+				stdx::file_stream stream  = stdx::open_file(file_io_service,"./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
 				stream.read_utill_eof(8192, 0).then([c, stream](std::string e)mutable
 				{
 					std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";

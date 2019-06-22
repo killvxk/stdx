@@ -820,14 +820,20 @@ namespace stdx
 	{
 		using io_service_t = network_io_service;
 	public:
-		_Socket(const io_service_t &io_service, const int &addr_family, const int &sock_type, const int &protocol)
-			:m_io_service(io_service)
-			, m_handle(m_io_service.create_socket(addr_family, sock_type, protocol))
-		{}
+		//已弃用
+		//explicit _Socket(const io_service_t &io_service, const int &addr_family, const int &sock_type, const int &protocol)
+		//	:m_io_service(io_service)
+		//	, m_handle(m_io_service.create_socket(addr_family, sock_type, protocol))
+		//{}
 
 		explicit _Socket(const io_service_t &io_service, SOCKET s)
 			:m_io_service(io_service)
 			, m_handle(s)
+		{}
+
+		explicit _Socket(const io_service_t &io_service)
+			:m_io_service(io_service)
+			,m_handle(INVALID_SOCKET)
 		{}
 
 		delete_copy(_Socket);
@@ -839,6 +845,11 @@ namespace stdx
 				m_io_service.close(m_handle);
 				m_handle = INVALID_SOCKET;
 			}
+		}
+
+		void init(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			m_handle = m_io_service.create_socket(addr_family, sock_type, protocol);
 		}
 
 		stdx::task<stdx::network_send_event> send(const char *data, const size_t &size)
@@ -1025,8 +1036,13 @@ namespace stdx
 		using self_t = socket;
 		using io_service_t = network_io_service;
 	public:
-		socket(const io_service_t &io_service, const int &addr_family, const int &sock_type, const int &protocol)
-			:m_impl(std::make_shared<_Socket>(io_service, addr_family, sock_type, protocol))
+		//已弃用
+		//socket(const io_service_t &io_service, const int &addr_family, const int &sock_type, const int &protocol)
+		//	:m_impl(std::make_shared<_Socket>(io_service, addr_family, sock_type, protocol))
+		//{}
+
+		socket(const io_service_t &io_service)
+			:m_impl(std::make_shared<_Socket>(io_service))
 		{}
 		socket(const self_t &other)
 			:m_impl(other.m_impl)
@@ -1038,6 +1054,11 @@ namespace stdx
 		{
 			m_impl = other.m_impl;
 			return *this;
+		}
+
+		void init(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			return m_impl->init(addr_family, sock_type, protocol);
 		}
 
 		void bind(network_addr &addr)
@@ -1118,10 +1139,19 @@ namespace stdx
 			:m_impl(std::make_shared<_Socket>(io_service, s))
 		{}
 	};
+}
+
+namespace stdx
+{
+	stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol)
+	{
+		stdx::socket sock(io_service);
+		sock.init(addr_family,sock_type,protocol);
+		return sock;
+	}
+}
 #endif //Win32
+
 #ifdef LINUX
 
 #endif //LINUX
-
-
-}

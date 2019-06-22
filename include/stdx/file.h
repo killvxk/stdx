@@ -391,14 +391,21 @@ namespace stdx
 	{
 		using io_service_t = file_io_service;
 	public:
-		_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
+		_FileStream(const io_service_t &io_service)
 			:m_io_service(io_service)
-			, m_file(m_io_service.create_file(path, access_type, open_type, shared_model))
+			,m_file(INVALID_HANDLE_VALUE)
 		{}
-		_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type)
-			:m_io_service(io_service)
-			, m_file(m_io_service.create_file(path, access_type, open_type, file_shared_model::shared_read))
-		{}
+
+		//已弃用
+		//_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
+		//	:m_io_service(io_service)
+		//	, m_file(m_io_service.create_file(path, access_type, open_type, shared_model))
+		//{}
+		//_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type)
+		//	:m_io_service(io_service)
+		//	, m_file(m_io_service.create_file(path, access_type, open_type, file_shared_model::shared_read))
+		//{}
+
 		~_FileStream()
 		{
 			if (m_file != INVALID_HANDLE_VALUE)
@@ -407,6 +414,12 @@ namespace stdx
 				m_file = INVALID_HANDLE_VALUE;
 			}
 		}
+
+		void init(const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
+		{
+			m_file = m_io_service.create_file(path, access_type, open_type, shared_model);
+		}
+
 		stdx::task<file_read_event> read(const size_t &size, const size_t &offset)
 		{
 			if (!m_io_service)
@@ -518,13 +531,20 @@ namespace stdx
 		using impl_t = std::shared_ptr<_FileStream>;
 		using io_service_t = file_io_service;
 	public:
-		explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
-			:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, shared_model))
+
+		explicit file_stream(const io_service_t &io_service)
+			:m_impl(std::make_shared<_FileStream>(io_service))
 		{}
 
-		explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
-			:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, file_shared_model::unique))
-		{}
+		//已弃用
+		//explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
+		//	:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, shared_model))
+		//{}
+
+		//explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
+		//	:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, file_shared_model::unique))
+		//{}
+
 
 		file_stream(const file_stream &other)
 			:m_impl(other.m_impl)
@@ -535,6 +555,11 @@ namespace stdx
 		{}
 
 		~file_stream() = default;
+
+		void init(const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
+		{
+			return m_impl->init(path, access_type, open_type, shared_model);
+		}
 
 		file_stream &operator=(const file_stream &other)
 		{
@@ -580,20 +605,18 @@ namespace stdx
 		impl_t m_impl;
 	};
 }
-#define _EnableFileOperation
+
+namespace stdx
+{
+	stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
+	{
+		stdx::file_stream file(io_service);
+		file.init(path, access_type, open_type, stdx::file_shared_model::shared_read|stdx::file_shared_model::shared_write);
+		return file;
+}
+}
 #undef _ThrowWinError
 #endif // WIN32
 #ifdef LINUX
-#define _EnableFileOperation
-#endif //LINUX
 
-#ifdef _EnableFileOperation
-namespace stdx
-{
-	stdx::file_stream open_file(const stdx::file_io_service &m_io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
-	{
-		return stdx::file_stream(m_io_service, path, access_type, open_type);
-	}
-}
-#undef _EnableFileOperation
-#endif // _EnableFileOperation
+#endif //LINUX
