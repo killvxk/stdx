@@ -121,6 +121,7 @@ namespace stdx
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#define INIT_EVCP(x)
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
@@ -247,6 +248,7 @@ namespace stdx
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
 
+#define INIT_EVCP(x) x
 namespace stdx
 {
 	struct epoll_events
@@ -266,13 +268,11 @@ namespace stdx
 	public:
 		_EPOLL()
 			:m_handle(epoll_create1(0))
+		{}
+		~_EPOLL()
 		{
-			if (m_handle == -1)
-			{
-				_ThrowLinuxError
-			}
+			close(m_handle);
 		}
-		~_EPOLL() = default;
 		void add_event(int fd, const uint32 &events)
 		{
 			epoll_event e;
@@ -283,6 +283,7 @@ namespace stdx
 				_ThrowLinuxError
 			}
 		}
+
 		void del_event(int fd)
 		{
 			epoll_event e;
@@ -293,7 +294,7 @@ namespace stdx
 			}
 		}
 
-		void wait(epoll_event *event_ptr, int maxevents, int timeout) const
+		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
 		{
 			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
 			{
@@ -328,12 +329,12 @@ namespace stdx
 			m_impl->del_event(fd);
 		}
 
-		void wait(epoll_event *event_ptr, int maxevents, int timeout) const
+		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
 		{
 			m_impl->wait(event_ptr, maxevents, timeout);
 		}
 
-		epoll_event wait(int timeout) const
+		epoll_event wait(const int &timeout) const
 		{
 			epoll_event ev;
 			this->wait(&ev, 1, timeout);
@@ -342,6 +343,7 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
+
 	int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
 	{
 		return syscall(SYS_io_setup, nr_events, ctx_idp);
@@ -354,7 +356,7 @@ namespace stdx
 
 	int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
 	{
-		return syscall(SYS_io_submit, ctx_id, nr, iocbpp);
+		return syscall(SYS_io_submit,ctx_id,nr,iocbpp );
 	}
 
 	int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
@@ -366,68 +368,123 @@ namespace stdx
 	{
 		return syscall(SYS_io_cancel, ctx_id, iocb, result);
 	}
-
+	
 	template<typename _Data>
-	void aio_read(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int res_fd, _Data *ptr)
+	void aio_read(aio_context_t context,int fd,char *buf,size_t size,size_t offset,int resfd,_Data *ptr)
 	{
-		iocb cb;
-		memset(&cb, 0, sizeof(iocb));
-		cb.aio_lio_opcode = IOCB_CMD_PREAD;
-		cb.aio_fildes = fd;
-		cb.aio_buf = (uint64)buf;
-		cb.aio_nbytes = size;
-		cb.aio_offset = offset;
-		cb.aio_data = (uint64)ptr;
-		cb.aio_flags = IOCB_FLAG_RESFD;
-		cb.aio_resfd = res_fd;
-		if (io_submit(context, 1, &(&(cb))) != 1)
+		iocb cbs[1],*p[1] = {&cbs[0]};
+		memset(&(cbs[0]), 0,sizeof(iocb));
+		(cbs[0]).aio_lio_opcode = IOCB_CMD_PREAD;
+		(cbs[0]).aio_fildes = fd;
+		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_nbytes = size;
+		(cbs[0]).aio_offset = offset;
+		(cbs[0]).aio_data =(uint64)ptr;
+		if (resfd != -1)
+		{
+			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
+			(cbs[0]).aio_resfd = resfd;
+		}
+		if (io_submit(context, 1,p) != 1)
 		{
 			_ThrowLinuxError
 		}
 		return;
 	}
-
+	
 	template<typename _Data>
 	void aio_write(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int resfd, _Data *ptr)
 	{
-		iocb cb;
-		memset(&cb, 0, sizeof(iocb));
-		cb.aio_lio_opcode = IOCB_CMD_PWRITE;
-		cb.aio_fildes = fd;
-		cb.aio_buf = (uint64)buf;
-		cb.aio_nbytes = size;
-		cb.aio_offset = offset;
-		cb.aio_data = (uint64)ptr;
-		cb.aio_flags = IOCB_FLAG_RESFD;
-		cb.aio_resfd = resfd;
-		if (io_submit(context, 1, &(&(cb))) != 1)
+		iocb cbs[1], *p[1] = { &cbs[0] };
+		memset(&(cbs[0]), 0, sizeof(iocb));
+		(cbs[0]).aio_lio_opcode = IOCB_CMD_PWRITE;
+		(cbs[0]).aio_fildes = fd;
+		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_nbytes = size;
+		(cbs[0]).aio_offset = offset;
+		(cbs[0]).aio_data = (uint64)ptr;
+		if (resfd != -1)
+		{
+			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
+			(cbs[0]).aio_resfd = resfd;
+		}
+		if (io_submit(context, 1, p) != 1)
 		{
 			_ThrowLinuxError
 		}
 		return;
 	}
 
+	template<typename _Data>
+	void aio_recv(aio_context_t context, int fd, char *buf, size_t size, int res_fd, _Data *ptr)
+	{
+		return aio_read(context, fd, buf, size, 0, res_fd, ptr);
+	}
+
+	template<typename _Data>
+	void aio_send(aio_context_t context, int fd, char *buf, size_t size, int res_fd, _Data *ptr)
+	{
+		return aio_write(context, fd, buf, size, 0, res_fd, ptr);
+	}
+
 	template<typename _IOContext>
-	class _IOCP
+	class _EvCP
 	{
 	public:
-		_IOCP(aio_context_t ctxid)
-			:m_ctxid(ctxid)
-			, m_poller()
-			, m_resfd(eventfd(0, 0))
+		_EvCP(unsigned nr_events)
+			:m_ctxid(0)
 		{
-			//int n;
-			//if (ioctl(ngx_eventfd, FIONBIO, &n)==-1)
-			//{
-			//	_ThrowLinuxError
-			//}
-			m_poller.add_event(m_resfd, stdx::epoll_events::in | stdx::epoll_events::et)
+			memset(&m_ctxid, 0, sizeof(aio_context_t));
+			io_setup(nr_events, &m_ctxid);
 		}
-		~_IOCP() = default;
+		~_EvCP()
+		{
+			io_destroy(m_ctxid);
+		}
+
+		_IOContext *get()
+		{
+			io_event ev;
+			io_getevents(m_ctxid, 1, 1,&ev,NULL);
+			return (_IOContext*)ev.data;
+		}
+		aio_context_t get_context() const
+		{
+			return m_ctxid;
+		}
 	private:
 		aio_context_t m_ctxid;
-		stdx::epoll m_poller;
-		int m_resfd;
+	};
+	template<typename _IOContext>
+	class evcp
+	{
+		using impl_t = std::shared_ptr<_EvCP<_IOContext>>;
+	public:
+		evcp(unsigned nr_events)
+			:m_impl(std::make_shared<_EvCP<_IOContext>>(nr_events))
+		{}
+		evcp(const evcp<_IOContext> &other)
+			:m_impl(other.m_impl)
+		{}
+		evcp(evcp<_IOContext> &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		~evcp()=default;
+		evcp &operator=(const evcp<_IOContext> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		aio_context_t get_context() const
+		{
+			return m_impl->get_context();
+		}
+		_IOContext *get()
+		{
+			return m_impl->get();
+		}
+	private:
+		impl_t m_impl;
 	};
 }
 #endif

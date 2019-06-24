@@ -45,6 +45,5 @@ int main()
 	}
 	std::cin.get();
 #pragma endregion
-	std::cin.get();
 	return 0;
 }
