@@ -121,6 +121,9 @@ namespace stdx
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+
+//用于evcp的nr_events参数
+//Windows下无意义
 #define INIT_EVCP(x)
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
@@ -235,19 +238,23 @@ namespace stdx
 #endif
 
 #ifdef LINUX
-//仍未完成
 #include <memory>
 #include <system_error>
 #include <string>
 #include <string.h>
 #include <sys/epoll.h>
 #include <errno.h>
-#include <aio.h>
-#include <queue>
-#include <unordered_map>
+#include <linux/aio_abi.h>
+#include <sys/syscall.h>
+#include <sys/eventfd.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
-
+//用于evcp的nr_events参数
+//Windows下无意义
 #define INIT_EVCP(x) x
 namespace stdx
 {
