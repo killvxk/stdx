@@ -543,7 +543,7 @@ namespace stdx
 
 	//启动一个Task
 	template<typename _Fn, typename ..._Args,typename _R = stdx::function_info<_Fn>::result>
-	stdx::task<_R> async(_Fn &fn, _Args &...args)
+	inline stdx::task<_R> async(_Fn &fn, _Args &...args)
 	{
 		return task<_R>::start(fn,args...);
 	}
