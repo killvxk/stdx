@@ -1143,7 +1143,7 @@ namespace stdx
 
 namespace stdx
 {
-	stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol)
+	inline stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol)
 	{
 		stdx::socket sock(io_service);
 		sock.init(addr_family,sock_type,protocol);
