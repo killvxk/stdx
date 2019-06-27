@@ -608,12 +608,12 @@ namespace stdx
 
 namespace stdx
 {
-	stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
+	inline stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
 	{
 		stdx::file_stream file(io_service);
 		file.init(path, access_type, open_type, stdx::file_shared_model::shared_read|stdx::file_shared_model::shared_write);
 		return file;
-}
+        }
 }
 #undef _ThrowWinError
 #endif // WIN32
