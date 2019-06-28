@@ -122,9 +122,6 @@ namespace stdx
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-//用于evcp的nr_events参数
-//Windows下无意义
-#define INIT_EVCP(x)
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
@@ -251,11 +248,12 @@ namespace stdx
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <unordered_map>
+#include <queue>
+#include <stdx/async/spin_lock.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
-//用于evcp的nr_events参数
-//Windows下无意义
-#define INIT_EVCP(x) x
+
 namespace stdx
 {
 	struct epoll_events
@@ -280,22 +278,40 @@ namespace stdx
 		{
 			close(m_handle);
 		}
-		void add_event(int fd, const uint32 &events)
+
+		//已弃用
+		//void add_event(int fd, const uint32 &events)
+		//{
+		//	epoll_event e;
+		//	e.events = events;
+		//	e.data.fd = fd;
+		//	if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
+		//	{
+		//		_ThrowLinuxError
+		//	}
+		//}
+
+		//void del_event(int fd)
+		//{
+		//	epoll_event e;
+		//	e.data.fd = fd;
+		//	if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
+		//	{
+		//		_ThrowLinuxError
+		//	}
+		//}
+
+		void add_event(int fd, epoll_event *event_ptr)
 		{
-			epoll_event e;
-			e.events = events;
-			e.data.fd = fd;
-			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
+			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, event_ptr) == -1)
 			{
 				_ThrowLinuxError
 			}
 		}
 
-		void del_event(int fd)
+		void del_event(int fd, epoll_event *event_ptr)
 		{
-			epoll_event e;
-			e.data.fd = fd;
-			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
+			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, event_ptr) == -1)
 			{
 				_ThrowLinuxError
 			}
@@ -326,19 +342,19 @@ namespace stdx
 		{
 			m_impl = other.m_impl;
 		}
-		void add_event(int fd, const uint32 &events)
+		void add_event(int fd, epoll_event *event_ptr)
 		{
-			m_impl->add_event(fd, events);
+			return m_impl->add_event(fd, event_ptr);
 		}
 
-		void del_event(int fd)
+		void del_event(int fd, epoll_event *event_ptr)
 		{
-			m_impl->del_event(fd);
+			return m_impl->del_event(fd,event_ptr);
 		}
 
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
 		{
-			m_impl->wait(event_ptr, maxevents, timeout);
+			return m_impl->wait(event_ptr, maxevents, timeout);
 		}
 
 		epoll_event wait(const int &timeout) const
@@ -422,23 +438,11 @@ namespace stdx
 		return;
 	}
 
-	template<typename _Data>
-	void aio_recv(aio_context_t context, int fd, char *buf, size_t size, int res_fd, _Data *ptr)
-	{
-		return aio_read(context, fd, buf, size, 0, res_fd, ptr);
-	}
-
-	template<typename _Data>
-	void aio_send(aio_context_t context, int fd, char *buf, size_t size, int res_fd, _Data *ptr)
-	{
-		return aio_write(context, fd, buf, size, 0, res_fd, ptr);
-	}
-
 	template<typename _IOContext>
 	class _EvCP
 	{
 	public:
-		_EvCP(unsigned nr_events)
+		_EvCP(unsigned nr_events=2048)
 			:m_ctxid(0)
 		{
 			memset(&m_ctxid, 0, sizeof(aio_context_t));
@@ -489,6 +493,178 @@ namespace stdx
 		_IOContext *get()
 		{
 			return m_impl->get();
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	struct ev_queue
+	{
+		ev_queue()
+			:m_lock()
+			,m_using(false)
+			,m_queue()
+		{}
+		ev_queue(ev_queue &&other)
+			:m_lock(other.m_lock)
+			,m_using(other.m_using)
+			,m_queue(std::move(other.m_queue))
+		{}
+		~ev_queue() = default;
+		ev_queue &operator=(const ev_queue &&other)
+		{
+			m_lock = other.m_lock;
+			m_using = other.m_using;
+			m_queue = std::move(other.m_queue);
+			return *this;
+		}
+		stdx::spin_lock m_lock;
+		bool m_using;
+		std::queue<epoll_event> m_queue;
+	};
+
+	template<typename _Poller>
+	struct _PollerRaii
+	{
+		_PollerRaii(_Poller &poller)
+			:m_poller(poller)
+			,m_fd(poller.begin_event())
+		{
+		}
+		~_PollerRaii()
+		{
+			m_poller.end_event(m_fd);
+		}
+		_Poller &m_poller;
+		int m_fd;
+	};
+
+	template<typename _IOContext,typename _Executer>
+	class _Poller
+	{
+	public:
+		_Poller()
+			:m_map()
+			,m_poll()
+		{}
+		~_Poller()=default;
+
+		void bind(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator == std::end(m_map))
+			{
+				m_map.emplace(fd,std::move(make()));
+			}
+		}
+
+		_IOContext *get()
+		{
+			_PollerRaii<_Poller<_IOContext, _Executer>> raii(*this);
+			auto ev = m_poll.wait(-1);
+			try
+			{
+				_Executer::read(&ev);
+			}
+			catch (const std::exception& e)
+			{
+				return (_IOContext*)ev.data.ptr;
+			}
+			return (_IOContext*)ev.data.ptr;
+		}
+
+		void push(int fd,const epoll_event &ev)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				iterator->second.m_queue.push(std::move(ev));
+			}
+			else
+			{
+				throw std::invalid_argument("invalid argument: fd");
+			}
+		}
+		int begin_event()
+		{
+			while (true)
+			{
+				for (auto begin = std::begin(m_map),end = std::end(m_map);begin != end;++begin)
+				{
+					begin->second.m_lock.lock();
+					if (!begin->second.m_using)
+					{
+						if (begin->second.m_queue.empty())
+						{
+							begin->second.m_lock.unlock();
+							continue;
+						}
+						else
+						{
+							auto &ev = begin->second.m_queue.front();
+							m_poll.add_event(begin->first, &ev);
+							begin->second.m_queue.pop();
+							begin->second.m_using = true;
+							begin->second.m_lock.unlock();
+							return begin->first;
+						}
+					}
+					else
+					{
+						begin->second.m_lock.unlock();
+					}
+				}
+			}
+		}
+
+		void end_event(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				iterator->second.m_lock.lock();
+				iterator->second.m_using = false;
+				iterator->second.m_lock.unlock();
+			}
+		}
+	private:
+		stdx::ev_queue make()
+		{
+			return ev_queue();
+		}
+	private:
+		std::unordered_map<int,ev_queue> m_map;
+		stdx::epoll m_poll;
+	};
+	
+	template<typename _IOContext, typename _Executer>
+	class poller
+	{
+		using impl_t = std::shared_ptr<_Poller<_IOContext,_Executer>>;
+	public:
+		poller()
+			:m_impl(std::make_shared<_Poller<_IOContext,_Executer>>())
+		{}
+		poller(const poller<_IOContext, _Executer> &other)
+			:m_impl(other.m_impl)
+		{}
+		~poller()=default;
+		poller<_IOContext, _Executer> &operator=(const poller<_IOContext, _Executer> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void bind(int fd)
+		{
+			return m_impl->bind(fd);
+		}
+		_IOContext *get()
+		{
+			return m_impl->get();
+		}
+		void push(int fd,const epoll_event &ev)
+		{
+			return m_impl->push(fd,ev);
 		}
 	private:
 		impl_t m_impl;
