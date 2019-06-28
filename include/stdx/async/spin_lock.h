@@ -16,7 +16,7 @@ namespace stdx
 
 		void lock()
 		{
-			while (std::atomic_exchange_explicit(&m_locked, true, std::memory_order_acquire))
+			while (m_locked.exchange(true,std::memory_order_acquire))
 			{
 				std::this_thread::yield();
 			}
@@ -24,7 +24,7 @@ namespace stdx
 
 		void unlock()
 		{
-			std::atomic_store_explicit(&m_locked, false, std::memory_order_release);
+			m_locked.store(false,std::memory_order_release);
 		}
 	private:
 		std::atomic_bool m_locked;

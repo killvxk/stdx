@@ -5,7 +5,7 @@ add_executable (ziran "main.cpp")
 include_directories(${PROJECT_SOURCE_DIR}/include)
 #设置模块路径
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # TODO: 如有需要，请添加测试并安装目标。
 

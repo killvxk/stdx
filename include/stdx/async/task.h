@@ -7,6 +7,7 @@
 #include <stdx/traits/value_type.h>
 #include <stdx/function.h>
 #include <stdx/tuple.h>
+#include <stdx/env.h>
 namespace stdx
 {
 	//Task状态
@@ -24,6 +25,15 @@ namespace stdx
 			error = 3
 		};
 	};
+
+	template<typename _T>
+	using promise_ptr = std::shared_ptr<std::promise<_T>>;
+
+	template<typename _T>
+	promise_ptr<_T> make_promise_ptr()
+	{
+		return std::make_shared<std::promise<_T>>();
+	}
 
 	//task_result模板
 	template<typename _T>
@@ -192,7 +202,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::runable_ptr<_t> &call, std::shared_ptr<std::promise<_t>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -242,7 +252,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::runable_ptr<void> &call, std::shared_ptr<std::promise<void>> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
 		{
 			try
 			{
@@ -321,6 +331,7 @@ namespace stdx
 				t->run();
 				return t;
 			}
+			*next = t;
 			lock.unlock();
 			return t;
 		}
@@ -344,6 +355,7 @@ namespace stdx
 				t->run();
 				return t;
 			}
+			*next = t;
 			lock.unlock();
 			return t;
 		}
@@ -394,6 +406,7 @@ namespace stdx
 			return future.get().then(std::move(fn));
 		}
 	};
+
 	//Task模板的实现
 	template<typename R>
 	class _Task :public stdx::_BasicTask
@@ -448,7 +461,7 @@ namespace stdx
 			m_lock.unlock();
 			//创建方法
 			auto f = [](stdx::runable_ptr<R> r
-				, std::shared_ptr<std::promise<R>> promise
+				, promise_ptr<R> promise
 				, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>>  next
 				, stdx::spin_lock lock
 				, std::shared_ptr<int> state)
@@ -521,7 +534,7 @@ namespace stdx
 
 	protected:
 		stdx::runable_ptr<R> m_action;
-		std::shared_ptr<std::promise<R>> m_promise;
+		promise_ptr<R> m_promise;
 		std::shared_future<R> m_future;
 		std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> m_next;
 		std::shared_ptr<int> m_state;
@@ -530,85 +543,8 @@ namespace stdx
 
 	//启动一个Task
 	template<typename _Fn, typename ..._Args,typename _R = stdx::function_info<_Fn>::result>
-	stdx::task<_R> async(_Fn &fn, _Args &...args)
+	inline stdx::task<_R> async(_Fn &fn, _Args &...args)
 	{
 		return task<_R>::start(fn,args...);
 	}
-
-	template<typename R>
-	class _SyncTask:public _Task<R>
-	{
-	public:
-		template<typename _Fn,typename ..._Args>
-		_SyncTask(_Fn &&fn, _Args &&...args)
-			:_Task<R>(std::move(fn),args...)
-		{}
-		void run() override
-		{
-			stdx::_TaskCompleter<R>::call(m_action,m_promise,m_next,m_lock,m_state);
-		}
-
-	};
-	template<typename _Result>
-	class _TaskCompleteEvent
-	{
-	public:
-		_TaskCompleteEvent()
-			:m_promise(std::make_shared<std::promise<_Result>>())
-		{}
-		~_TaskCompleteEvent()=default;
-		void set_value(const _Result &value)
-		{
-			m_promise->set_value(value);
-		}
-		void set_exception(std::exception_ptr exception_ptr)
-		{
-			m_promise->set_exception(exception_ptr);
-		}
-
-		stdx::task<_Result> get_task()
-		{
-			return stdx::async([this]() 
-			{
-				return m_promise->get_future().get();
-			});
-		}
-	private:
-		std::shared_ptr<std::promise<_Result>> m_promise;
-	};
-
-	template<typename _R>
-	class task_complete_event
-	{
-		using impl_t = std::shared_ptr<_TaskCompleteEvent<_R>>;
-	public:
-		task_complete_event()
-			:m_impl(std::make_shared<_TaskCompleteEvent<_R>>())
-		{}
-		task_complete_event(const task_complete_event<_R> &other)
-			:m_impl(other.m_impl)
-		{}
-		task_complete_event(task_complete_event<_R> &&other)
-			:m_impl(std::move(other.m_impl))
-		{}
-		~task_complete_event() = default;
-		task_complete_event<_R> &operator=(const task_complete_event<_R> &other)
-		{
-			m_impl = other.m_impl;
-		}
-		void set_value(const _R &value)
-		{
-			m_impl->set_value(value);
-		}
-		void set_exception(std::exception_ptr error)
-		{
-			m_impl->set_exception(error);
-		}
-		stdx::task<_R> get_task()
-		{
-			return m_impl->get_task();
-		}
-	private:
-		impl_t m_impl;
-	};
 }

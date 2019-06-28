@@ -1,9 +1,7 @@
 ﻿#pragma once
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <stdx/async/task.h>
 #include <stdx/env.h>
+#include <memory>
+#include <string>
 namespace stdx
 {
 	//自动释放缓存区实现
@@ -14,10 +12,10 @@ namespace stdx
 			:m_size(size)
 			, m_data((char*)std::calloc(sizeof(char), m_size))
 		{
-			if (m_data == nullptr)
-			{
-				throw std::bad_alloc();
-			}
+			//if (m_data == nullptr)
+			//{
+			//	throw std::bad_alloc();
+			//}
 		}
 		explicit _Buffer(size_t size, char* data)
 			:m_size(size)
@@ -76,7 +74,7 @@ namespace stdx
 	//自动释放缓存区
 	class buffer
 	{
-		using impl_t = std::shared_ptr<_Buffer>;
+		using impl_t = std::shared_ptr<stdx::_Buffer>;
 	public:
 		buffer(size_t size = 4096)
 			:m_impl(std::make_shared<_Buffer>(size))
@@ -123,6 +121,7 @@ namespace stdx
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
@@ -142,89 +141,6 @@ namespace stdx
 
 namespace stdx
 {
-
-	//文件IO上下文
-	struct file_io_context
-	{
-		file_io_context()
-		{
-			std::memset(&m_ol, 0, sizeof(OVERLAPPED));
-		}
-		~file_io_context() = default;
-		OVERLAPPED m_ol;
-		HANDLE file;
-		char *buffer;
-		DWORD size;
-		DWORD offset;
-		bool eof;
-		std::function<void(file_io_context*,std::exception_ptr)> *callback;
-	};
-
-	//文件读取完成事件
-	struct file_read_event
-	{
-		file_read_event() = default;
-		~file_read_event() = default;
-		file_read_event(const file_read_event &other)
-			:file(other.file)
-			,buffer(other.buffer)
-			,offset(other.offset)
-			,eof(other.eof)
-		{}
-		file_read_event(file_read_event &&other)
-			:file(std::move(other.file))
-			,buffer(std::move(other.buffer))
-			,offset(std::move(other.offset))
-			,eof(std::move(other.eof))
-		{}
-		file_read_event &operator=(const file_read_event &other)
-		{
-			file = other.file;
-			buffer = other.buffer;
-			offset = other.offset;
-			eof = other.eof;
-			return *this;
-		}
-		file_read_event(file_io_context *ptr)
-			:file(ptr->file)
-			,buffer(ptr->size,ptr->buffer)
-			,offset(ptr->offset)
-			,eof(ptr->eof)
-		{
-		}
-		HANDLE file;
-		buffer buffer;
-		size_t offset;
-		bool eof;
-	};
-
-	//文件写入完成事件
-	struct file_write_event
-	{
-		file_write_event() = default;
-		~file_write_event() = default;
-		file_write_event(const file_write_event &other)
-			:file(other.file)
-			,size(other.size)
-		{}
-		file_write_event(file_write_event &&other)
-			:file(std::move(other.file))
-			,size(std::move(other.size))
-		{}
-		file_write_event &operator=(const file_write_event &other)
-		{
-			file = other.file;
-			size = other.size;
-			return *this;
-		}
-		file_write_event(file_io_context *ptr)
-			:file(ptr->file)
-			,size(ptr->size)
-		{}
-		HANDLE file;
-		size_t size;
-	};
-
 	//IOCP封装
 	template<typename _IOContext>
 	class _IOCP
@@ -314,407 +230,441 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
+}
+#undef _ThrowWinError
+#endif
 
-	//文件访问类型
-	struct file_access_type
+#ifdef LINUX
+#include <memory>
+#include <system_error>
+#include <string>
+#include <string.h>
+#include <sys/epoll.h>
+#include <errno.h>
+#include <linux/aio_abi.h>
+#include <sys/syscall.h>
+#include <sys/eventfd.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <unordered_map>
+#include <queue>
+#include <stdx/async/spin_lock.h>
+#define _ThrowLinuxError auto _ERROR_CODE = errno;
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
+
+namespace stdx
+{
+	struct epoll_events
 	{
 		enum
 		{
-			execute = FILE_GENERIC_EXECUTE,
-			read = FILE_GENERIC_READ,
-			write = FILE_GENERIC_WRITE,
-			all = GENERIC_ALL
+			in = EPOLLIN,
+			out = EPOLLOUT,
+			err = EPOLLERR,
+			hup = EPOLLHUP,
+			et = EPOLLET,
+			once = EPOLLONESHOT
 		};
 	};
-
-	//文件共享类型
-	struct file_shared_model
-	{
-		enum
-		{
-			unique = 0UL,
-			shared_read = FILE_SHARE_READ,
-			shared_write = FILE_SHARE_WRITE,
-			shared_delete = FILE_SHARE_DELETE
-		};
-	};
-
-	//文件打开类型
-	struct file_open_type
-	{
-		enum
-		{
-			open = OPEN_EXISTING,
-			create = CREATE_ALWAYS,
-			new_file = CREATE_NEW,
-			create_open = OPEN_ALWAYS
-		};
-	};
-
-	struct file_pointer_move_method
-	{
-		enum
-		{
-			begin = FILE_BEGIN,
-			end = FILE_END,
-			current = FILE_CURRENT
-		};
-	};
-
-	//文件IO服务实现
-	class _FileIOService
+	class _EPOLL
 	{
 	public:
-		using iocp_t = stdx::iocp<file_io_context>;
-		_FileIOService()
-			:m_iocp()
+		_EPOLL()
+			:m_handle(epoll_create1(0))
 		{}
-		_FileIOService(const iocp_t &iocp)
-			:m_iocp(iocp)
-		{}
-		delete_copy(_FileIOService);
-		~_FileIOService() = default;
-		HANDLE create_file(const std::string &path,DWORD access_type,DWORD file_open_type,DWORD shared_model)
+		~_EPOLL()
 		{
-			HANDLE file = CreateFile(path.c_str(), access_type, shared_model, 0,file_open_type,FILE_FLAG_OVERLAPPED,0);
-			if (file == INVALID_HANDLE_VALUE)
-			{
-				_ThrowWinError
-			}
-			m_iocp.bind(file);
-			return file;
+			close(m_handle);
 		}
-		void read_file(HANDLE file,const size_t &size,const size_t &offset,std::function<void(file_read_event,std::exception_ptr)> &&callback)
+
+		//已弃用
+		//void add_event(int fd, const uint32 &events)
+		//{
+		//	epoll_event e;
+		//	e.events = events;
+		//	e.data.fd = fd;
+		//	if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
+		//	{
+		//		_ThrowLinuxError
+		//	}
+		//}
+
+		//void del_event(int fd)
+		//{
+		//	epoll_event e;
+		//	e.data.fd = fd;
+		//	if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
+		//	{
+		//		_ThrowLinuxError
+		//	}
+		//}
+
+		void add_event(int fd, epoll_event *event_ptr)
 		{
-			file_io_context *context = new file_io_context;
-			context->eof = false;
-			context->file = file;
-			context->offset = offset;
-			context->buffer = (char*)std::calloc(size,sizeof(char));
-			context->size = size;
-			std::function<void(file_io_context*, std::exception_ptr)> *call = new std::function<void(file_io_context*, std::exception_ptr)>;
-			*call = [callback,size](file_io_context *context_ptr,std::exception_ptr error)
+			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, event_ptr) == -1)
 			{
-				if (error)
-				{
-					callback(file_read_event(), error);
-					delete context_ptr;
-					return;
-				}
-				if (context_ptr->size < size)
-				{
-					context_ptr->eof = true;
-				}
-				file_read_event context(context_ptr);
-				delete context_ptr;
-				callback(context,nullptr);
-			};
-			context->callback = call;
-			if (!ReadFile(file,context->buffer,size,&(context->size), &(context->m_ol)))
-			{
-				//处理错误
-				DWORD code = GetLastError();
-				if (code != ERROR_IO_PENDING)
-				{
-					if (code == ERROR_HANDLE_EOF)
-					{
-						context->eof = true;
-					}
-					else
-					{
-						LPVOID msg;
-						if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL,code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
-						{ 
-							throw std::runtime_error((char*)msg); 
-						}
-						else 
-						{ 
-							std::string _ERROR_MSG("windows system error:"); 
-							_ERROR_MSG.append(std::to_string(code)); 
-							throw std::runtime_error(_ERROR_MSG.c_str()); 
-						} 
-					}
-				}
+				_ThrowLinuxError
 			}
-			stdx::threadpool::run([](iocp_t &iocp)
-			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
-				{
-					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
-					{
-						DWORD code = GetLastError();
-						if (code != ERROR_IO_PENDING)
-						{
-							if (code == ERROR_HANDLE_EOF)
-							{
-								context_ptr->eof = true;
-							}
-							else
-							{
-								LPVOID msg;
-								if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
-								{
-									throw std::runtime_error((char*)msg);
-								}
-								else
-								{
-									std::string _ERROR_MSG("windows system error:");
-									_ERROR_MSG.append(std::to_string(code));
-									throw std::runtime_error(_ERROR_MSG.c_str());
-								}
-							}
-						}
-					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			}, m_iocp);
-			return;
 		}
-		void write_file(HANDLE file,const char *buffer,const size_t &size,std::function<void(file_write_event,std::exception_ptr)> &&callback)
+
+		void del_event(int fd, epoll_event *event_ptr)
 		{
-			file_io_context *context_ptr = new file_io_context;
-			context_ptr->size = 0;
-			context_ptr->offset = 0;
-			auto *call = new std::function<void(file_io_context*, std::exception_ptr)>;
-			*call = [callback](file_io_context *context_ptr, std::exception_ptr error)
+			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, event_ptr) == -1)
 			{
-				if (error)
-				{
-					delete context_ptr;
-					callback(file_write_event(), error);
-					return;
-				}
-				file_write_event context(context_ptr);
-				delete context_ptr;
-				callback(context,nullptr);
-			};
-			context_ptr->callback = call;
-			if (!WriteFile(file, buffer, size, &(context_ptr->size), &(context_ptr->m_ol)))
-			{
-				_ThrowWinError
+				_ThrowLinuxError
 			}
-			stdx::threadpool::run([](iocp_t &iocp)
-			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
-				{
-					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
-					{
-						_ThrowWinError
-					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			},m_iocp);
 		}
-		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
+
+		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
 		{
-			LARGE_INTEGER li;
-			li.QuadPart = distance;
-			li.LowPart = SetFilePointer(file,li.LowPart,&(li.HighPart),method);
-			if (li.LowPart == INVALID_SET_FILE_POINTER)
+			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
 			{
-				_ThrowWinError
+				_ThrowLinuxError
 			}
-			return;
 		}
 	private:
-		iocp_t m_iocp;
+		int m_handle;
 	};
-
-	//文件IO服务
-	class file_io_service
+	class epoll
 	{
-		using impl_t = std::shared_ptr<_FileIOService>;
-		using iocp_t = typename _FileIOService::iocp_t;
+		using impl_t = std::shared_ptr<_EPOLL>;
 	public:
-		file_io_service()
-			:m_impl(std::make_shared<_FileIOService>())
+		epoll()
+			:m_impl(std::make_shared<_EPOLL>())
 		{}
-		file_io_service(const iocp_t &iocp)
-			:m_impl(std::make_shared<_FileIOService>(iocp))
-		{}
-		file_io_service(const file_io_service &other)
+		epoll(const epoll &other)
 			:m_impl(other.m_impl)
 		{}
-		file_io_service(file_io_service &&other)
-			:m_impl(std::move(other.m_impl))
-		{}
-		file_io_service &operator=(const file_io_service &other)
+		~epoll() = default;
+		epoll &operator=(const epoll &other)
 		{
 			m_impl = other.m_impl;
-			return *this;
 		}
-		operator bool() const
+		void add_event(int fd, epoll_event *event_ptr)
 		{
-			return (bool)m_impl;
-		}
-		HANDLE create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model)
-		{
-			return m_impl->create_file(path, access_type, file_open_type, shared_model);
-		}
-		void read_file(HANDLE file,const size_t &size, const size_t &offset, std::function<void(file_read_event,std::exception_ptr)> &&callback)
-		{
-			return m_impl->read_file(file, size, offset,std::move(callback));
-		}
-		void write_file(HANDLE file, const char *buffer, const size_t &size, std::function<void(file_write_event,std::exception_ptr)> &&callback)
-		{
-			return m_impl->write_file(file, buffer, size, std::move(callback));
-		}
-		
-		void set_file_pointer(HANDLE file,const int64 &distance,const DWORD &method)
-		{
-			return m_impl->set_file_pointer(file,distance,method);
+			return m_impl->add_event(fd, event_ptr);
 		}
 
+		void del_event(int fd, epoll_event *event_ptr)
+		{
+			return m_impl->del_event(fd,event_ptr);
+		}
+
+		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
+		{
+			return m_impl->wait(event_ptr, maxevents, timeout);
+		}
+
+		epoll_event wait(const int &timeout) const
+		{
+			epoll_event ev;
+			this->wait(&ev, 1, timeout);
+			return ev;
+		}
 	private:
 		impl_t m_impl;
 	};
 
-	//异步文件流实现
-	class _AsyncFileStream
+	int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
 	{
-		using io_service_t = file_io_service;
+		return syscall(SYS_io_setup, nr_events, ctx_idp);
+	}
+
+	int io_destroy(aio_context_t ctx_id)
+	{
+		return syscall(SYS_io_destroy, ctx_id);
+	}
+
+	int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
+	{
+		return syscall(SYS_io_submit,ctx_id,nr,iocbpp );
+	}
+
+	int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
+	{
+		return syscall(SYS_io_getevents, ctx_id, min_nr, nr, events, timeout);
+	}
+
+	int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
+	{
+		return syscall(SYS_io_cancel, ctx_id, iocb, result);
+	}
+	
+	template<typename _Data>
+	void aio_read(aio_context_t context,int fd,char *buf,size_t size,size_t offset,int resfd,_Data *ptr)
+	{
+		iocb cbs[1],*p[1] = {&cbs[0]};
+		memset(&(cbs[0]), 0,sizeof(iocb));
+		(cbs[0]).aio_lio_opcode = IOCB_CMD_PREAD;
+		(cbs[0]).aio_fildes = fd;
+		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_nbytes = size;
+		(cbs[0]).aio_offset = offset;
+		(cbs[0]).aio_data =(uint64)ptr;
+		if (resfd != -1)
+		{
+			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
+			(cbs[0]).aio_resfd = resfd;
+		}
+		if (io_submit(context, 1,p) != 1)
+		{
+			_ThrowLinuxError
+		}
+		return;
+	}
+	
+	template<typename _Data>
+	void aio_write(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int resfd, _Data *ptr)
+	{
+		iocb cbs[1], *p[1] = { &cbs[0] };
+		memset(&(cbs[0]), 0, sizeof(iocb));
+		(cbs[0]).aio_lio_opcode = IOCB_CMD_PWRITE;
+		(cbs[0]).aio_fildes = fd;
+		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_nbytes = size;
+		(cbs[0]).aio_offset = offset;
+		(cbs[0]).aio_data = (uint64)ptr;
+		if (resfd != -1)
+		{
+			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
+			(cbs[0]).aio_resfd = resfd;
+		}
+		if (io_submit(context, 1, p) != 1)
+		{
+			_ThrowLinuxError
+		}
+		return;
+	}
+
+	template<typename _IOContext>
+	class _EvCP
+	{
 	public:
-		_AsyncFileStream(const io_service_t &io_service,const std::string &path,const DWORD &access_type,const DWORD &open_type,const DWORD &shared_model)
-			:m_io_service(io_service)
-			,m_file(m_io_service.create_file(path,access_type,open_type,shared_model))
-		{}
-		_AsyncFileStream(const io_service_t &io_service, const std::string &path,const DWORD &access_type, const DWORD &open_type)
-			:m_io_service(io_service)
-			,m_file(m_io_service.create_file(path,access_type,open_type,file_shared_model::shared_read))
-		{}
-		~_AsyncFileStream()
+		_EvCP(unsigned nr_events=2048)
+			:m_ctxid(0)
 		{
-			CloseHandle(m_file);
+			memset(&m_ctxid, 0, sizeof(aio_context_t));
+			io_setup(nr_events, &m_ctxid);
 		}
-		stdx::task<file_read_event> read(size_t size,size_t offset)
+		~_EvCP()
 		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			std::shared_ptr<std::promise<file_read_event>> promise = std::make_shared<std::promise<file_read_event>>();
-			stdx::task<file_read_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.read_file(m_file, size, offset, [promise,task](file_read_event context,std::exception_ptr error) mutable
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-					return;
-				}
-				promise->set_value(context);
-				task.run();
-			});
-			return task;
-		}
-		stdx::task<file_write_event> write(const char* buffer,const size_t &size)
-		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			std::shared_ptr<std::promise<file_write_event>> promise = std::make_shared<std::promise<file_write_event>>();
-			stdx::task<file_write_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.write_file(m_file, buffer, size, [promise,task](file_write_event context,std::exception_ptr error) mutable 
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-				}
-				promise->set_value(context);
-				task.run();
-			});
-			return task;
+			io_destroy(m_ctxid);
 		}
 
-		void set_pointer(const int64 &distance,const DWORD &method)
+		_IOContext *get()
 		{
-			m_io_service.set_file_pointer(m_file, distance, method);
+			io_event ev;
+			io_getevents(m_ctxid, 1, 1,&ev,NULL);
+			return (_IOContext*)ev.data;
+		}
+		aio_context_t get_context() const
+		{
+			return m_ctxid;
 		}
 	private:
-		io_service_t m_io_service;
-		HANDLE m_file;
+		aio_context_t m_ctxid;
 	};
-	class async_file_stream
+	template<typename _IOContext>
+	class evcp
 	{
-		using impl_t = std::shared_ptr<_AsyncFileStream>;
-		using io_service_t = file_io_service;
+		using impl_t = std::shared_ptr<_EvCP<_IOContext>>;
 	public:
-		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
-			:m_impl(std::make_shared<_AsyncFileStream>(io_service,path,access_type,open_type,shared_model))
+		evcp(unsigned nr_events)
+			:m_impl(std::make_shared<_EvCP<_IOContext>>(nr_events))
 		{}
-
-		explicit async_file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
-			:m_impl(std::make_shared<_AsyncFileStream>(io_service, path, access_type, open_type,file_shared_model::shared_read))
-		{}
-
-		async_file_stream(const async_file_stream &other)
+		evcp(const evcp<_IOContext> &other)
 			:m_impl(other.m_impl)
 		{}
-
-		async_file_stream(async_file_stream &&other)
+		evcp(evcp<_IOContext> &&other)
 			:m_impl(std::move(other.m_impl))
 		{}
-
-		~async_file_stream() = default;
-
-		async_file_stream &operator=(const async_file_stream &other)
+		~evcp()=default;
+		evcp &operator=(const evcp<_IOContext> &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
 		}
-
-		stdx::task<file_read_event> read(size_t size, size_t offset)
+		aio_context_t get_context() const
 		{
-			return m_impl->read(size, offset);
+			return m_impl->get_context();
 		}
-
-		stdx::task<file_write_event> write(const char* buffer, size_t size)
+		_IOContext *get()
 		{
-			return m_impl->write(buffer, size);
+			return m_impl->get();
 		}
-		stdx::task<file_write_event> write(const std::string &str)
-		{
-			return m_impl->write(str.c_str(), str.size());
-		}
+	private:
+		impl_t m_impl;
+	};
 
-		async_file_stream set_pointer(const int64 &distance,const DWORD &method)
+	struct ev_queue
+	{
+		ev_queue()
+			:m_lock()
+			,m_using(false)
+			,m_queue()
+		{}
+		ev_queue(ev_queue &&other)
+			:m_lock(other.m_lock)
+			,m_using(other.m_using)
+			,m_queue(std::move(other.m_queue))
+		{}
+		~ev_queue() = default;
+		ev_queue &operator=(const ev_queue &&other)
 		{
-			m_impl->set_pointer(distance, method);
+			m_lock = other.m_lock;
+			m_using = other.m_using;
+			m_queue = std::move(other.m_queue);
 			return *this;
+		}
+		stdx::spin_lock m_lock;
+		bool m_using;
+		std::queue<epoll_event> m_queue;
+	};
+
+	template<typename _Poller>
+	struct _PollerRaii
+	{
+		_PollerRaii(_Poller &poller)
+			:m_poller(poller)
+			,m_fd(poller.begin_event())
+		{
+		}
+		~_PollerRaii()
+		{
+			m_poller.end_event(m_fd);
+		}
+		_Poller &m_poller;
+		int m_fd;
+	};
+
+	template<typename _IOContext,typename _Executer>
+	class _Poller
+	{
+	public:
+		_Poller()
+			:m_map()
+			,m_poll()
+		{}
+		~_Poller()=default;
+
+		void bind(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator == std::end(m_map))
+			{
+				m_map.emplace(fd,std::move(make()));
+			}
+		}
+
+		_IOContext *get()
+		{
+			_PollerRaii<_Poller<_IOContext, _Executer>> raii(*this);
+			auto ev = m_poll.wait(-1);
+			try
+			{
+				_Executer::read(&ev);
+			}
+			catch (const std::exception& e)
+			{
+				return (_IOContext*)ev.data.ptr;
+			}
+			return (_IOContext*)ev.data.ptr;
+		}
+
+		void push(int fd,const epoll_event &ev)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				iterator->second.m_queue.push(std::move(ev));
+			}
+			else
+			{
+				throw std::invalid_argument("invalid argument: fd");
+			}
+		}
+		int begin_event()
+		{
+			while (true)
+			{
+				for (auto begin = std::begin(m_map),end = std::end(m_map);begin != end;++begin)
+				{
+					begin->second.m_lock.lock();
+					if (!begin->second.m_using)
+					{
+						if (begin->second.m_queue.empty())
+						{
+							begin->second.m_lock.unlock();
+							continue;
+						}
+						else
+						{
+							auto &ev = begin->second.m_queue.front();
+							m_poll.add_event(begin->first, &ev);
+							begin->second.m_queue.pop();
+							begin->second.m_using = true;
+							begin->second.m_lock.unlock();
+							return begin->first;
+						}
+					}
+					else
+					{
+						begin->second.m_lock.unlock();
+					}
+				}
+			}
+		}
+
+		void end_event(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				iterator->second.m_lock.lock();
+				iterator->second.m_using = false;
+				iterator->second.m_lock.unlock();
+			}
+		}
+	private:
+		stdx::ev_queue make()
+		{
+			return ev_queue();
+		}
+	private:
+		std::unordered_map<int,ev_queue> m_map;
+		stdx::epoll m_poll;
+	};
+	
+	template<typename _IOContext, typename _Executer>
+	class poller
+	{
+		using impl_t = std::shared_ptr<_Poller<_IOContext,_Executer>>;
+	public:
+		poller()
+			:m_impl(std::make_shared<_Poller<_IOContext,_Executer>>())
+		{}
+		poller(const poller<_IOContext, _Executer> &other)
+			:m_impl(other.m_impl)
+		{}
+		~poller()=default;
+		poller<_IOContext, _Executer> &operator=(const poller<_IOContext, _Executer> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void bind(int fd)
+		{
+			return m_impl->bind(fd);
+		}
+		_IOContext *get()
+		{
+			return m_impl->get();
+		}
+		void push(int fd,const epoll_event &ev)
+		{
+			return m_impl->push(fd,ev);
 		}
 	private:
 		impl_t m_impl;

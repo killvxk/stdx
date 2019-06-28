@@ -1,115 +1,49 @@
 ﻿#include <stdx/io.h>
 #include <stdx/net/socket.h>
 #include <iostream>
+#include <stdx/string.h>
+#include <stdx/file.h>
 int main()
 {
-	/*stdx::file_io_service io_service;
-	stdx::async_file_stream stream(io_service,"e://test.txt",stdx::file_access_type::all,stdx::file_open_type::open,stdx::file_shared_model::shared_read);
+#pragma region web_test
+	stdx::network_io_service service;
+	stdx::socket s = stdx::open_socket(service,stdx::addr_family::ip,stdx::socket_type::stream,stdx::protocol::tcp);
 	try
 	{
-		std::string str = "23333333";
-		stream.write(str).then([&stream](stdx::file_write_event e) 
-		{
-			std::cout << "实际写入字节数" << e.size <<std::endl;
-			return stream.read(1024, 0);
-		})
-		.then([](stdx::file_read_event e) 
-		{
-			std::cout << "文件尾:" << e.eof <<std::endl
-						<<"文件内容:" << std::endl
-						<< e.buffer;
-		});
+		stdx::network_addr addr("0.0.0.0", 5000);
+		s.bind(addr);
 	}
-	catch (const std::exception&e)
+	catch (std::exception &e)
 	{
 		std::cerr << e.what();
-	}*/
-	stdx::_NetworkIOService service;
-	SOCKET s(service.create_socket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp));
-	stdx::network_addr addr("192.168.1.2",25565U);
-	service.bind(s, addr);
-	service.listen(s, 1024);
-	stdx::network_addr c_addr;
-	service._AcceptEx(s, 0, [](stdx::network_accept_event e,std::exception_ptr error) 
+		return -1;
+	}
+	s.listen(1024);
+	stdx::file_io_service file_io_service;
+	while (true)
 	{
-		if (error)
+		auto c = s.accept();
+		c.recv_utill_exception(1024, [c,file_io_service](stdx::task_result<stdx::network_recv_event> e) mutable
 		{
 			try
 			{
-				std::rethrow_exception(error);
+				stdx::file_stream stream  = stdx::open_file(file_io_service,"./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
+				stream.read_utill_eof(8192, 0).then([c, stream](std::string e)mutable
+				{
+					std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";
+					str.append(std::to_string(e.size()));
+					str.append("\r\n\r\n");
+					str.append(e);
+					c.send(str.c_str(), str.size());
+				});
 			}
 			catch (const std::exception&e)
 			{
-				std::cerr << e.what();
+				std::cerr << e.what() << std::endl;
 			}
-		}
-		else
-		{
-			std::cout << "ok!";
-		}
-	});
-
-	//try
-	//{
-	//	service.recv(c, 4096, [](stdx::network_recv_event e,std::exception_ptr error) {
-	//		if (error)
-	//		{
-	//			try
-	//			{
-	//				std::rethrow_exception(error);
-	//			}
-	//			catch (const std::exception&e)
-	//			{
-	//				std::cerr << e.what();
-	//			}
-	//		}
-	//		else
-	//		{
-	//			std::cout << e.buffer;
-	//		}
-	//	});
-	//}
-	//catch (const std::exception&e)
-	//{
-	//		std::cerr << e.what();
-	//		return 0;
-	//}
-
-	//try
-	//{
-	//	service.connect(s, addr);
-	//}
-	//catch (const std::exception&e)
-	//{
-	//	std::cerr << e.what();
-	//	return 0;
-	//}
-	//std::string str("hello world");
-	//try
-	//{
-	//	service.send(s, str.c_str(), str.size(), [](stdx::network_send_event e, std::exception_ptr error)
-	//	{
-	//		if (error)
-	//		{
-	//			try
-	//			{
-	//				std::rethrow_exception(error);
-	//			}
-	//			catch (const std::exception&e)
-	//			{
-	//				std::cerr << e.what();
-	//			}
-	//		}
-	//		else
-	//		{
-	//			std::cout << "send ok!";
-	//		}
-	//	});
-	//}
-	//catch (std::exception &e)
-	//{
-	//	std::cerr << e.what();
-	//}
+		});
+	}
 	std::cin.get();
+#pragma endregion
 	return 0;
 }
