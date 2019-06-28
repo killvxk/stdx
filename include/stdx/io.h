@@ -12,10 +12,10 @@ namespace stdx
 			:m_size(size)
 			, m_data((char*)std::calloc(sizeof(char), m_size))
 		{
-			if (m_data == nullptr)
-			{
-				throw std::bad_alloc();
-			}
+			//if (m_data == nullptr)
+			//{
+			//	throw std::bad_alloc();
+			//}
 		}
 		explicit _Buffer(size_t size, char* data)
 			:m_size(size)
