@@ -41,6 +41,7 @@
 #define delete_copy(type) type(const type &)=delete
 #define delete_move(type) type(type&&)=delete
 #define empty_cstr ""
+#define CRLF "\r\n"
 
 namespace stdx
 {

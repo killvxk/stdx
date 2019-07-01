@@ -619,4 +619,17 @@ namespace stdx
 #endif // WIN32
 #ifdef LINUX
 
+struct file_io_context
+{
+	file_io_context()
+	{
+	}
+	~file_io_context() = default;
+	int file;
+	char *buffer;
+	size_t size;
+	size_t offset;
+	bool eof;
+	std::function<void(file_io_context*, std::exception_ptr)> callback;
+};
 #endif //LINUX

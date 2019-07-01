@@ -564,7 +564,7 @@ namespace stdx
 			auto ev = m_poll.wait(-1);
 			try
 			{
-				_Executer::read(&ev);
+				_Executer::execute(&ev);
 			}
 			catch (const std::exception& e)
 			{
