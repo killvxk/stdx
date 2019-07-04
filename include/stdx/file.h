@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <stdx/env.h>
 #include <stdx/io.h>
 #include <stdx/async/task.h>
 #ifdef WIN32
@@ -30,7 +31,7 @@ namespace stdx
 		HANDLE file;
 		char *buffer;
 		DWORD size;
-		DWORD offset;
+		int64 offset;
 		bool eof;
 		std::function<void(file_io_context*, std::exception_ptr)> *callback;
 	};
@@ -166,9 +167,14 @@ namespace stdx
 			m_iocp.bind(file);
 			return file;
 		}
-		void read_file(HANDLE file, const size_t &size, const size_t &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+
+		void read_file(HANDLE file, const DWORD &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 		{
 			file_io_context *context = new file_io_context;
+			int64_union li;
+			li.value = offset;
+			context->m_ol.Offset = li.low;
+			context->m_ol.OffsetHigh = li.height;
 			context->eof = false;
 			context->file = file;
 			context->offset = offset;
@@ -194,28 +200,36 @@ namespace stdx
 			context->callback = call;
 			if (!ReadFile(file, context->buffer, size, &(context->size), &(context->m_ol)))
 			{
-				//处理错误
-				DWORD code = GetLastError();
-				if (code != ERROR_IO_PENDING)
+				try
 				{
-					if (code == ERROR_HANDLE_EOF)
+					//处理错误
+					DWORD code = GetLastError();
+					if (code != ERROR_IO_PENDING)
 					{
-						context->eof = true;
-					}
-					else
-					{
-						LPVOID msg;
-						if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+						if (code == ERROR_HANDLE_EOF)
 						{
-							throw std::runtime_error((char*)msg);
+							context->eof = true;
 						}
 						else
 						{
-							std::string _ERROR_MSG("windows system error:");
-							_ERROR_MSG.append(std::to_string(code));
-							throw std::runtime_error(_ERROR_MSG.c_str());
+							LPVOID msg;
+							if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+							{
+								throw std::runtime_error((char*)msg);
+							}
+							else
+							{
+								std::string _ERROR_MSG("windows system error:");
+								_ERROR_MSG.append(std::to_string(code));
+								throw std::runtime_error(_ERROR_MSG.c_str());
+							}
 						}
 					}
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::file_read_event(), std::current_exception());
+					return;
 				}
 			}
 			stdx::threadpool::run([](iocp_t &iocp)
@@ -266,9 +280,13 @@ namespace stdx
 			}, m_iocp);
 			return;
 		}
-		void write_file(HANDLE file, const char *buffer, const size_t &size, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
 		{
 			file_io_context *context_ptr = new file_io_context;
+			int64_union li;
+			li.value = offset;
+			context_ptr->m_ol.Offset = li.low;
+			context_ptr->m_ol.OffsetHigh = li.height;
 			context_ptr->size = 0;
 			context_ptr->offset = 0;
 			auto *call = new std::function<void(file_io_context*, std::exception_ptr)>;
@@ -287,7 +305,15 @@ namespace stdx
 			context_ptr->callback = call;
 			if (!WriteFile(file, buffer, size, &(context_ptr->size), &(context_ptr->m_ol)))
 			{
-				_ThrowWinError
+				try
+				{
+					_ThrowWinError
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::file_write_event(), std::current_exception());
+					return;
+				}
 			}
 			stdx::threadpool::run([](iocp_t &iocp)
 			{
@@ -315,17 +341,15 @@ namespace stdx
 				delete call;
 			}, m_iocp);
 		}
-		void seek_file(HANDLE file, const int64 &distance, const DWORD &method)
+
+
+		int64 get_file_size(HANDLE file) const
 		{
 			LARGE_INTEGER li;
-			li.QuadPart = distance;
-			li.LowPart = SetFilePointer(file, li.LowPart, &(li.HighPart), method);
-			if (li.LowPart == INVALID_SET_FILE_POINTER)
-			{
-				_ThrowWinError
-			}
-			return;
+			::GetFileSizeEx(file, &li);
+			return li.QuadPart;
 		}
+
 		void close_file(HANDLE file)
 		{
 			CloseHandle(file);
@@ -365,22 +389,21 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, file_open_type, shared_model);
 		}
-		void read_file(HANDLE file, const size_t &size, const size_t &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+		void read_file(HANDLE file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 		{
 			return m_impl->read_file(file, size, offset, std::move(callback));
 		}
-		void write_file(HANDLE file, const char *buffer, const size_t &size, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
 		{
-			return m_impl->write_file(file, buffer, size, std::move(callback));
-		}
-
-		void seek_file(HANDLE file, const int64 &distance, const DWORD &method)
-		{
-			return m_impl->seek_file(file, distance, method);
+			return m_impl->write_file(file, buffer, size,offset, std::move(callback));
 		}
 		void close_file(HANDLE file)
 		{
 			return m_impl->close_file(file);
+		}
+		int64 get_file_size(HANDLE file) const
+		{
+			return m_impl->get_file_size(file);
 		}
 	private:
 		impl_t m_impl;
@@ -396,16 +419,6 @@ namespace stdx
 			,m_file(INVALID_HANDLE_VALUE)
 		{}
 
-		//已弃用
-		//_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type, const DWORD &shared_model)
-		//	:m_io_service(io_service)
-		//	, m_file(m_io_service.create_file(path, access_type, open_type, shared_model))
-		//{}
-		//_FileStream(const io_service_t &io_service, const std::string &path, const DWORD &access_type, const DWORD &open_type)
-		//	:m_io_service(io_service)
-		//	, m_file(m_io_service.create_file(path, access_type, open_type, file_shared_model::shared_read))
-		//{}
-
 		~_FileStream()
 		{
 			if (m_file != INVALID_HANDLE_VALUE)
@@ -420,7 +433,7 @@ namespace stdx
 			m_file = m_io_service.create_file(path, access_type, open_type, shared_model);
 		}
 
-		stdx::task<file_read_event> read(const size_t &size, const size_t &offset)
+		stdx::task<file_read_event> read(const size_t &size, const int64 &offset)
 		{
 			if (!m_io_service)
 			{
@@ -446,7 +459,7 @@ namespace stdx
 			return task;
 		}
 		//返回true则继续
-		void read_utill(const size_t &size, const size_t &offset, const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
+		void read_utill(const size_t &size, const int64 &offset, const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
 		{
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
@@ -457,23 +470,15 @@ namespace stdx
 				}
 			});
 		}
-		stdx::task<std::string> read_utill_eof(const size_t &size, const size_t &offset)
+
+		void read_utill_eof(const size_t &size, const int64 &offset, const std::function<void(stdx::file_read_event)> &call)
 		{
-			stdx::promise_ptr<std::string> promise = stdx::make_promise_ptr<std::string>();
-			stdx::task<std::string> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			std::shared_ptr<std::string> buffer_ptr = std::make_shared<std::string>();
-			this->read_utill(size, offset, [buffer_ptr, promise, task](stdx::task_result<stdx::file_read_event> r) mutable
+			return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r) 
 			{
 				auto e = r.get();
-				auto buffer = e.buffer;
-				buffer_ptr->append(buffer);
 				if (e.eof)
 				{
-					promise->set_value(std::move(*buffer_ptr));
-					task.run_on_this_thread();
+					call(e);
 					return false;
 				}
 				else
@@ -481,9 +486,15 @@ namespace stdx
 					return true;
 				}
 			});
-			return task;
 		}
-		stdx::task<file_write_event> write(const char* buffer, const size_t &size)
+
+		stdx::task<stdx::file_read_event> read_to_end(const int64 &offset)
+		{
+			return read(size()-offset,offset);
+		}
+		
+
+		stdx::task<file_write_event> write(const char* buffer, const size_t &size,const int64 &offset)
 		{
 			if (!m_io_service)
 			{
@@ -494,7 +505,7 @@ namespace stdx
 			{
 				return promise->get_future().get();
 			});
-			m_io_service.write_file(m_file, buffer, size, [promise, task](file_write_event context, std::exception_ptr error) mutable
+			m_io_service.write_file(m_file, buffer, size,offset, [promise, task](file_write_event context, std::exception_ptr error) mutable
 			{
 				if (error)
 				{
@@ -509,11 +520,6 @@ namespace stdx
 			return task;
 		}
 
-		void set_pointer(const int64 &distance, const DWORD &method)
-		{
-			m_io_service.seek_file(m_file, distance, method);
-		}
-
 		void close()
 		{
 			if (m_file != INVALID_HANDLE_VALUE)
@@ -521,6 +527,11 @@ namespace stdx
 				m_io_service.close_file(m_file);
 				m_file = INVALID_HANDLE_VALUE;
 			}
+		}
+
+		int64 size() const
+		{
+			return m_io_service.get_file_size(m_file);
 		}
 	private:
 		io_service_t m_io_service;
@@ -535,15 +546,6 @@ namespace stdx
 		explicit file_stream(const io_service_t &io_service)
 			:m_impl(std::make_shared<_FileStream>(io_service))
 		{}
-
-		//已弃用
-		//explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type, DWORD shared_model)
-		//	:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, shared_model))
-		//{}
-
-		//explicit file_stream(const io_service_t &io_service, const std::string &path, DWORD access_type, DWORD open_type)
-		//	:m_impl(std::make_shared<_FileStream>(io_service, path, access_type, open_type, file_shared_model::unique))
-		//{}
 
 
 		file_stream(const file_stream &other)
@@ -567,24 +569,18 @@ namespace stdx
 			return *this;
 		}
 
-		stdx::task<file_read_event> read(size_t size, size_t offset)
+		stdx::task<file_read_event> read(const size_t &size,const int64 &offset)
 		{
 			return m_impl->read(size, offset);
 		}
 
-		stdx::task<file_write_event> write(const char* buffer, size_t size)
+		stdx::task<file_write_event> write(const char* buffer,const size_t &size,const int64 &offset)
 		{
-			return m_impl->write(buffer, size);
+			return m_impl->write(buffer, size,offset);
 		}
-		stdx::task<file_write_event> write(const std::string &str)
+		stdx::task<file_write_event> write(const std::string &str,const int64 &offset)
 		{
-			return m_impl->write(str.c_str(), str.size());
-		}
-
-		file_stream set_pointer(const int64 &distance, const DWORD &method)
-		{
-			m_impl->set_pointer(distance, method);
-			return *this;
+			return m_impl->write(str.c_str(), str.size(),offset);
 		}
 
 		void read_utill(const size_t &size, const size_t &offset, const std::function<bool(stdx::task_result<stdx::file_read_event>)> &call)
@@ -592,9 +588,19 @@ namespace stdx
 			return m_impl->read_utill(size, offset, call);
 		}
 
-		stdx::task<std::string> read_utill_eof(const size_t &size, const size_t &offset)
+		void read_utill_eof(const size_t &size, const int64 &offset, const std::function<void(stdx::file_read_event)> &call)
 		{
-			return m_impl->read_utill_eof(size, offset);
+			return m_impl->read_utill_eof(size, offset,call);
+		}
+
+		stdx::task<stdx::file_read_event> read_to_end(const int64 &offset)
+		{
+			return m_impl->read_to_end(offset);
+		}
+
+		int64 size() const
+		{
+			return m_impl->size();
 		}
 
 		void close()

@@ -28,12 +28,12 @@ int main()
 			try
 			{
 				stdx::file_stream stream  = stdx::open_file(file_io_service,"./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
-				stream.read_utill_eof(8192, 0).then([c, stream](std::string e)mutable
+				stream.read_to_end(0).then([c](stdx::file_read_event e) mutable
 				{
 					std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";
-					str.append(std::to_string(e.size()));
+					str.append(std::to_string(e.buffer.size()));
 					str.append("\r\n\r\n");
-					str.append(e);
+					str.append(e.buffer);
 					c.send(str.c_str(), str.size());
 				});
 			}

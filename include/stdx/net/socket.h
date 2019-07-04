@@ -314,7 +314,15 @@ namespace stdx
 			context_ptr->callback = call;
 			if (WSASend(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
-				_ThrowWSAError
+				try
+				{
+					_ThrowWSAError
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::network_send_event(), std::current_exception());
+					return;
+				}
 			}
 			stdx::threadpool::run([](iocp_t iocp)
 			{
@@ -371,7 +379,15 @@ namespace stdx
 			context_ptr->callback = call;
 			if (WSARecv(sock, &(context_ptr->buffer), 1, &(context_ptr->size), &(_NetworkIOService::recv_flag), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
-				_ThrowWSAError
+				try
+				{
+					_ThrowWSAError
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::network_recv_event(), std::current_exception());
+					return;
+				}
 			}
 			stdx::threadpool::run([](iocp_t iocp)
 			{
@@ -475,7 +491,15 @@ namespace stdx
 			context_ptr->callback = call;
 			if (WSASendTo(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL, (context_ptr->addr), network_addr::addr_len, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
-				_ThrowWSAError
+				try
+				{
+					_ThrowWSAError
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::network_send_event(), std::current_exception());
+					return;
+				}
 			}
 			stdx::threadpool::run([](iocp_t iocp)
 			{
@@ -530,7 +554,15 @@ namespace stdx
 			context_ptr->callback = call;
 			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size), &(_NetworkIOService::recv_flag), context_ptr->addr, (LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
 			{
-				_ThrowWSAError
+				try
+				{
+					_ThrowWSAError
+				}
+				catch (const std::exception&)
+				{
+					callback(stdx::network_recv_event(), std::current_exception());
+					return;
+				}
 			}
 			stdx::threadpool::run([](iocp_t iocp)
 			{
