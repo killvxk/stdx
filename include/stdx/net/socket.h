@@ -292,7 +292,7 @@ namespace stdx
 			context_ptr->this_socket = sock;
 			char *buffer = (char*)std::calloc(sizeof(char), size);
 			//char *buffer = stdx::calloc<char>(size);
-			std::strncpy(buffer, data, size);
+			std::memcpy(buffer, data, size);
 			context_ptr->buffer.buf = buffer;
 			context_ptr->buffer.len = size;
 			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
@@ -471,6 +471,7 @@ namespace stdx
 			context_ptr->addr = addr;
 			context_ptr->this_socket = sock;
 			char *buf = (char*)std::calloc(sizeof(char), size);
+			std::memcpy(buf, data, size);
 			context_ptr->buffer.buf = buf;
 			context_ptr->buffer.len = size;
 			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
