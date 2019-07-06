@@ -306,7 +306,8 @@ namespace stdx
 		template<typename Fn>
 		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
-			static_assert(sizeof(char) == sizeof(double), "the input function is not be allowed");
+			using arg_t = typename stdx::function_info<Fn>::arguments;
+			static_assert(is_same(arg_t::First,stdx::task_result<Result>), "the input function not be allowed");
 			return nullptr;
 		}
 	};

@@ -36,7 +36,7 @@ namespace stdx
 	struct _WSAStarter
 	{
 		WSAData wsa;
-		_WSAStarter()
+		_WSAStarter() noexcept
 			:wsa()
 		{
 			if (WSAStartup(MAKEWORD(2, 2), &wsa))
@@ -44,7 +44,7 @@ namespace stdx
 				_ThrowWinError
 			}
 		}
-		~_WSAStarter()
+		~_WSAStarter() noexcept
 		{
 			if (WSACleanup())
 			{
@@ -1039,22 +1039,39 @@ namespace stdx
 		}
 
 		//返回true则继续
-		void recv_utill(const size_t &size, const std::function<bool(stdx::task_result<network_recv_event>)> &call)
+		template<typename _Fn>
+		void recv_utill(const size_t &size, const _Fn &call)
 		{
+			using args_t = typename stdx::function_info<_Fn>::arguments;
+			static_assert(std::is_same<args_t::First,stdx::task_result<stdx::network_recv_event>>::value,"the input function not be allowed");
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
 			{
-				if ((call(r)))
+				_Fn ex = call;
+				if (std::invoke(ex,r))
 				{
-					recv_utill(size, call);
+					recv_utill(size, ex);
 				}
 			});
 		}
 
-		void recv_utill_exception(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		template<typename _Fn,typename _ErrHandler>
+		void recv_utill_error(const size_t &size,const _Fn &call,const _ErrHandler &err_handler)
 		{
-			this->recv_utill(size, [call](stdx::task_result<network_recv_event> r)
+			using args_t = typename stdx::function_info<_Fn>::arguments;
+			static_assert(std::is_same<args_t::First,stdx::network_recv_event>::value, "the input function not be allowed");
+			return this->recv_utill(size, [call,err_handler](stdx::task_result<network_recv_event> r)
 			{
-				call(r);
+				try
+				{
+					auto e = r.get();
+					_Fn ex = call;
+					std::invoke(ex, e);
+				}
+				catch (const std::exception&)
+				{
+					std::invoke(err_handler, std::current_exception());
+					return false;
+				}
 				return true;
 			});
 		}
@@ -1156,14 +1173,16 @@ namespace stdx
 			return m_impl->recv_from(addr, size);
 		}
 
-		void recv_utill(const size_t &size, const std::function<bool(stdx::task_result<network_recv_event>)> &call)
+		template<typename _Fn>
+		void recv_utill(const size_t &size, const _Fn &call)
 		{
 			return m_impl->recv_utill(size, call);
 		}
 
-		void recv_utill_exception(const size_t &size, const std::function<void(stdx::task_result<network_recv_event>)> &call)
+		template<typename _Fn, typename _ErrHandler>
+		void recv_utill_error(const size_t &size, const _Fn &call, const _ErrHandler &err_handler)
 		{
-			return m_impl->recv_utill_exception(size, call);
+			return m_impl->recv_utill_error(size, call,err_handler);
 		}
 	private:
 		impl_t m_impl;
