@@ -236,21 +236,9 @@ namespace stdx
 					return;
 				}
 			}
-			stdx::threadpool::run_lazy_if([this]() mutable ->bool
+			stdx::threadpool::run([](iocp_t &iocp)
 			{
-				m_hup_lock.lock();
-				uint32 i(*m_hup);
-				m_hup_lock.unlock();
-				return (bool)(i != 0);
-			},[](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
-			{
-				hup_lock.lock();
-				(*hup) += 1;
-				hup_lock.unlock();
 				auto *context_ptr = iocp.get();
-				hup_lock.lock();
-				(*hup) -= 1;
-				hup_lock.unlock();
 				std::exception_ptr error(nullptr);
 				try
 				{
@@ -293,7 +281,7 @@ namespace stdx
 				{
 				}
 				delete call;
-			}, m_iocp, m_hup, m_hup_lock);
+			}, m_iocp);
 			return;
 		}
 		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
@@ -377,21 +365,9 @@ namespace stdx
 
 		void call_threadpoll()
 		{
-			stdx::threadpool::run_lazy_if([this]() mutable ->bool
+			stdx::threadpool::run([](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
 			{
-				m_hup_lock.lock();
-				uint32 i(*m_hup);
-				m_hup_lock.unlock();
-				return (bool)(i != 0);
-			}, [](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
-			{
-				hup_lock.lock();
-				(*hup) += 1;
-				hup_lock.unlock();
 				auto *context_ptr = iocp.get();
-				hup_lock.lock();
-				(*hup) -= 1;
-				hup_lock.unlock();
 				std::exception_ptr error(nullptr);
 				try
 				{
@@ -413,7 +389,7 @@ namespace stdx
 				{
 				}
 				delete call;
-			}, m_iocp, m_hup, m_hup_lock);
+			}, m_iocp);
 		}
 	};
 
