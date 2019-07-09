@@ -151,9 +151,13 @@ namespace stdx
 		using iocp_t = stdx::iocp<file_io_context>;
 		_FileIOService()
 			:m_iocp()
+			,m_hup(std::make_shared<uint32>(0))
+			,m_hup_lock()
 		{}
 		_FileIOService(const iocp_t &iocp)
 			:m_iocp(iocp)
+			, m_hup(std::make_shared<uint32>(0))
+			, m_hup_lock()
 		{}
 		delete_copy(_FileIOService);
 		~_FileIOService() = default;
@@ -232,9 +236,21 @@ namespace stdx
 					return;
 				}
 			}
-			stdx::threadpool::run([](iocp_t &iocp)
+			stdx::threadpool::run_lazy_if([this]() mutable ->bool
 			{
+				m_hup_lock.lock();
+				uint32 i(*m_hup);
+				m_hup_lock.unlock();
+				return (bool)(i != 0);
+			},[](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
+			{
+				hup_lock.lock();
+				(*hup) += 1;
+				hup_lock.unlock();
 				auto *context_ptr = iocp.get();
+				hup_lock.lock();
+				(*hup) -= 1;
+				hup_lock.unlock();
 				std::exception_ptr error(nullptr);
 				try
 				{
@@ -277,7 +293,7 @@ namespace stdx
 				{
 				}
 				delete call;
-			}, m_iocp);
+			}, m_iocp, m_hup, m_hup_lock);
 			return;
 		}
 		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
@@ -356,6 +372,49 @@ namespace stdx
 		}
 	private:
 		iocp_t m_iocp;
+		std::shared_ptr<uint32> m_hup;
+		stdx::spin_lock m_hup_lock;
+
+		void call_threadpoll()
+		{
+			stdx::threadpool::run_lazy_if([this]() mutable ->bool
+			{
+				m_hup_lock.lock();
+				uint32 i(*m_hup);
+				m_hup_lock.unlock();
+				return (bool)(i != 0);
+			}, [](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
+			{
+				hup_lock.lock();
+				(*hup) += 1;
+				hup_lock.unlock();
+				auto *context_ptr = iocp.get();
+				hup_lock.lock();
+				(*hup) -= 1;
+				hup_lock.unlock();
+				std::exception_ptr error(nullptr);
+				try
+				{
+					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+					{
+						_ThrowWinError
+					}
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
+				}
+				auto *call = context_ptr->callback;
+				try
+				{
+					(*call)(context_ptr, error);
+				}
+				catch (const std::exception&)
+				{
+				}
+				delete call;
+			}, m_iocp, m_hup, m_hup_lock);
+		}
 	};
 
 	//文件IO服务

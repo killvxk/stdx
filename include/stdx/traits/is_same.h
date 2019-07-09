@@ -7,7 +7,7 @@ namespace stdx
 	{
 		enum
 		{
-			value = false;
+			value = false
 		};
 	};
 	template<typename _T>
@@ -15,7 +15,7 @@ namespace stdx
 	{
 		enum
 		{
-			value = true;
+			value = true
 		};
 	};
 #define is_same(t,u) stdx::_IsSame<t,u>::value

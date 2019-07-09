@@ -9,86 +9,6 @@
 
 namespace stdx
 {
-	//自由线程计数器实现
-	//class _FreeCount
-	//{
-	//public:
-	//	_FreeCount()
-	//		:m_count(0)
-	//	{}
-	//	~_FreeCount() = default;
-	//	
-	//private:
-	//	uint32 m_count;
-	//	stdx::spin_lock m_lock;
-	//};
-	////自由线程计数器
-	//class free_count
-	//{
-	//	using impl_t = std::shared_ptr<stdx::_FreeCount>;
-	//public:
-	//	free_count()
-	//		:m_impl(std::make_shared<stdx::_FreeCount>())
-	//	{}
-	//	free_count(const free_count &other)
-	//		:m_impl(other.m_impl)
-	//	{}
-	//	free_count(free_count &&other)
-	//		:m_impl(std::move(other.m_impl))
-	//	{}
-	//	~free_count() = default;
-	//	free_count &operator=(const free_count &other)
-	//	{
-	//		m_impl = other.m_impl;
-	//		return *this;
-	//	}
-	//	void add()
-	//	{
-	//		m_impl->add();
-	//	}
-	//	void add(unsigned int i)
-	//	{
-	//		m_impl->add(i);
-	//	}
-	//	void deduct()
-	//	{
-	//		m_impl->deduct();
-	//	}
-	//	void deduct(unsigned int i)
-	//	{
-	//		m_impl->deduct(i);
-	//	}
-	//	operator unsigned int()
-	//	{
-	//		return *m_impl;
-	//	}
-	//	void operator++()
-	//	{
-	//		add();
-	//	}
-	//	void operator++(int)
-	//	{
-	//		add();
-	//	}
-	//	void operator--()
-	//	{
-	//		deduct();
-	//	}
-	//	void operator--(int)
-	//	{
-	//		deduct();
-	//	}
-	//	void operator+(unsigned int i)
-	//	{
-	//		add(i);
-	//	}
-	//	void operator-(unsigned int i)
-	//	{
-	//		deduct(i);
-	//	}
-	//private:
-	//	impl_t m_impl;
-	//};
 	//线程池
 	class _Threadpool
 	{
@@ -119,7 +39,7 @@ namespace stdx
 
 		//执行任务
 		template<typename _Fn, typename ..._Args>
-		void run_task(_Fn &&task, _Args &&...args)
+		void run(_Fn &&task, _Args &&...args)
 		{
 			m_count_lock.lock();
 			if (*m_free_count ==0)
@@ -131,6 +51,14 @@ namespace stdx
 			m_task_queue->emplace(stdx::make_runable<void>(std::move(task), args...));
 			m_barrier.pass();
 		}
+
+		 template<typename _Fn,typename ..._Args>
+		 void run_lazy(_Fn &task,_Args &&...args)
+		 {
+			 m_task_queue->emplace(stdx::make_runable<void>(std::move(task), args...));
+			 m_barrier.pass();
+		 }
+
 
 	private:
 		std::shared_ptr<uint32> m_free_count;
@@ -211,7 +139,7 @@ namespace stdx
 			}
 		}
 	};
-
+	using threadpool_ptr = std::shared_ptr<stdx::_Threadpool>;
 	//线程池静态类
 	class threadpool
 	{
@@ -222,7 +150,27 @@ namespace stdx
 		template<typename _Fn,typename ..._Args>
 		static void run(_Fn &&fn,_Args &&...args)
 		{
-			m_impl->run_task(std::move(fn),args...);
+			m_impl->run(std::move(fn),args...);
+		}
+
+		template<typename _Fn, typename ..._Args>
+		static void run_lazy(_Fn &&fn, _Args &&...args)
+		{
+			m_impl->run_lazy(std::move(fn),args...);
+		}
+
+		template<typename _Fn,typename _Cond, typename ..._Args>
+		static void run_lazy_if(_Cond &cond,_Fn &&fn, _Args &&...args)
+		{
+			static_assert(stdx::is_result_type<_Cond, bool>, "the input function is not be allowed");
+			if (std::invoke(cond))
+			{
+				run_lazy(std::move(fn), args...);
+			}
+			else
+			{
+				run(std::move(fn),args...);
+			}
 		}
 	private:
 		threadpool() = default;
