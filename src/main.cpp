@@ -24,7 +24,7 @@ int main()
 	while (true)
 	{
 		auto c = s.accept();
-		c.recv_utill_error(1024, [c,file_io_service](stdx::network_recv_event e) mutable
+		/*c.recv_utill_error(1024, [c,file_io_service](stdx::network_recv_event e) mutable
 		{
 			stdx::file_stream stream = stdx::open_file(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
 			stream.read_to_end(0).then([c](stdx::file_read_event e) mutable
@@ -58,22 +58,22 @@ int main()
 					std::cerr <<e.code().value() <<std::endl<< e.what()<<std::endl;
 				}
 			}
+		});*/
+		c.recv(1024).then([file_io_service,c]() 
+		{
+			stdx::file_stream stream = stdx::open_file(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
+			stream.read_to_end(0).then([c](stdx::file_read_event e) mutable
+			{
+				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";
+				str.append(std::to_string(e.buffer.size()));
+				str.append("\r\n\r\n");
+				str.append(e.buffer);
+				c.send(str.c_str(), str.size()).then([c](stdx::task_result<stdx::network_send_event> &e) mutable
+				{
+					c.close();
+				});
+			});
 		});
-		//c.recv(1024).then([file_io_service,c]() 
-		//{
-		//	stdx::file_stream stream = stdx::open_file(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
-		//	stream.read_to_end(0).then([c](stdx::file_read_event e) mutable
-		//	{
-		//		std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:";
-		//		str.append(std::to_string(e.buffer.size()));
-		//		str.append("\r\n\r\n");
-		//		str.append(e.buffer);
-		//		c.send(str.c_str(), str.size()).then([c](stdx::task_result<stdx::network_send_event> &e) mutable
-		//		{
-		//			c.close();
-		//		});
-		//	});
-		//});
 	}
 #pragma endregion
 	return 0;

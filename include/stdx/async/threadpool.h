@@ -124,7 +124,7 @@ namespace stdx
 		//初始化线程池
 		void init_threads() noexcept
 		{
-			unsigned int cores = (cpu_cores()+1)<<1;
+			unsigned int cores = (cpu_cores())<<2;
 			*m_free_count+=cores;
 			for (unsigned int i = 0; i < cores; i++)
 			{

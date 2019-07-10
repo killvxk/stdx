@@ -296,7 +296,7 @@ namespace stdx
 
 		void init_threadpoll() noexcept
 		{
-			for (size_t i = 0,cores = cpu_cores(); i < cores; i++)
+			for (size_t i = 0,cores = cpu_cores()*2; i < cores; i++)
 			{
 				stdx::threadpool::run([](iocp_t &iocp,std::shared_ptr<bool> alive)
 				{
