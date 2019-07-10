@@ -4,7 +4,7 @@
 namespace stdx
 {
 	template<typename _String,typename _Container>
-	void _SpitStr(_String &str,const _String &chars, _Container &container)
+	inline void _SpitStr(_String &str,const _String &chars, _Container &container)
 	{
 		if (chars.empty())
 		{
@@ -27,11 +27,10 @@ namespace stdx
 			}
 		}
 	}
-	template<typename _String, typename _Container>
-	_Container spit_string(_String &str, const _String &chars, _Container &container)
+
+	template<typename _Container,typename _String=std::string>
+	inline void spit_string(_String &str, const _String &chars,_Container &container)
 	{
-		_Container container;
-		_SpitStr(str, chars, container);
-		return container;
+		return _SpitStr(str, chars, container);
 	}
 }

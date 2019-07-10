@@ -151,16 +151,18 @@ namespace stdx
 		using iocp_t = stdx::iocp<file_io_context>;
 		_FileIOService()
 			:m_iocp()
-			,m_hup(std::make_shared<uint32>(0))
-			,m_hup_lock()
-		{}
-		_FileIOService(const iocp_t &iocp)
-			:m_iocp(iocp)
-			, m_hup(std::make_shared<uint32>(0))
-			, m_hup_lock()
-		{}
+			,m_alive(std::make_shared<bool>(true))
+		{
+			init_threadpoll();
+		}
+		//_FileIOService(const iocp_t &iocp)
+		//	:m_iocp(iocp)
+		//{}
 		delete_copy(_FileIOService);
-		~_FileIOService() = default;
+		~_FileIOService() 
+		{
+			*m_alive = false;
+		}
 		HANDLE create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model)
 		{
 			HANDLE file = CreateFile(path.c_str(), access_type, shared_model, 0, file_open_type, FILE_FLAG_OVERLAPPED, 0);
@@ -236,52 +238,7 @@ namespace stdx
 					return;
 				}
 			}
-			stdx::threadpool::run([](iocp_t &iocp)
-			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
-				{
-					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
-					{
-						DWORD code = GetLastError();
-						if (code != ERROR_IO_PENDING)
-						{
-							if (code == ERROR_HANDLE_EOF)
-							{
-								context_ptr->eof = true;
-							}
-							else
-							{
-								LPVOID msg;
-								if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
-								{
-									throw std::runtime_error((char*)msg);
-								}
-								else
-								{
-									std::string _ERROR_MSG("windows system error:");
-									_ERROR_MSG.append(std::to_string(code));
-									throw std::runtime_error(_ERROR_MSG.c_str());
-								}
-							}
-						}
-					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			}, m_iocp);
+			
 			return;
 		}
 		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
@@ -319,31 +276,6 @@ namespace stdx
 					return;
 				}
 			}
-			stdx::threadpool::run([](iocp_t &iocp)
-			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
-				{
-					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
-					{
-						_ThrowWinError
-					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			}, m_iocp);
 		}
 
 
@@ -360,36 +292,87 @@ namespace stdx
 		}
 	private:
 		iocp_t m_iocp;
-		std::shared_ptr<uint32> m_hup;
-		stdx::spin_lock m_hup_lock;
+		std::shared_ptr<bool> m_alive;
 
-		void call_threadpoll()
+		void init_threadpoll() noexcept
 		{
-			stdx::threadpool::run([](iocp_t &iocp, std::shared_ptr<uint32> hup, stdx::spin_lock hup_lock)
+			for (size_t i = 0,cores = cpu_cores(); i < cores; i++)
 			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
+				stdx::threadpool::run([](iocp_t &iocp,std::shared_ptr<bool> alive)
 				{
-					if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+					while (*alive)
 					{
-						_ThrowWinError
+						auto *context_ptr = iocp.get();
+						std::exception_ptr error(nullptr);
+						try
+						{
+							if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+							{
+								DWORD code = GetLastError();
+								if (code != ERROR_IO_PENDING)
+								{
+									if (code == ERROR_HANDLE_EOF)
+									{
+										context_ptr->eof = true;
+									}
+									else
+									{
+										LPVOID msg;
+										if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msg, 0, NULL))\
+										{
+											throw std::runtime_error((char*)msg);
+										}
+										else
+										{
+											std::string _ERROR_MSG("windows system error:");
+											_ERROR_MSG.append(std::to_string(code));
+											throw std::runtime_error(_ERROR_MSG.c_str());
+										}
+									}
+								}
+							}
+						}
+						catch (const std::exception&)
+						{
+							error = std::current_exception();
+						}
+						auto *call = context_ptr->callback;
+						try
+						{
+							(*call)(context_ptr, error);
+						}
+						catch (const std::exception&)
+						{
+						}
+						delete call;
 					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			}, m_iocp);
+				}, m_iocp,m_alive);
+			}
+			//stdx::threadpool::run([](iocp_t &iocp)
+			//{
+			//	auto *context_ptr = iocp.get();
+			//	std::exception_ptr error(nullptr);
+			//	try
+			//	{
+			//		if (!GetOverlappedResult(context_ptr->file, &(context_ptr->m_ol), &(context_ptr->size), false))
+			//		{
+			//			_ThrowWinError
+			//		}
+			//	}
+			//	catch (const std::exception&)
+			//	{
+			//		error = std::current_exception();
+			//	}
+			//	auto *call = context_ptr->callback;
+			//	try
+			//	{
+			//		(*call)(context_ptr, error);
+			//	}
+			//	catch (const std::exception&)
+			//	{
+			//	}
+			//	delete call;
+			//}, m_iocp);
 		}
 	};
 
@@ -402,9 +385,9 @@ namespace stdx
 		file_io_service()
 			:m_impl(std::make_shared<_FileIOService>())
 		{}
-		file_io_service(const iocp_t &iocp)
-			:m_impl(std::make_shared<_FileIOService>(iocp))
-		{}
+		//file_io_service(const iocp_t &iocp)
+		//	:m_impl(std::make_shared<_FileIOService>(iocp))
+		//{}
 		file_io_service(const file_io_service &other)
 			:m_impl(other.m_impl)
 		{}

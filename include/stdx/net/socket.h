@@ -259,16 +259,19 @@ namespace stdx
 		using iocp_t = stdx::iocp<network_io_context>;
 		_NetworkIOService()
 			:m_iocp()
-			,m_hup(std::make_shared<uint32>(0))
-			,m_hup_lock()
-		{}
-		_NetworkIOService(const iocp_t &iocp)
-			:m_iocp(iocp)
-			, m_hup(std::make_shared<uint32>(0))
-			, m_hup_lock()
-		{}
+			,m_alive(std::make_shared<bool>(true))
+		{
+			init_threadpoll();
+		}
+		//_NetworkIOService(const iocp_t &iocp)
+		//	:m_iocp(iocp)
+		//	,m_alive(std::make_shared<bool>(true))
+		//{}
 		delete_copy(_NetworkIOService);
-		~_NetworkIOService() = default;
+		~_NetworkIOService() 
+		{
+			*m_alive = false;
+		}
 		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocol)
 		{
 			SOCKET sock = ::socket(addr_family, sock_type, protocol);
@@ -328,46 +331,6 @@ namespace stdx
 					return;
 				}
 			}
-			//stdx::threadpool::run_lazy_if([this]() mutable ->bool
-			//{
-			//	m_hup_lock.lock();
-			//	uint32 i(*m_hup);
-			//	m_hup_lock.unlock();
-			//	return (bool)(i != 0);
-			//},[](iocp_t iocp,std::shared_ptr<uint32> hup,stdx::spin_lock hup_lock)
-			//{
-			//	hup_lock.lock();
-			//	(*hup) += 1;
-			//	hup_lock.unlock();
-			//	auto *context_ptr = iocp.get();
-			//	hup_lock.lock();
-			//	(*hup) -= 1;
-			//	hup_lock.unlock();
-			//	std::exception_ptr error(nullptr);
-			//	try
-			//	{
-			//		DWORD flag = 0;
-			//		if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
-			//		{
-			//			//在这里出错
-			//			_ThrowWSAError
-			//		}
-			//	}
-			//	catch (const std::exception&)
-			//	{
-			//		error = std::current_exception();
-			//	}
-			//	auto *call = context_ptr->callback;
-			//	try
-			//	{
-			//		(*call)(context_ptr, error);
-			//	}
-			//	catch (const std::exception&)
-			//	{
-			//	}
-			//	delete call;
-			//}, m_iocp, m_hup, m_hup_lock);
-			call_threadpoll();
 		}
 
 		//接收数据
@@ -406,7 +369,6 @@ namespace stdx
 					return;
 				}
 			}
-			call_threadpoll();
 		}
 
 		void connect(SOCKET sock, stdx::network_addr &addr)
@@ -493,7 +455,6 @@ namespace stdx
 					return;
 				}
 			}
-			call_threadpoll();
 		}
 
 		void recv_from(SOCKET sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
@@ -530,7 +491,6 @@ namespace stdx
 					return;
 				}
 			}
-			call_threadpoll();
 		}
 
 		void close(SOCKET sock)
@@ -679,39 +639,44 @@ namespace stdx
 	private:
 		iocp_t m_iocp;
 		static DWORD recv_flag;
-		std::shared_ptr<uint32> m_hup;
-		stdx::spin_lock m_hup_lock;
+		std::shared_ptr<bool> m_alive;
 		//static LPFN_ACCEPTEX accept_ex;
 		//static LPFN_GETACCEPTEXSOCKADDRS get_addr_ex;
-		void call_threadpoll()
+		void init_threadpoll() noexcept
 		{
-			stdx::threadpool::run([](iocp_t iocp)
+			for (size_t i = 0,cores = cpu_cores(); i < cores; i++)
 			{
-				auto *context_ptr = iocp.get();
-				std::exception_ptr error(nullptr);
-				try
+				stdx::threadpool::run([](iocp_t iocp, std::shared_ptr<bool> alive)
 				{
-					DWORD flag = 0;
-					if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
+					while (*alive)
 					{
-						//在这里出错
-						_ThrowWSAError
+						auto *context_ptr = iocp.get();
+						std::exception_ptr error(nullptr);
+						try
+						{
+							DWORD flag = 0;
+							if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
+							{
+								//在这里出错
+								_ThrowWSAError
+							}
+						}
+						catch (const std::exception&)
+						{
+							error = std::current_exception();
+						}
+						auto *call = context_ptr->callback;
+						try
+						{
+							(*call)(context_ptr, error);
+						}
+						catch (const std::exception&)
+						{
+						}
+						delete call;
 					}
-				}
-				catch (const std::exception&)
-				{
-					error = std::current_exception();
-				}
-				auto *call = context_ptr->callback;
-				try
-				{
-					(*call)(context_ptr, error);
-				}
-				catch (const std::exception&)
-				{
-				}
-				delete call;
-			}, m_iocp);
+				}, m_iocp, m_alive);
+			}
 		}
 	};
 	DWORD _NetworkIOService::recv_flag = 0;
@@ -725,9 +690,9 @@ namespace stdx
 			:m_impl(std::make_shared<_NetworkIOService>())
 		{}
 
-		network_io_service(const iocp_t &iocp)
-			:m_impl(std::make_shared<_NetworkIOService>(iocp))
-		{}
+		//network_io_service(const iocp_t &iocp)
+		//	:m_impl(std::make_shared<_NetworkIOService>(iocp))
+		//{}
 
 		network_io_service(const network_io_service &other)
 			:m_impl(other.m_impl)
@@ -1033,7 +998,8 @@ namespace stdx
 				try
 				{
 					auto e = r.get();
-					std::invoke(call, e);
+					auto ex = call;
+					std::invoke(ex, e);
 				}
 				catch (const std::exception&)
 				{

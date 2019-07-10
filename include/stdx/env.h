@@ -40,7 +40,8 @@
 #define get_byte(x,ptr) *((byte*)ptr+(x))
 #define delete_copy(type) type(const type &)=delete
 #define delete_move(type) type(type&&)=delete
-#define empty_cstr ""
+#define cstring const char*
+#define empty_cstring ""
 #define CRLF "\r\n"
 
 namespace stdx

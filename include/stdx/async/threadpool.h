@@ -7,6 +7,7 @@
 #include <stdx/function.h>
 #include <memory>
 
+#define cpu_cores() std::thread::hardware_concurrency()
 namespace stdx
 {
 	//线程池
@@ -15,7 +16,7 @@ namespace stdx
 		using runable_ptr = std::shared_ptr<stdx::_BasicRunable<void>>;
 	public:
 		//构造函数
-		_Threadpool()
+		_Threadpool() noexcept
 			:m_free_count(std::make_shared<uint32>())
 			,m_count_lock()
 			, m_alive(std::make_shared<bool>(true))
@@ -28,7 +29,7 @@ namespace stdx
 		}
 
 		//析构函数
-		~_Threadpool()
+		~_Threadpool() noexcept
 		{
 			//终止时设置状态
 			*m_alive = false;
@@ -39,7 +40,7 @@ namespace stdx
 
 		//执行任务
 		template<typename _Fn, typename ..._Args>
-		void run(_Fn &&task, _Args &&...args)
+		void run(_Fn &&task, _Args &&...args) noexcept
 		{
 			m_count_lock.lock();
 			if (*m_free_count ==0)
@@ -52,14 +53,6 @@ namespace stdx
 			m_barrier.pass();
 		}
 
-		 template<typename _Fn,typename ..._Args>
-		 void run_lazy(_Fn &task,_Args &&...args)
-		 {
-			 m_task_queue->emplace(stdx::make_runable<void>(std::move(task), args...));
-			 m_barrier.pass();
-		 }
-
-
 	private:
 		std::shared_ptr<uint32> m_free_count;
 		stdx::spin_lock m_count_lock;
@@ -69,7 +62,7 @@ namespace stdx
 		stdx::spin_lock m_lock;
 
 		//添加线程
-		void add_thread()
+		void add_thread() noexcept
 		{
 			//创建线程
 			std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, std::shared_ptr<uint32> count,stdx::spin_lock count_lock,std::shared_ptr<bool> alive)
@@ -129,9 +122,9 @@ namespace stdx
 		}
 		
 		//初始化线程池
-		void init_threads()
+		void init_threads() noexcept
 		{
-			unsigned int cores = (std::thread::hardware_concurrency()+1)<<1;
+			unsigned int cores = (cpu_cores()+1)<<1;
 			*m_free_count+=cores;
 			for (unsigned int i = 0; i < cores; i++)
 			{
@@ -148,29 +141,9 @@ namespace stdx
 		using impl_t = std::shared_ptr<stdx::_Threadpool>;
 		//执行任务
 		template<typename _Fn,typename ..._Args>
-		static void run(_Fn &&fn,_Args &&...args)
+		static void run(_Fn &&fn,_Args &&...args) noexcept
 		{
 			m_impl->run(std::move(fn),args...);
-		}
-
-		template<typename _Fn, typename ..._Args>
-		static void run_lazy(_Fn &&fn, _Args &&...args)
-		{
-			m_impl->run_lazy(std::move(fn),args...);
-		}
-
-		template<typename _Fn,typename _Cond, typename ..._Args>
-		static void run_lazy_if(_Cond &cond,_Fn &&fn, _Args &&...args)
-		{
-			static_assert(stdx::is_result_type<_Cond, bool>, "the input function is not be allowed");
-			if (std::invoke(cond))
-			{
-				run_lazy(std::move(fn), args...);
-			}
-			else
-			{
-				run(std::move(fn),args...);
-			}
 		}
 	private:
 		threadpool() = default;
