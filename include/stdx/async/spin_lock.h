@@ -16,18 +16,19 @@ namespace stdx
 
 		void lock()
 		{
-			while (m_locked.exchange(true,std::memory_order_acquire))
+			bool exp = false;
+			while (!m_locked.compare_exchange_strong(exp,true))
 			{
-				std::this_thread::yield();
+				exp = false;
 			}
 		}
 
 		void unlock()
 		{
-			m_locked.store(false,std::memory_order_release);
+			m_locked.store(false);
 		}
 	private:
-		std::atomic_bool m_locked;
+		volatile std::atomic_bool m_locked;
 	};
 	class spin_lock
 	{

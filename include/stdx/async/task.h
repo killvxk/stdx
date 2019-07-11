@@ -29,6 +29,8 @@ namespace stdx
 	template<typename _T>
 	using promise_ptr = std::shared_ptr<std::promise<_T>>;
 
+	using state_ptr = std::shared_ptr<int>;
+
 	template<typename _T>
 	promise_ptr<_T> make_promise_ptr()
 	{
@@ -202,7 +204,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -252,7 +254,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, std::shared_ptr<int> state)
+		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -304,9 +306,10 @@ namespace stdx
 	struct _TaskNextBuilder
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
-			static_assert(sizeof(char) == sizeof(double), "the input function is not be allowed");
+			using arg_t = typename stdx::function_info<Fn>::arguments;
+			static_assert(stdx::is_arguments_type<Fn,stdx::task_result<Result>>||stdx::is_arguments_type<Fn,Result>||stdx::is_arguments_type<Fn,void>, "the input function not be allowed");
 			return nullptr;
 		}
 	};
@@ -315,7 +318,7 @@ namespace stdx
 	struct _TaskNextBuilder<Input,Result,void>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future,state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
 			{
@@ -340,7 +343,7 @@ namespace stdx
 	struct _TaskNextBuilder<Input, Result, stdx::task_result<Input>>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
 			{
@@ -365,7 +368,7 @@ namespace stdx
 	struct _TaskNextBuilder<Input, Result,Input>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, std::shared_ptr<int> state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = _Task<Result>::make([](Fn &&fn, std::shared_future<Input> &future)
 			{
@@ -406,6 +409,8 @@ namespace stdx
 			return future.get().then(std::move(fn));
 		}
 	};
+
+
 
 	//Task模板的实现
 	template<typename R>
@@ -464,7 +469,7 @@ namespace stdx
 				, promise_ptr<R> promise
 				, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>>  next
 				, stdx::spin_lock lock
-				, std::shared_ptr<int> state)
+				, state_ptr state)
 			{
 				stdx::_TaskCompleter<R>::call(r, promise, next, lock, state);
 			};
@@ -474,14 +479,19 @@ namespace stdx
 		void run_on_this_thread() override 
 		{
 		    m_lock.lock();
-		    if(*m_state != stdx::task_state::running)
+			if (!m_state)
+			{
+				m_lock.unlock();
+				return;
+			}
+		    if((*m_state) != stdx::task_state::running)
 		    {
 		        *m_state = stdx::task_state::running;
 		    }
 		    else
 		    {
 		        m_lock.unlock();
-			return;
+				return;
 		    }
 		    m_lock.unlock();
 		    stdx::_TaskCompleter<R>::call(m_action,m_promise,m_next,m_lock,m_state);
@@ -537,7 +547,7 @@ namespace stdx
 		promise_ptr<R> m_promise;
 		std::shared_future<R> m_future;
 		std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> m_next;
-		std::shared_ptr<int> m_state;
+		state_ptr m_state;
 		stdx::spin_lock m_lock;
 	};	
 

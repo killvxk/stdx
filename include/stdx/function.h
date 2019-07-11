@@ -44,7 +44,6 @@ namespace stdx
 		{}
 		~_Runable()=default;
 
-		// Í¨¹ý _BasicAction ¼Ì³Ð
 		virtual _R run() override
 		{
 			return _ActionRunner<_R,_Fn>::run(m_func);
@@ -62,13 +61,13 @@ namespace stdx
 	using runable_ptr = std::shared_ptr<_BasicRunable<T>>;
 	
 	template<typename T, typename _Fn>
-	runable_ptr<T> make_runable(_Fn &&fn)
+	inline runable_ptr<T> make_runable(_Fn &&fn)
 	{
 		return std::make_shared<_Runable<T,_Fn>>(std::move(fn));
 	}
 
 	template<typename T,typename _Fn,typename ..._Args>
-	runable_ptr<T> make_runable(_Fn &&fn,_Args &&...args)
+	inline runable_ptr<T> make_runable(_Fn &&fn,_Args &&...args)
 	{
 		return make_runable<T>(std::bind(fn, args...));
 	};
@@ -200,4 +199,36 @@ namespace stdx
 		using arguments = typename info::arguments;
 		using belong_type = _Fn;
 	};
+
+	template<typename _Fn,typename ..._Args>
+	struct _IsArgs
+	{
+	private:
+		using info = stdx::function_info<_Fn>;
+		using arguments = typename info::arguments;
+	public:
+		enum 
+		{
+			value = is_same(arguments, stdx::type_list<_Args...>)
+		};
+	};
+
+	template<typename _Fn, typename ..._Args>
+	constexpr bool is_arguments_type = _IsArgs<_Fn,_Args...>::value;
+
+	template<typename _Fn, typename _Result>
+	struct _IsResult
+	{
+	private:
+		using info = stdx::function_info<_Fn>;
+		using result = typename info::result;
+	public:
+		enum
+		{
+			value = is_same(result, _Result)
+		};
+	};
+
+	template<typename _Fn, typename _Result>
+	constexpr bool is_result_type = _IsResult<_Fn, _Result>::value;
 }
