@@ -1002,7 +1002,7 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
-					std::invoke(err_handler, std::current_exception());
+					stdx::invoke(err_handler, std::current_exception());
 					return false;
 				}
 				return true;
