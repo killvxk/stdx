@@ -181,6 +181,12 @@ namespace stdx
 		return make_runable<T>(std::bind(fn, args...));
 	};
 
+	template<typename T, typename _Fn, typename ..._Args>
+	inline runable_ptr<T> make_runable(_Fn &fn, _Args &...args)
+	{
+		return make_runable<T>(std::bind(fn, args...));
+	}
+
 	template<typename _R,typename ..._Args>
 	class _BasicFunction
 	{
