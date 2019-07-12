@@ -6,7 +6,7 @@
 #include <stdx/traits/ref_type.h>
 #include <stdx/traits/value_type.h>
 #include <stdx/function.h>
-#include <stdx/tuple.h>
+//#include <stdx/tuple.h>
 #include <stdx/env.h>
 namespace stdx
 {
@@ -159,7 +159,7 @@ namespace stdx
 			return t;
 		}
 
-		template<typename _Fn, typename __R = stdx::function_info<_Fn>::result>
+		template<typename _Fn, typename __R = typename stdx::function_info<_Fn>::result>
 		task<__R> then(_Fn &&fn)
 		{
 			return task<__R>(m_impl->then<_Fn>(std::move(fn)));
@@ -309,7 +309,7 @@ namespace stdx
 		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			using arg_t = typename stdx::function_info<Fn>::arguments;
-			static_assert(stdx::is_arguments_type<Fn,stdx::task_result<Result>>||stdx::is_arguments_type<Fn,Result>||stdx::is_arguments_type<Fn,void>, "the input function not be allowed");
+			static_assert( is_arguments_type(Fn, stdx::task_result<Result> )||is_arguments_type(Fn,Result)||is_arguments_type(Fn,void), "the input function not be allowed");
 			return nullptr;
 		}
 	};
@@ -524,10 +524,10 @@ namespace stdx
 		}
 
 		//延续Task
-		template<typename _Fn,typename _R = stdx::function_info<_Fn>::result>
+		template<typename _Fn,typename _R = typename stdx::function_info<_Fn>::result >
 		std::shared_ptr<_Task<_R>> then(_Fn &&fn)
 		{
-			using args_tl = stdx::function_info<_Fn>::arguments;
+			using args_tl = typename stdx::function_info<_Fn>::arguments;
 			std::shared_ptr<_Task<_R>> t = _TaskNextBuilder<R,_R,stdx::value_type<stdx::type_at<0,args_tl>>>::build(fn,m_future,m_state,m_lock,m_next);
 			return t;
 		}
@@ -552,8 +552,8 @@ namespace stdx
 	};	
 
 	//启动一个Task
-	template<typename _Fn, typename ..._Args,typename _R = stdx::function_info<_Fn>::result>
-	inline stdx::task<_R> async(_Fn &fn, _Args &...args)
+	template<typename _Fn, typename ..._Args,typename _R = typename stdx::function_info<_Fn>::result>
+	inline stdx::task<_R> async(const _Fn &fn, _Args &...args)
 	{
 		return task<_R>::start(fn,args...);
 	}

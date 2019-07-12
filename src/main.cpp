@@ -1,8 +1,7 @@
-﻿#include <stdx/io.h>
-#include <stdx/net/socket.h>
+﻿#include <stdx/async/task.h>
 #include <iostream>
-#include <stdx/string.h>
 #include <stdx/file.h>
+#include <stdx/net/socket.h>
 int main()
 {
 #pragma region web_test
@@ -75,6 +74,11 @@ int main()
 			});
 		});
 	}
+	//auto t = stdx::async([]() 
+	//{
+	//	std::cout << "hello";
+	//});
+	std::cin.get();
 #pragma endregion
 	return 0;
 }

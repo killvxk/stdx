@@ -478,14 +478,13 @@ namespace stdx
 		}
 		//返回true则继续
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset, const _Fn &call)
+		void read_utill(const size_t &size, const int64 &offset,_Fn &call)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
 			static_assert(std::is_same<args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
-				auto ex = call;
-				if (std::invoke(ex,r))
+				if (stdx::invoke(call,r))
 				{
 					auto e = r.get();
 					read_utill(size, e.buffer.size() + offset, ex);
@@ -494,7 +493,7 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, const _Fn &call,const _ErrHandler &err_handler)
+		void read_utill_eof(const size_t &size, const int64 &offset,_Fn &call,_ErrHandler &err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
 			static_assert(std::is_same<args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
@@ -503,8 +502,7 @@ namespace stdx
 				try
 				{
 					auto e = r.get();
-					auto ex = call;
-					std::invoke(ex, e);
+					std::invoke(call, e);
 					if (e.eof)
 					{
 						return false;
@@ -618,13 +616,13 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset, const _Fn &call)
+		void read_utill(const size_t &size, const int64 &offset,_Fn &call)
 		{
 			return m_impl->read_utill(size, offset, call);
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, const _Fn &call, const _ErrHandler &err_handler)
+		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &call,_ErrHandler &err_handler)
 		{
 			return m_impl->read_utill_eof(size, offset,call,err_handler);
 		}

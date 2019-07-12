@@ -10,7 +10,7 @@ namespace stdx
 	public:
 		_Buffer(size_t size = 4096)
 			:m_size(size)
-			, m_data((char*)std::calloc(sizeof(char), m_size))
+			, m_data((char*)calloc(sizeof(char), m_size))
 		{
 			//if (m_data == nullptr)
 			//{
@@ -45,7 +45,7 @@ namespace stdx
 			}
 			if (size > m_size)
 			{
-				if (std::realloc(m_data, m_size) == nullptr)
+				if (::realloc(m_data, m_size) == nullptr)
 				{
 					throw std::bad_alloc();
 				}
@@ -64,7 +64,7 @@ namespace stdx
 			{
 				realloc(new_size);
 			}
-			std::memcpy(m_data, other, new_size);
+			memcpy(m_data, other, new_size);
 		}
 	private:
 		size_t m_size;

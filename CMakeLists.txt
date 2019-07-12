@@ -5,6 +5,7 @@ cmake_minimum_required (VERSION 3.8)
 project ("ziran")
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED on)
 
 # 包含子项目。
 add_subdirectory ("src")
