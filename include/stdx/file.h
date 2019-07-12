@@ -502,7 +502,7 @@ namespace stdx
 				try
 				{
 					auto e = r.get();
-					std::invoke(call, e);
+					stdx::invoke(call, e);
 					if (e.eof)
 					{
 						return false;
@@ -514,7 +514,7 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
-					std::invoke(err_handler, std::current_exception());
+					stdx::invoke(err_handler, std::current_exception());
 					return false;
 				}
 			});
