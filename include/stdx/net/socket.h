@@ -982,7 +982,7 @@ namespace stdx
 			static_assert(stdx::is_result_type<_Fn, bool>, "the input function not be allowed");
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
 			{
-				if (std::invoke(call,r))
+				if (stdx::invoke(call,r))
 				{
 					recv_utill(size, call);
 				}
@@ -998,12 +998,11 @@ namespace stdx
 				try
 				{
 					auto e = r.get();
-					auto ex = call;
-					std::invoke(ex, e);
+					stdx::invoke(call, e);
 				}
 				catch (const std::exception&)
 				{
-					std::invoke(err_handler, std::current_exception());
+					stdx::invoke(err_handler, std::current_exception());
 					return false;
 				}
 				return true;

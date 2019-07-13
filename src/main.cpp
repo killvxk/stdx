@@ -1,13 +1,13 @@
-﻿#include <stdx/io.h>
-#include <stdx/net/socket.h>
+﻿#include <stdx/async/task.h>
 #include <iostream>
-#include <stdx/string.h>
-#include <stdx/file.h>
+//#include <stdx/file.h>
+//#include <stdx/net/socket.h>
 int main()
 {
+#ifdef WIN32
 #pragma region web_test
 	stdx::network_io_service service;
-	stdx::socket s = stdx::open_socket(service,stdx::addr_family::ip,stdx::socket_type::stream,stdx::protocol::tcp);
+	stdx::socket s = stdx::open_socket(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
 	try
 	{
 		stdx::network_addr addr("127.0.0.1", 8080);
@@ -33,7 +33,7 @@ int main()
 				str.append(std::to_string(e.buffer.size()));
 				str.append("\r\n\r\n");
 				str.append(e.buffer);
-				c.send(str.c_str(), str.size()).then([](stdx::task_result<stdx::network_send_event> &e) 
+				c.send(str.c_str(), str.size()).then([](stdx::task_result<stdx::network_send_event> &e)
 				{
 					try
 					{
@@ -59,7 +59,7 @@ int main()
 				}
 			}
 		});*/
-		c.recv(1024).then([file_io_service,c]() 
+		c.recv(1024).then([file_io_service, c]()
 		{
 			stdx::file_stream stream = stdx::open_file(file_io_service, "./index.html", stdx::file_access_type::read, stdx::file_open_type::open);
 			stream.read_to_end(0).then([c](stdx::file_read_event e) mutable
@@ -75,6 +75,23 @@ int main()
 			});
 		});
 	}
+	//auto t = stdx::async([]() 
+	//{
+	//	std::cout << "hello";
+	//});
+	std::cin.get();
 #pragma endregion
+#endif // WIN32
+	//auto t = stdx::async([]() 
+	//{
+	//	return stdx::async([]()
+	//	{
+	//		return std::string(CRLF);
+	//	});
+	//}).then([](stdx::task_result<std::string> str)
+	//{
+	//	std::cout <<"hello world" << str.get().c_str();
+	//});
+	//t.wait();
 	return 0;
 }

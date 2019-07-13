@@ -10,11 +10,15 @@
 #ifndef LINUX
 
 #ifdef __WIN32
+#ifndef WIN32
 #define WIN32
+#endif // !WIN32
 #endif // __WIN32
 
 #ifdef __linux__
+#ifndef LINUX
 #define LINUX
+#endif // !LINUX
 #endif // __linux__
 
 #endif // !LINUX
@@ -23,18 +27,18 @@
 #define int32 int
 #define byte unsigned char
 #define uint32 unsigned int
-#define uint unsigned int
 #define int16 short
 #define uint16 unsigned short
 
 #ifdef WIN32
+#define uint unsigned int
 #define int64 __int64
 #define uint64 unsigned __int64
 #endif
 
 #ifdef LINUX
-#define int64 int64_t
-#define uint64 uint64_t
+#define int64 long long
+#define uint64 unsigned long long
 #endif
 
 #define get_byte(x,ptr) *((byte*)ptr+(x))
