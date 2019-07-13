@@ -10,11 +10,15 @@
 #ifndef LINUX
 
 #ifdef __WIN32
+#ifndef WIN32
 #define WIN32
+#endif // !WIN32
 #endif // __WIN32
 
 #ifdef __linux__
+#ifndef LINUX
 #define LINUX
+#endif // !LINUX
 #endif // __linux__
 
 #endif // !LINUX

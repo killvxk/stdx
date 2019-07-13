@@ -659,17 +659,11 @@ namespace stdx
 #endif // WIN32
 #ifdef LINUX
 
-struct file_io_context
+struct file_executer
 {
-	file_io_context()
+	int get_fd(epoll_event *ev)
 	{
+
 	}
-	~file_io_context() = default;
-	int file;
-	char *buffer;
-	size_t size;
-	size_t offset;
-	bool eof;
-	std::function<void(file_io_context*, std::exception_ptr)> callback;
 };
 #endif //LINUX

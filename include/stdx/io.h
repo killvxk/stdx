@@ -502,41 +502,21 @@ namespace stdx
 	{
 		ev_queue()
 			:m_lock()
-			,m_using(false)
 			,m_queue()
 		{}
 		ev_queue(ev_queue &&other)
 			:m_lock(other.m_lock)
-			,m_using(other.m_using)
 			,m_queue(std::move(other.m_queue))
 		{}
 		~ev_queue() = default;
 		ev_queue &operator=(const ev_queue &&other)
 		{
 			m_lock = other.m_lock;
-			m_using = other.m_using;
 			m_queue = std::move(other.m_queue);
 			return *this;
 		}
 		stdx::spin_lock m_lock;
-		bool m_using;
 		std::queue<epoll_event> m_queue;
-	};
-
-	template<typename _Poller>
-	struct _PollerRaii
-	{
-		_PollerRaii(_Poller &poller)
-			:m_poller(poller)
-			,m_fd(poller.begin_event())
-		{
-		}
-		~_PollerRaii()
-		{
-			m_poller.end_event(m_fd);
-		}
-		_Poller &m_poller;
-		int m_fd;
 	};
 
 	template<typename _IOContext,typename _Executer>
@@ -560,7 +540,6 @@ namespace stdx
 
 		_IOContext *get()
 		{
-			_PollerRaii<_Poller<_IOContext, _Executer>> raii(*this);
 			auto ev = m_poll.wait(-1);
 			try
 			{
@@ -568,8 +547,10 @@ namespace stdx
 			}
 			catch (const std::exception& e)
 			{
+				loop(_Executer::get_fd(&ev));
 				return (_IOContext*)ev.data.ptr;
 			}
+			loop(_Executer::get_fd(&ev));
 			return (_IOContext*)ev.data.ptr;
 		}
 
@@ -578,53 +559,33 @@ namespace stdx
 			auto iterator = m_map.find(fd);
 			if (iterator != std::end(m_map))
 			{
-				iterator->second.m_queue.push(std::move(ev));
+				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
+				if (iterator->second.m_queue.empty())
+				{
+					m_poll.add_event(&ev);
+				}
+				else
+				{
+					iterator->second.m_queue.push(std::move(ev));
+				}
 			}
 			else
 			{
 				throw std::invalid_argument("invalid argument: fd");
 			}
 		}
-		int begin_event()
-		{
-			while (true)
-			{
-				for (auto begin = std::begin(m_map),end = std::end(m_map);begin != end;++begin)
-				{
-					begin->second.m_lock.lock();
-					if (!begin->second.m_using)
-					{
-						if (begin->second.m_queue.empty())
-						{
-							begin->second.m_lock.unlock();
-							continue;
-						}
-						else
-						{
-							auto &ev = begin->second.m_queue.front();
-							m_poll.add_event(begin->first, &ev);
-							begin->second.m_queue.pop();
-							begin->second.m_using = true;
-							begin->second.m_lock.unlock();
-							return begin->first;
-						}
-					}
-					else
-					{
-						begin->second.m_lock.unlock();
-					}
-				}
-			}
-		}
-
-		void end_event(int fd)
+		void loop(int fd)
 		{
 			auto iterator = m_map.find(fd);
 			if (iterator != std::end(m_map))
 			{
-				iterator->second.m_lock.lock();
-				iterator->second.m_using = false;
-				iterator->second.m_lock.unlock();
+				std::unique_lock<stdx::spin_lock> lock(iterator->second.m_lock);
+				if (!iterator->second.m_queue.empty())
+				{
+					auto ev = iterator->second.m_queue.front();
+					m_poll.add_event(&ev);
+					iterator->second.m_queue.pop();
+				}
 			}
 		}
 	private:
