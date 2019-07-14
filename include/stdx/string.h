@@ -23,7 +23,8 @@ namespace stdx
 			}
 			if (pos != (str.size()-1))
 			{
-				_SpitStr(str.substr(pos + chars.size(),str.size()-1), chars, container);
+				_String substr(std::move(str.substr(pos + chars.size(), str.size() - 1)));
+				_SpitStr(substr, chars, container);
 			}
 		}
 	}
@@ -33,6 +34,13 @@ namespace stdx
 	{
 		return _SpitStr(str, chars, container);
 	}
+
+	//template<typename _Container, typename _String = std::string>
+	//inline void spit_string(_String &str, _String &&chars, _Container &container)
+	//{
+	//	_String c = chars;
+	//	return _SpitStr(str,c, container);
+	//}
 
 	template<typename _String>
 	inline void replace_string(_String &str,const _String &target,const _String &val)
@@ -49,6 +57,7 @@ namespace stdx
 		}
 	}
 #ifdef WIN32
+#define U(x) u8##x
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
 						if(_ERROR_CODE != ERROR_IO_PENDING) \
@@ -63,6 +72,8 @@ namespace stdx
 								throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_MSG.c_str()); \
 							} \
 						}\
+
+	using unicode_string = std::wstring;
 
 	struct code_page
 	{
@@ -79,8 +90,8 @@ namespace stdx
 	//{
 
 	//}
-	template<typename _String = std::string,typename _WString>
-	inline _String unicode_to_utf8(const _WString &src)
+	template<typename _String = std::string,typename _UnicodeString>
+	inline _String unicode_to_utf8(const _UnicodeString &src)
 	{
 		DWORD size = ::WideCharToMultiByte(stdx::code_page::utf8, NULL, src.c_str(), -1, NULL, 0, NULL, FALSE);
 		char *buf = (char*)calloc(size, sizeof(char));
@@ -93,8 +104,8 @@ namespace stdx
 		return des;
 	}
 
-	template<typename _String = std::string, typename _WString>
-	inline _String unicode_to_ansi(const _WString &src)
+	template<typename _String = std::string, typename _UnicodeString>
+	inline _String unicode_to_ansi(const _UnicodeString &src)
 	{
 		DWORD size = ::WideCharToMultiByte(stdx::code_page::ansi, NULL, src.c_str(), -1, NULL, 0, NULL, FALSE);
 		char *buf = (char*)calloc(size, sizeof(char));
@@ -107,8 +118,8 @@ namespace stdx
 		return des;
 	}
 
-	template<typename _WString = std::wstring,typename _String>
-	inline _WString utf8_to_unicode(const _String &src)
+	template<typename _UnicodeString = stdx::unicode_string,typename _String>
+	inline _UnicodeString utf8_to_unicode(const _String &src)
 	{
 		DWORD size = ::MultiByteToWideChar(stdx::code_page::utf8, NULL, src.c_str(), -1, NULL, 0);
 		wchar_t *buf = (wchar_t*)calloc(size, sizeof(wchar_t));
@@ -116,7 +127,7 @@ namespace stdx
 		{
 			_ThrowWinError
 		}
-		_WString des = buf;
+		_UnicodeString des = buf;
 		free(buf);
 		return des;
 	}
@@ -124,12 +135,12 @@ namespace stdx
 	template<typename _String = std::string>
 	inline _String utf8_to_ansi(const _String &src)
 	{
-		std::wstring temp = stdx::utf8_to_unicode(src);
+		stdx::unicode_string temp = stdx::utf8_to_unicode(src);
 		return stdx::unicode_to_ansi(temp);
 	}
 
-	template<typename _WString = std::wstring, typename _String>
-	inline _WString ansi_to_unicode(const _String &src)
+	template<typename _UnicodeString = stdx::unicode_string, typename _String>
+	inline _UnicodeString ansi_to_unicode(const _String &src)
 	{
 		DWORD size = ::MultiByteToWideChar(stdx::code_page::ansi, NULL, src.c_str(), -1, NULL, 0);
 		wchar_t *buf = (wchar_t*)calloc(size, sizeof(wchar_t));
@@ -137,7 +148,7 @@ namespace stdx
 		{
 			_ThrowWinError
 		}
-		_WString des = buf;
+		_UnicodeString des = buf;
 		free(buf);
 		return des;
 	}
@@ -145,11 +156,40 @@ namespace stdx
 	template<typename _String = std::string>
 	inline _String ansi_to_utf8(const _String &src)
 	{
-		std::wstring temp = stdx::ansi_to_unicode(src);
+		stdx::unicode_string temp = stdx::ansi_to_unicode(src);
 		return stdx::unicode_to_utf8(temp);
 	}
 
 	
 #undef _ThrowWinError
+#endif
+#ifdef LINUX
+#include <errno.h>
+#include <string>
+#define U(x) x
+#define _ThrowLinuxError auto _ERROR_CODE = errno;
+	throw std::system_error(std::error_code(_ERROR_CODE, std::system_category()), strerr(_ERROR_CODE)); \
+
+#include <iconv.h>
+
+	using unicode_string = std::string;
+	template<typename _String = std::string, typename _UnicodeString>
+	inline _String unicode_to_utf8(const _UnicodeString &src)
+	{
+		
+		iconv_t conv = iconv_open("UTF-8", "UNICODE");
+		if (conv == (iconv_t)-1)
+		{
+			_ThrowLinuxError
+		}
+		char *buf = src.c_str();
+
+		if (iconv(conv,))
+		{
+			
+		}
+	}
+
+#undef _ThrowLinuxError
 #endif
 }

@@ -635,4 +635,6 @@ namespace stdx
 		impl_t m_impl;
 	};
 }
+
+#undef _ThrowLinuxError
 #endif

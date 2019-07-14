@@ -1,7 +1,7 @@
 ﻿#include <stdx/async/task.h>
 #include <iostream>
-#include <stdx/file.h>
-#include <stdx/net/socket.h>
+//#include <stdx/file.h>
+//#include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
 int main()
@@ -88,16 +88,13 @@ int main()
 //	std::cin.get();
 //#pragma endregion
 #endif // WIN32
-	//auto t = stdx::async([]() 
-	//{
-	//	return stdx::async([]()
-	//	{
-	//		return std::string(CRLF);
-	//	});
-	//}).then([](stdx::task_result<std::string> str)
-	//{
-	//	std::cout <<"hello world" << str.get().c_str();
-	//});
-	//t.wait();
+	std::string str = "你,好";
+	std::vector<std::string> vec;
+	std::string key(",");
+	stdx::spit_string(str, key, vec);
+	for (auto begin = std::begin(vec),end=std::end(vec);begin!=end;begin++)
+	{
+		std::cout << *begin;
+	}
 	return 0;
 }
