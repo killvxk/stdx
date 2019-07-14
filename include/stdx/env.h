@@ -93,7 +93,6 @@ namespace stdx
 
 #include <stdexcept>
 #include <system_error>
-
 #include <time.h>
 namespace stdx
 {

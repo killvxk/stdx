@@ -502,20 +502,24 @@ namespace stdx
 	{
 		ev_queue()
 			:m_lock()
+			,m_using(false)
 			,m_queue()
 		{}
 		ev_queue(ev_queue &&other)
 			:m_lock(other.m_lock)
+			,m_using(other.m_using)
 			,m_queue(std::move(other.m_queue))
 		{}
 		~ev_queue() = default;
 		ev_queue &operator=(const ev_queue &&other)
 		{
 			m_lock = other.m_lock;
+			m_using = other.m_using;
 			m_queue = std::move(other.m_queue);
 			return *this;
 		}
 		stdx::spin_lock m_lock;
+		bool m_using;
 		std::queue<epoll_event> m_queue;
 	};
 
@@ -560,7 +564,7 @@ namespace stdx
 			if (iterator != std::end(m_map))
 			{
 				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (iterator->second.m_queue.empty())
+				if (iterator->second.m_queue.empty() && (!iterator->second.m_using))
 				{
 					m_poll.add_event(&ev);
 				}
