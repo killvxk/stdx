@@ -56,6 +56,31 @@ namespace stdx
 			return replace_string(str, target, val);
 		}
 	}
+
+	template<typename _String>
+	inline void html_decode(_String &str)
+	{
+		replace_string<_String>(str, "&quot;", "\"");
+		replace_string<_String>(str, "&#34;", "\"");
+		replace_string<_String>(str, "&amp;", "&");
+		replace_string<_String>(str, "&#38;", "&");
+		replace_string<_String>(str, "&lt;", "<");
+		replace_string<_String>(str, "&#60;", "<");
+		replace_string<_String>(str, "&gt;", ">");
+		replace_string<_String>(str, "&#62;", ">");
+		replace_string<_String>(str, "&#39;", "'");
+	}
+
+	template<typename _String>
+	inline void html_encode(_String &str)
+	{
+		replace_string<_String>(str, "\"", "&quot;");
+		replace_string<_String>(str, "&", "&amp;");
+		replace_string<_String>(str, "<", "&lt;");
+		replace_string<_String>(str, ">", "&gt;");
+		replace_string<_String>(str, "'", "&#39;");
+	}
+
 #ifdef WIN32
 #define U(x) u8##x
 #define WIN32_LEAN_AND_MEAN
