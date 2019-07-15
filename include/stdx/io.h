@@ -251,8 +251,8 @@ namespace stdx
 #include <unordered_map>
 #include <queue>
 #include <stdx/async/spin_lock.h>
-#define _ThrowLinuxError auto _ERROR_CODE = errno;
-						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
 namespace stdx
 {

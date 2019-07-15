@@ -88,13 +88,19 @@ int main()
 //	std::cin.get();
 //#pragma endregion
 #endif // WIN32
-	std::string str = "你,好";
-	std::vector<std::string> vec;
-	std::string key(",");
-	stdx::spit_string(str, key, vec);
-	for (auto begin = std::begin(vec),end=std::end(vec);begin!=end;begin++)
+	try
 	{
-		std::cout << *begin;
+		std::string str = U("你好");
+		stdx::unicode_string uni_string = stdx::utf8_to_unicode(str);
+		for (auto begin = std::begin(uni_string), end = std::end(uni_string); begin != end; ++begin)
+		{
+			std::cout << (uint16)*begin << std::endl;
+		}
 	}
+	catch (const std::exception&e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+	system("pause");
 	return 0;
 }
