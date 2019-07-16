@@ -88,19 +88,21 @@ int main()
 //	std::cin.get();
 //#pragma endregion
 #endif // WIN32
+	std::string str = U("你好");
+	stdx::unicode_string uni_string;
 	try
 	{
-		std::string str = U("你好");
-		stdx::unicode_string uni_string = stdx::utf8_to_unicode(str);
-		for (auto begin = std::begin(uni_string), end = std::end(uni_string); begin != end; ++begin)
-		{
-			std::cout << (uint16)*begin << std::endl;
-		}
+		uni_string = stdx::utf8_to_unicode(str);
 	}
 	catch (const std::exception&e)
 	{
-		std::cerr << e.what() << std::endl;
+		std::cerr <<"error:"<< e.what() << std::endl;
 	}
-	system("pause");
+	std::cout << uni_string.size()<<std::endl;
+	for (auto begin = std::begin(uni_string), end = std::end(uni_string); begin != end; ++begin)
+	{
+		std::cout << (uint16)*begin << std::endl;
+	}
+	std::cout << stdx::unicode_to_utf8(uni_string);
 	return 0;
 }

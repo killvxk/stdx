@@ -207,15 +207,11 @@ namespace stdx
 		char *buf = (char*)src.c_str();
 		size_t size = src.size()*2;
 		char *out = (char*)calloc(size,sizeof(char));
-		if (iconv(conv, &buf, &size, &out, &size) == -1);
-		{
-			free(out);
-			iconv_close(conv);
-			_ThrowLinuxError
-		}
+		char *p = out;
+		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des(out);
-		free(out);
+		_String des = out;
+		free(p);
 		return des;
 	}
 
@@ -230,15 +226,11 @@ namespace stdx
 		char *buf = (char*)src.c_str();
 		size_t size = src.size() * 2;
 		char *out = (char*)calloc(size,sizeof(char));
-		if (iconv(conv, &buf, &size, &out, &size) == -1);
-		{
-			free(out);
-			iconv_close(conv);
-			_ThrowLinuxError
-		}
+		char *p = out;
+		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des(out);
-		free(out);
+		_String des = out;
+		free(p);
 		return des;
 	}
 
@@ -253,15 +245,11 @@ namespace stdx
 		size_t size = src.size();
 		char *buf = (char*)src.c_str();
 		char *out = (char*)calloc(size, sizeof(char));
-		if (iconv(conv, &buf, &size, &out, &size) == -1);
-		{
-			free(out);
-			iconv_close(conv);
-			_ThrowLinuxError
-		}
+		char *p = out;
+		iconv(conv, &buf, &size, &out, &size);
+		_UnicodeString des = (int16*)out;
+		free(p);
 		iconv_close(conv);
-		_UnicodeString des((int16*)out);
-		free(out);
 		return des;
 	}
 	template<typename _String = std::string>
@@ -270,6 +258,7 @@ namespace stdx
 		iconv_t conv = iconv_open("ANSI", "UTF-8");
 		if (conv == (iconv_t)-1)
 		{
+			
 			_ThrowLinuxError
 		}
 		char *buf = (char*)src.c_str();
@@ -282,7 +271,7 @@ namespace stdx
 			_ThrowLinuxError
 		}
 		iconv_close(conv);
-		_String des(out);
+		_String des = out;
 		free(out);
 		return des;
 	}
@@ -297,15 +286,11 @@ namespace stdx
 		char *buf = (char*)src.c_str();
 		size_t size = src.size();
 		char *out = (char*)calloc(size, sizeof(char));
-		if (iconv(conv, &buf, &size, &out, &size) == -1);
-		{
-			free(out);
-			iconv_close(conv);
-			_ThrowLinuxError
-		}
+		char *p = out;
+		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_UnicodeString des((int16*)out);
-		free(out);
+		_UnicodeString des = (int16*)out;
+		free(p);
 		return des;
 	}
 
@@ -320,15 +305,11 @@ namespace stdx
 		char *buf = (char*)src.c_str();
 		size_t size = src.size();
 		char *out = (char*)calloc(size, sizeof(char));
-		if (iconv(conv, &buf, &size, &out, &size) == -1);
-		{
-			free(out);
-			iconv_close(conv);
-			_ThrowLinuxError
-		}
+		char *p = out;
+		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des(out);
-		free(out);
+		_String des = out;
+		free(p);
 		return des;
 	}
 
