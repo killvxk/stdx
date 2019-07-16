@@ -88,7 +88,7 @@ int main()
 //	std::cin.get();
 //#pragma endregion
 #endif // WIN32
-	std::string str = U("你好");
+	std::string str = U("hello");
 	stdx::unicode_string uni_string;
 	try
 	{

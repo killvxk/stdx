@@ -199,7 +199,7 @@ namespace stdx
 	inline _String unicode_to_utf8(const _UnicodeString &src)
 	{
 		
-		iconv_t conv = iconv_open("UTF-8", "UNICODE");
+		iconv_t conv = iconv_open("UTF-8", "UCS-2LE");
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
@@ -218,7 +218,7 @@ namespace stdx
 	template<typename _String = std::string, typename _UnicodeString>
 	inline _String unicode_to_ansi(const _UnicodeString &src)
 	{
-		iconv_t conv = iconv_open("ANSI", "UNICODE");
+		iconv_t conv = iconv_open("ANSI", "UCS-2LE");
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
@@ -237,7 +237,7 @@ namespace stdx
 	template<typename _UnicodeString = stdx::unicode_string, typename _String>
 	inline _UnicodeString utf8_to_unicode(const _String &src)
 	{
-		iconv_t conv = iconv_open("UNICODE", "UTF-8");
+		iconv_t conv = iconv_open("UCS-2LE", "UTF-8");
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
@@ -278,7 +278,7 @@ namespace stdx
 	template<typename _UnicodeString = stdx::unicode_string, typename _String>
 	inline _UnicodeString ansi_to_unicode(const _String &src)
 	{
-		iconv_t conv = iconv_open("UNICODE", "ANSI");
+		iconv_t conv = iconv_open("UCS-2LE", "ANSI");
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
