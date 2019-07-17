@@ -658,12 +658,63 @@ namespace stdx
 #undef _ThrowWinError
 #endif // WIN32
 #ifdef LINUX
+#include <stdx/io.h>
+#include <sys/stat.h>
 
-struct file_executer
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
+
+struct file_io_context
 {
-	int get_fd(epoll_event *ev)
-	{
-
-	}
+	int file;
+	size_t size;
+	char* buffer;
+	int64 offset;
+	std::function<void(file_io_context)> *callback;
 };
+//文件访问类型
+struct file_access_type
+{
+	enum
+	{
+		read = O_RDONLY,
+		write = O_WRONLY,
+		all = O_RDWR
+	};
+};
+//文件打开类型
+struct file_open_type
+{
+	enum
+	{
+		open = 0,
+		create = O_TRUNC,
+		new_file = O_CREAT|O_EXCL,
+		create_open = O_CREAT
+	};
+};
+class _FileIOService
+{
+public:
+	int create_file(const std::string &path,int32 access_type,int32 open_type,mode_t mode)
+	{
+		return open(path.c_str(),access_type|open_type,mode);
+	}
+	int create_file(const std::string &path, int32 access_type, int32 open_type)
+	{
+		return open(path.c_str(), access_type | open_type);
+	}
+	int64 get_file_size(int file) const
+	{
+		struct stat state;
+		if (fstat(file, &state) == -1)
+		{
+			_ThrowLinuxError
+		}
+		return state.st_size;
+	}
+private:
+	stdx::evcp<file_io_context> m_evcp;
+};
+#undef _ThrowLinuxError
 #endif //LINUX

@@ -234,7 +234,7 @@ namespace stdx
 #undef _ThrowWinError
 #endif
 
-#ifdef LINUX
+//#ifdef LINUX
 #include <memory>
 #include <system_error>
 #include <string>
@@ -359,6 +359,7 @@ namespace stdx
 
 		epoll_event wait(const int &timeout) const
 		{
+			
 			epoll_event ev;
 			this->wait(&ev, 1, timeout);
 			return ev;
@@ -502,27 +503,28 @@ namespace stdx
 	{
 		ev_queue()
 			:m_lock()
-			,m_using(false)
+			,m_existed(false)
 			,m_queue()
 		{}
 		ev_queue(ev_queue &&other)
 			:m_lock(other.m_lock)
-			,m_using(other.m_using)
+			,m_existed(other.m_existed)
 			,m_queue(std::move(other.m_queue))
 		{}
 		~ev_queue() = default;
 		ev_queue &operator=(const ev_queue &&other)
 		{
 			m_lock = other.m_lock;
-			m_using = other.m_using;
+			m_existed = other.m_existed;
 			m_queue = std::move(other.m_queue);
 			return *this;
 		}
 		stdx::spin_lock m_lock;
-		bool m_using;
+		bool m_existed;
 		std::queue<epoll_event> m_queue;
 	};
-
+#define set_context(ev,x) ev.data.ptr=&x
+#define get_context(type,ev_ptr) (type*)(ev_ptr->data.ptr)
 	template<typename _IOContext,typename _Executer>
 	class _Poller
 	{
@@ -545,16 +547,17 @@ namespace stdx
 		_IOContext *get()
 		{
 			auto ev = m_poll.wait(-1);
+			int fd = (int)_Executer::get_fd(&ev);
 			try
 			{
 				_Executer::execute(&ev);
 			}
 			catch (const std::exception& e)
 			{
-				loop(_Executer::get_fd(&ev));
+				loop(fd);
 				return (_IOContext*)ev.data.ptr;
 			}
-			loop(_Executer::get_fd(&ev));
+			loop(fd);
 			return (_IOContext*)ev.data.ptr;
 		}
 
@@ -564,9 +567,10 @@ namespace stdx
 			if (iterator != std::end(m_map))
 			{
 				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (iterator->second.m_queue.empty() && (!iterator->second.m_using))
+				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
 				{
 					m_poll.add_event(&ev);
+					iterator->second.m_existed = true;
 				}
 				else
 				{
@@ -589,6 +593,10 @@ namespace stdx
 					auto ev = iterator->second.m_queue.front();
 					m_poll.add_event(&ev);
 					iterator->second.m_queue.pop();
+				}
+				else
+				{
+					iterator->second.m_existed = false;
 				}
 			}
 		}
@@ -637,4 +645,4 @@ namespace stdx
 }
 
 #undef _ThrowLinuxError
-#endif
+//#endif

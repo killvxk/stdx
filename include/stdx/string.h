@@ -304,8 +304,4 @@ namespace stdx
 
 #undef _ThrowLinuxError
 #endif
-//#ifdef ANSI_CODE
-//#undef ANSI_CODE
-//#endif // ANSI_CODE
-
 }
