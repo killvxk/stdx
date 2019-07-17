@@ -101,16 +101,15 @@ namespace stdx
 						}\
 
 	using unicode_string = std::wstring;
-
 	struct code_page
 	{
 		enum 
 		{
 			ansi = CP_ACP,
-			ansi_current_thread = CP_THREAD_ACP,
 			utf8 = CP_UTF8
 		};
 	};
+
 	template<typename _String = std::string,typename _UnicodeString>
 	inline _String unicode_to_utf8(const _UnicodeString &src)
 	{
@@ -188,6 +187,10 @@ namespace stdx
 #include <errno.h>
 #include <string.h>
 #include <string>
+#ifndef ANSI_CODE
+#define ANSI_CODE "GBK"
+#endif // !ANSI_CODE
+
 #define U(x) x
 #define _ThrowLinuxError auto _ERROR_CODE = errno; \
 	throw std::system_error(std::error_code(_ERROR_CODE, std::system_category()), strerror(_ERROR_CODE)); \
@@ -200,17 +203,13 @@ namespace stdx
 	{
 		
 		iconv_t conv = iconv_open("UTF-8", "UCS-2LE");
-		if (conv == (iconv_t)-1)
-		{
-			_ThrowLinuxError
-		}
 		char *buf = (char*)src.c_str();
 		size_t size = src.size()*2;
 		char *out = (char*)calloc(size,sizeof(char));
 		char *p = out;
 		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des = out;
+		_String des = p;
 		free(p);
 		return des;
 	}
@@ -218,7 +217,7 @@ namespace stdx
 	template<typename _String = std::string, typename _UnicodeString>
 	inline _String unicode_to_ansi(const _UnicodeString &src)
 	{
-		iconv_t conv = iconv_open("ANSI", "UCS-2LE");
+		iconv_t conv = iconv_open(ANSI_CODE, "UCS-2LE");
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
@@ -229,7 +228,7 @@ namespace stdx
 		char *p = out;
 		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des = out;
+		_String des = p;
 		free(p);
 		return des;
 	}
@@ -238,16 +237,13 @@ namespace stdx
 	inline _UnicodeString utf8_to_unicode(const _String &src)
 	{
 		iconv_t conv = iconv_open("UCS-2LE", "UTF-8");
-		if (conv == (iconv_t)-1)
-		{
-			_ThrowLinuxError
-		}
 		size_t size = src.size();
+		size_t out_size = size + (size%2);
 		char *buf = (char*)src.c_str();
-		char *out = (char*)calloc(size, sizeof(char));
+		char *out = (char*)calloc(out_size, sizeof(char));
 		char *p = out;
-		iconv(conv, &buf, &size, &out, &size);
-		_UnicodeString des = (int16*)out;
+		iconv(conv, &buf, &size, &out, &out_size);
+		_UnicodeString des=(int16*)p;
 		free(p);
 		iconv_close(conv);
 		return des;
@@ -255,15 +251,11 @@ namespace stdx
 	template<typename _String = std::string>
 	inline _String utf8_to_ansi(const _String &src)
 	{
-		iconv_t conv = iconv_open("ANSI", "UTF-8");
-		if (conv == (iconv_t)-1)
-		{
-			
-			_ThrowLinuxError
-		}
+		iconv_t conv = iconv_open(ANSI_CODE, "UTF-8");
 		char *buf = (char*)src.c_str();
 		size_t size = src.size();
 		char *out = (char*)calloc(size, sizeof(char));
+		char *p = out;
 		if (iconv(conv, &buf, &size, &out, &size) == -1);
 		{
 			free(out);
@@ -271,25 +263,22 @@ namespace stdx
 			_ThrowLinuxError
 		}
 		iconv_close(conv);
-		_String des = out;
-		free(out);
+		_String des = p;
+		free(p);
 		return des;
 	}
 	template<typename _UnicodeString = stdx::unicode_string, typename _String>
 	inline _UnicodeString ansi_to_unicode(const _String &src)
 	{
-		iconv_t conv = iconv_open("UCS-2LE", "ANSI");
-		if (conv == (iconv_t)-1)
-		{
-			_ThrowLinuxError
-		}
+		iconv_t conv = iconv_open("UCS-2LE", ANSI_CODE);
 		char *buf = (char*)src.c_str();
 		size_t size = src.size();
-		char *out = (char*)calloc(size, sizeof(char));
+		size_t out_size = size + (size % 2);
+		char *out = (char*)calloc(out_size, sizeof(char));
 		char *p = out;
-		iconv(conv, &buf, &size, &out, &size);
+		iconv(conv, &buf, &size, &out, &out_size);
 		iconv_close(conv);
-		_UnicodeString des = (int16*)out;
+		_UnicodeString des = (int16*)p;
 		free(p);
 		return des;
 	}
@@ -297,7 +286,7 @@ namespace stdx
 	template<typename _String = std::string>
 	inline _String ansi_to_utf8(const _String &src)
 	{
-		iconv_t conv = iconv_open("UTF-8", "ANSI");
+		iconv_t conv = iconv_open("UTF-8", ANSI_CODE);
 		if (conv == (iconv_t)-1)
 		{
 			_ThrowLinuxError
@@ -308,11 +297,15 @@ namespace stdx
 		char *p = out;
 		iconv(conv, &buf, &size, &out, &size);
 		iconv_close(conv);
-		_String des = out;
+		_String des = p;
 		free(p);
 		return des;
 	}
 
 #undef _ThrowLinuxError
 #endif
+//#ifdef ANSI_CODE
+//#undef ANSI_CODE
+//#endif // ANSI_CODE
+
 }

@@ -7,10 +7,10 @@
 int main()
 {
 #ifdef WIN32
-	std::string str = "你好";
-	std::wcout.imbue(std::locale(std::locale(), "", LC_CTYPE));
-	std::wcout << stdx::utf8_to_unicode(stdx::ansi_to_utf8(str));
-	system("pause");
+	//std::string str = "你好";
+	//std::wcout.imbue(std::locale(std::locale(), "", LC_CTYPE));
+	//std::wcout << stdx::utf8_to_unicode(stdx::ansi_to_utf8(str));
+	//system("pause");
 //#pragma region web_test
 //	stdx::network_io_service service;
 //	stdx::socket s = stdx::open_socket(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
@@ -88,7 +88,7 @@ int main()
 //	std::cin.get();
 //#pragma endregion
 #endif // WIN32
-	std::string str = U("hello");
+	std::string str = U("你好123");
 	stdx::unicode_string uni_string;
 	try
 	{
@@ -103,6 +103,7 @@ int main()
 	{
 		std::cout << (uint16)*begin << std::endl;
 	}
+
 	std::cout << stdx::unicode_to_utf8(uni_string);
 	return 0;
 }
