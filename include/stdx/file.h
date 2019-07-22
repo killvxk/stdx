@@ -672,6 +672,70 @@ struct file_io_context
 	int64 offset;
 	std::function<void(file_io_context)> *callback;
 };
+//文件读取完成事件
+struct file_read_event
+{
+	file_read_event() = default;
+	~file_read_event() = default;
+	file_read_event(const file_read_event &other)
+		:file(other.file)
+		, buffer(other.buffer)
+		, offset(other.offset)
+		, eof(other.eof)
+	{}
+	file_read_event(file_read_event &&other)
+		:file(std::move(other.file))
+		, buffer(std::move(other.buffer))
+		, offset(std::move(other.offset))
+		, eof(std::move(other.eof))
+	{}
+	file_read_event &operator=(const file_read_event &other)
+	{
+		file = other.file;
+		buffer = other.buffer;
+		offset = other.offset;
+		eof = other.eof;
+		return *this;
+	}
+	file_read_event(file_io_context *ptr)
+		:file(ptr->file)
+		, buffer(ptr->size, ptr->buffer)
+		, offset(ptr->offset)
+		, eof(ptr->eof)
+	{
+	}
+	int file;
+	stdx::buffer buffer;
+	size_t offset;
+	bool eof;
+};
+
+//文件写入完成事件
+struct file_write_event
+{
+	file_write_event() = default;
+	~file_write_event() = default;
+	file_write_event(const file_write_event &other)
+		:file(other.file)
+		, size(other.size)
+	{}
+	file_write_event(file_write_event &&other)
+		:file(std::move(other.file))
+		, size(std::move(other.size))
+	{}
+	file_write_event &operator=(const file_write_event &other)
+	{
+		file = other.file;
+		size = other.size;
+		return *this;
+	}
+	file_write_event(file_io_context *ptr)
+		:file(ptr->file)
+		, size(ptr->size)
+	{}
+	int file;
+	size_t size;
+	};
 //文件访问类型
 struct file_access_type
 {
@@ -704,6 +768,11 @@ public:
 	{
 		return open(path.c_str(), access_type | open_type);
 	}
+	void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+	{
+		size = size + (size%512);
+		
+	}
 	int64 get_file_size(int file) const
 	{
 		struct stat state;
@@ -714,7 +783,7 @@ public:
 		return state.st_size;
 	}
 private:
-	stdx::evcp<file_io_context> m_evcp;
+	stdx::aiocp<file_io_context> m_aiocp;
 };
 #undef _ThrowLinuxError
 #endif //LINUX

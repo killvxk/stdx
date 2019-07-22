@@ -317,6 +317,14 @@ namespace stdx
 			}
 		}
 
+		void update_event(int fd, epoll_event *event_ptr)
+		{
+			if (epoll_ctl(m_handle, EPOLL_CTL_MOD, fd, event_ptr) == -1)
+			{
+				_ThrowLinuxError
+			}
+		}
+
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
 		{
 			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
@@ -346,7 +354,10 @@ namespace stdx
 		{
 			return m_impl->add_event(fd, event_ptr);
 		}
-
+		void update_event(int fd, epoll_event *event_ptr)
+		{
+			return m_impl->update_event(fd, event_ptr);
+		}
 		void del_event(int fd, epoll_event *event_ptr)
 		{
 			return m_impl->del_event(fd,event_ptr);
@@ -440,16 +451,16 @@ namespace stdx
 	}
 
 	template<typename _IOContext>
-	class _EvCP
+	class _AIOCP
 	{
 	public:
-		_EvCP(unsigned nr_events=2048)
+		_AIOCP(unsigned nr_events=2048)
 			:m_ctxid(0)
 		{
 			memset(&m_ctxid, 0, sizeof(aio_context_t));
 			io_setup(nr_events, &m_ctxid);
 		}
-		~_EvCP()
+		~_AIOCP()
 		{
 			io_destroy(m_ctxid);
 		}
@@ -468,21 +479,21 @@ namespace stdx
 		aio_context_t m_ctxid;
 	};
 	template<typename _IOContext>
-	class evcp
+	class aiocp
 	{
-		using impl_t = std::shared_ptr<_EvCP<_IOContext>>;
+		using impl_t = std::shared_ptr<_AIOCP<_IOContext>>;
 	public:
-		evcp(unsigned nr_events)
-			:m_impl(std::make_shared<_EvCP<_IOContext>>(nr_events))
+		aiocp(unsigned nr_events)
+			:m_impl(std::make_shared<_AIOCP<_IOContext>>(nr_events))
 		{}
-		evcp(const evcp<_IOContext> &other)
+		aiocp(const aiocp<_IOContext> &other)
 			:m_impl(other.m_impl)
 		{}
-		evcp(evcp<_IOContext> &&other)
+		aiocp(aiocp<_IOContext> &&other)
 			:m_impl(std::move(other.m_impl))
 		{}
-		~evcp()=default;
-		evcp &operator=(const evcp<_IOContext> &other)
+		~aiocp()=default;
+		aiocp &operator=(const aiocp<_IOContext> &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
@@ -544,21 +555,32 @@ namespace stdx
 			}
 		}
 
-		_IOContext *get()
+		template<typename _Fn>
+		void *get(_Fn &callback)
 		{
+			static_assert(is_arguments_type(_Fn, _IOContext*), "ths input function not be allowed");
 			auto ev = m_poll.wait(-1);
 			int fd = (int)_Executer::get_fd(&ev);
-			try
+			std::function<void(_IOContext*)> call = [this](_IOContext *ptr,_Fn &callback,int fd) mutable
 			{
-				_Executer::execute(&ev);
-			}
-			catch (const std::exception& e)
-			{
+				callback(ptr);
 				loop(fd);
-				return (_IOContext*)ev.data.ptr;
-			}
-			loop(fd);
-			return (_IOContext*)ev.data.ptr;
+			};
+			threadpool::run([](epoll_event &ev,int fd, std::function<void(_IOContext*)> call,_Fn &callback)
+			{
+				try
+				{
+					_Executer::execute(&ev);
+				}
+				catch (const std::exception& e)
+				{
+					auto ptr = (_IOContext*)ev.data.ptr;
+					call(ptr,callback,fd);
+					return;
+				}
+				auto ptr = (_IOContext*)ev.data.ptr;
+				call(ptr);
+			},ev,fd,call,callback,callback,fd);
 		}
 
 		void push(int fd,const epoll_event &ev)
@@ -591,11 +613,12 @@ namespace stdx
 				if (!iterator->second.m_queue.empty())
 				{
 					auto ev = iterator->second.m_queue.front();
-					m_poll.add_event(&ev);
+					m_poll.update_event(fd, &ev);
 					iterator->second.m_queue.pop();
 				}
 				else
 				{
+					m_poll.del_event(fd,NULL);
 					iterator->second.m_existed = false;
 				}
 			}
