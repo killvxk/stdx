@@ -405,7 +405,7 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	void aio_read(aio_context_t context,int fd,char *buf,size_t size,size_t offset,int resfd,_Data *ptr)
+	void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
@@ -428,7 +428,7 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	void aio_write(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int resfd, _Data *ptr)
+	void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));

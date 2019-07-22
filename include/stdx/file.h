@@ -771,7 +771,19 @@ public:
 	void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 	{
 		size = size + (size%512);
-		
+		char *buffer = (char*)calloc(size, sizeof(char));
+		posix_memalign((void**)&buffer, 512,size);
+		memset(buffer, 0, size);
+		auto context = m_aiocp.get_context();
+		file_io_context *ptr = new file_io_context;
+		ptr->size = size;
+		ptr->buffer = buffer;
+		ptr->offset = offset;
+		ptr->file = file;
+		//set callback
+
+		//push operation
+		aio_read(context,file,buffer,size,offset,-1,ptr);
 	}
 	int64 get_file_size(int file) const
 	{
