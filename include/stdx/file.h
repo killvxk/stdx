@@ -69,7 +69,7 @@ namespace stdx
 		}
 		HANDLE file;
 		stdx::buffer buffer;
-		size_t offset;
+		int64 offset;
 		bool eof;
 	};
 
@@ -706,7 +706,7 @@ struct file_read_event
 	}
 	int file;
 	stdx::buffer buffer;
-	size_t offset;
+	int64 offset;
 	bool eof;
 };
 
