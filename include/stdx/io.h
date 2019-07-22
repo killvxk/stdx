@@ -234,7 +234,7 @@ namespace stdx
 #undef _ThrowWinError
 #endif
 
-//#ifdef LINUX
+#ifdef LINUX
 #include <memory>
 #include <system_error>
 #include <string>
@@ -668,4 +668,4 @@ namespace stdx
 }
 
 #undef _ThrowLinuxError
-//#endif
+#endif
