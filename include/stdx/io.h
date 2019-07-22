@@ -309,9 +309,9 @@ namespace stdx
 			}
 		}
 
-		void del_event(int fd, epoll_event *event_ptr)
+		void del_event(int fd)
 		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, event_ptr) == -1)
+			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd,NULL) == -1)
 			{
 				_ThrowLinuxError
 			}
@@ -358,9 +358,9 @@ namespace stdx
 		{
 			return m_impl->update_event(fd, event_ptr);
 		}
-		void del_event(int fd, epoll_event *event_ptr)
+		void del_event(int fd)
 		{
-			return m_impl->del_event(fd,event_ptr);
+			return m_impl->del_event();
 		}
 
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
@@ -403,7 +403,7 @@ namespace stdx
 	{
 		return syscall(SYS_io_cancel, ctx_id, iocb, result);
 	}
-	
+#define invalid_eventfd -1
 	template<typename _Data>
 	void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
 	{
@@ -415,7 +415,7 @@ namespace stdx
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
 		(cbs[0]).aio_data =(uint64)ptr;
-		if (resfd != -1)
+		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
 			(cbs[0]).aio_resfd = resfd;
@@ -438,7 +438,7 @@ namespace stdx
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
 		(cbs[0]).aio_data = (uint64)ptr;
-		if (resfd != -1)
+		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
 			(cbs[0]).aio_resfd = resfd;
@@ -618,7 +618,7 @@ namespace stdx
 				}
 				else
 				{
-					m_poll.del_event(fd,NULL);
+					m_poll.del_event(fd);
 					iterator->second.m_existed = false;
 				}
 			}

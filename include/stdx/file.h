@@ -234,11 +234,12 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context;
 					callback(stdx::file_read_event(), std::current_exception());
 					return;
 				}
 			}
-			
 			return;
 		}
 		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
@@ -272,6 +273,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::file_write_event(), std::current_exception());
 					return;
 				}
@@ -780,10 +783,35 @@ public:
 		ptr->buffer = buffer;
 		ptr->offset = offset;
 		ptr->file = file;
-		//set callback
-
-		//push operation
-		aio_read(context,file,buffer,size,offset,-1,ptr);
+		//设置回调
+		std::function<void(file_io_context*, std::exception_ptr)> *call= new std::function<void(file_io_context*, std::exception_ptr)>;
+		*call = [callback, size](file_io_context *context_ptr, std::exception_ptr error)
+		{
+			if (error)
+			{
+				callback(file_read_event(), error);
+				delete context_ptr;
+				return;
+			}
+			if (context_ptr->size < size)
+			{
+				context_ptr->eof = true;
+			}
+			file_read_event context(context_ptr);
+			delete context_ptr;
+			callback(context, nullptr);
+		};
+		//投递操作
+		try
+		{
+			aio_read(context, file, buffer, size, offset, invalid_eventfd, ptr);
+		}
+		catch (const std::exception&)
+		{
+			delete call;
+			delete ptr;
+			callback();
+		}
 	}
 	int64 get_file_size(int file) const
 	{
