@@ -48,6 +48,14 @@
 #define empty_cstring ""
 #define CRLF "\r\n"
 
+#ifdef WIN32
+#define next_line CRLF
+#endif
+
+#ifdef LINUX
+#define next_line "\n"
+#endif
+
 namespace stdx
 {
 	union int64_union

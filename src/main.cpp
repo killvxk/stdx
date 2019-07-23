@@ -4,9 +4,11 @@
 #include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
-int main()
+#include <sstream>
+#include <stdx/string.h>
+int main(int argc,char **argv)
 {
-#ifdef WIN32
+#ifdef ENALE_WEB
 #pragma region web_test
 	stdx::network_io_service service;
 	stdx::socket s = stdx::open_socket(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
@@ -78,6 +80,78 @@ int main()
 		});
 	}
 #pragma endregion
-#endif // WIN32
+#endif 
+//#define ENABLE_FILE_TO_HEADER
+#ifdef ENABLE_FILE_TO_HEADER
+	size_t size = argc - 1;
+	std::cout <<"正在启动文件转换	共"<< size<<"个"<<"......" <<std::endl;
+	std::cout << "启动文件IO服务......";
+	stdx::file_io_service io_service;
+	std::cout << "done!" << std::endl;
+	std::cout << "开发文件转换......" << std::endl;
+	int errs = 0;
+	int *errs_ptr = &errs;
+	std::shared_ptr<std::atomic_int> nr_done_ptr = std::make_shared<std::atomic_int>(0);
+
+	for (size_t i = 1; i <= size; i++)
+	{
+		std::cout << "正在转换	第"<<i<<"个	共"<<size<<"个......" << std::endl;
+		try
+		{
+			auto file = stdx::open_file(io_service, argv[i], stdx::file_access_type::read, stdx::file_open_type::open);
+			file.read_to_end(0).then([errs_ptr,i,io_service,argv](stdx::task_result<stdx::file_read_event> &r) mutable
+			{
+				try
+				{
+					auto e = r.get();
+					std::string path = argv[i];
+					path.append(".h");
+					auto new_file = stdx::open_file(io_service,path,stdx::file_access_type::write,stdx::file_open_type::create);
+					std::stringstream builder;
+					std::vector<std::string> tmp;
+					std::string chars = "/";
+					stdx::spit_string(path,chars, tmp);
+					stdx::replace_string<std::string>(tmp.back(), ".", "_");
+					builder << "#pragma once" << next_line
+						<< "namespace __files" << next_line
+						<< "{" << next_line
+						<< "//" << argv[i] << next_line
+						<< "    static char " << tmp.back()<<"[] " <<"= {";
+					for (size_t i = 0; i < e.buffer.size(); i++)
+					{
+						builder << (int)e.buffer[i];
+						if (i != (e.buffer.size()-1))
+						{
+							builder <<",";
+						}
+					}
+					builder << "};" << next_line
+							<<"}"<< next_line;
+					std::string content = builder.str();
+					new_file.write(content, 0).wait();
+				}
+				catch (const std::system_error &e)
+				{
+					*errs_ptr += 1;
+					std::cerr << "转换发生错误:" << e.code().message() << std::endl << "错误代码:" << e.code().value() << std::endl;
+					std::cout << "跳过第" << i << "个......" << std::endl;
+				}
+			}).then([&i,&size,nr_done_ptr]() 
+			{
+				*nr_done_ptr += 1;
+				std::cout << "转换完成	第" << i << "个	共" << size << "个......" << std::endl;
+			}).wait();
+		}
+		catch (const std::system_error &e)
+		{
+			errs += 1;
+			std::cerr << "转换发生错误:"<<e.code().message()<<std::endl<<"错误代码:"<<e.code().value() << std::endl;
+			std::cout << "跳过第"<<i<<"个......"<< std::endl;
+		}
+	}
+	std::cout << "done!" << std::endl;
+	int success = size - errs;
+	std::cout << "转换已完成:	"<<"Success(s):" <<success<<"	Error(s):"<<errs << std::endl;
+#endif // ENABLE_FILE_TO_HEADER
 	return 0;
 }
