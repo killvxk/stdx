@@ -251,8 +251,8 @@ namespace stdx
 #include <unordered_map>
 #include <queue>
 #include <stdx/async/spin_lock.h>
-#define _ThrowLinuxError auto _ERROR_CODE = errno;
-						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerr(_ERROR_CODE)); \
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
 namespace stdx
 {
@@ -309,9 +309,17 @@ namespace stdx
 			}
 		}
 
-		void del_event(int fd, epoll_event *event_ptr)
+		void del_event(int fd)
 		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, event_ptr) == -1)
+			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd,NULL) == -1)
+			{
+				_ThrowLinuxError
+			}
+		}
+
+		void update_event(int fd, epoll_event *event_ptr)
+		{
+			if (epoll_ctl(m_handle, EPOLL_CTL_MOD, fd, event_ptr) == -1)
 			{
 				_ThrowLinuxError
 			}
@@ -346,10 +354,13 @@ namespace stdx
 		{
 			return m_impl->add_event(fd, event_ptr);
 		}
-
-		void del_event(int fd, epoll_event *event_ptr)
+		void update_event(int fd, epoll_event *event_ptr)
 		{
-			return m_impl->del_event(fd,event_ptr);
+			return m_impl->update_event(fd, event_ptr);
+		}
+		void del_event(int fd)
+		{
+			return m_impl->del_event();
 		}
 
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
@@ -359,6 +370,7 @@ namespace stdx
 
 		epoll_event wait(const int &timeout) const
 		{
+			
 			epoll_event ev;
 			this->wait(&ev, 1, timeout);
 			return ev;
@@ -391,9 +403,9 @@ namespace stdx
 	{
 		return syscall(SYS_io_cancel, ctx_id, iocb, result);
 	}
-	
+#define invalid_eventfd -1
 	template<typename _Data>
-	void aio_read(aio_context_t context,int fd,char *buf,size_t size,size_t offset,int resfd,_Data *ptr)
+	void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
@@ -403,7 +415,7 @@ namespace stdx
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
 		(cbs[0]).aio_data =(uint64)ptr;
-		if (resfd != -1)
+		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
 			(cbs[0]).aio_resfd = resfd;
@@ -416,7 +428,7 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	void aio_write(aio_context_t context, int fd, char *buf, size_t size, size_t offset, int resfd, _Data *ptr)
+	void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));
@@ -426,7 +438,7 @@ namespace stdx
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
 		(cbs[0]).aio_data = (uint64)ptr;
-		if (resfd != -1)
+		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
 			(cbs[0]).aio_resfd = resfd;
@@ -439,16 +451,16 @@ namespace stdx
 	}
 
 	template<typename _IOContext>
-	class _EvCP
+	class _AIOCP
 	{
 	public:
-		_EvCP(unsigned nr_events=2048)
+		_AIOCP(unsigned nr_events=2048)
 			:m_ctxid(0)
 		{
 			memset(&m_ctxid, 0, sizeof(aio_context_t));
 			io_setup(nr_events, &m_ctxid);
 		}
-		~_EvCP()
+		~_AIOCP()
 		{
 			io_destroy(m_ctxid);
 		}
@@ -467,21 +479,21 @@ namespace stdx
 		aio_context_t m_ctxid;
 	};
 	template<typename _IOContext>
-	class evcp
+	class aiocp
 	{
-		using impl_t = std::shared_ptr<_EvCP<_IOContext>>;
+		using impl_t = std::shared_ptr<_AIOCP<_IOContext>>;
 	public:
-		evcp(unsigned nr_events)
-			:m_impl(std::make_shared<_EvCP<_IOContext>>(nr_events))
+		aiocp(unsigned nr_events)
+			:m_impl(std::make_shared<_AIOCP<_IOContext>>(nr_events))
 		{}
-		evcp(const evcp<_IOContext> &other)
+		aiocp(const aiocp<_IOContext> &other)
 			:m_impl(other.m_impl)
 		{}
-		evcp(evcp<_IOContext> &&other)
+		aiocp(aiocp<_IOContext> &&other)
 			:m_impl(std::move(other.m_impl))
 		{}
-		~evcp()=default;
-		evcp &operator=(const evcp<_IOContext> &other)
+		~aiocp()=default;
+		aiocp &operator=(const aiocp<_IOContext> &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
@@ -502,23 +514,28 @@ namespace stdx
 	{
 		ev_queue()
 			:m_lock()
+			,m_existed(false)
 			,m_queue()
 		{}
 		ev_queue(ev_queue &&other)
 			:m_lock(other.m_lock)
+			,m_existed(other.m_existed)
 			,m_queue(std::move(other.m_queue))
 		{}
 		~ev_queue() = default;
 		ev_queue &operator=(const ev_queue &&other)
 		{
 			m_lock = other.m_lock;
+			m_existed = other.m_existed;
 			m_queue = std::move(other.m_queue);
 			return *this;
 		}
 		stdx::spin_lock m_lock;
+		bool m_existed;
 		std::queue<epoll_event> m_queue;
 	};
-
+#define set_context(ev,x) ev.data.ptr=&x
+#define get_context(type,ev_ptr) (type*)(ev_ptr->data.ptr)
 	template<typename _IOContext,typename _Executer>
 	class _Poller
 	{
@@ -538,20 +555,32 @@ namespace stdx
 			}
 		}
 
-		_IOContext *get()
+		template<typename _Fn>
+		void *get(_Fn &callback)
 		{
+			static_assert(is_arguments_type(_Fn, _IOContext*), "ths input function not be allowed");
 			auto ev = m_poll.wait(-1);
-			try
+			int fd = (int)_Executer::get_fd(&ev);
+			std::function<void(_IOContext*)> call = [this](_IOContext *ptr,_Fn &callback,int fd) mutable
 			{
-				_Executer::execute(&ev);
-			}
-			catch (const std::exception& e)
+				callback(ptr);
+				loop(fd);
+			};
+			threadpool::run([](epoll_event &ev,int fd, std::function<void(_IOContext*)> call,_Fn &callback)
 			{
-				loop(_Executer::get_fd(&ev));
-				return (_IOContext*)ev.data.ptr;
-			}
-			loop(_Executer::get_fd(&ev));
-			return (_IOContext*)ev.data.ptr;
+				try
+				{
+					_Executer::execute(&ev);
+				}
+				catch (const std::exception& e)
+				{
+					auto ptr = (_IOContext*)ev.data.ptr;
+					call(ptr,callback,fd);
+					return;
+				}
+				auto ptr = (_IOContext*)ev.data.ptr;
+				call(ptr);
+			},ev,fd,call,callback,callback,fd);
 		}
 
 		void push(int fd,const epoll_event &ev)
@@ -560,9 +589,10 @@ namespace stdx
 			if (iterator != std::end(m_map))
 			{
 				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (iterator->second.m_queue.empty())
+				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
 				{
 					m_poll.add_event(&ev);
+					iterator->second.m_existed = true;
 				}
 				else
 				{
@@ -583,8 +613,13 @@ namespace stdx
 				if (!iterator->second.m_queue.empty())
 				{
 					auto ev = iterator->second.m_queue.front();
-					m_poll.add_event(&ev);
+					m_poll.update_event(fd, &ev);
 					iterator->second.m_queue.pop();
+				}
+				else
+				{
+					m_poll.del_event(fd);
+					iterator->second.m_existed = false;
 				}
 			}
 		}
@@ -631,4 +666,6 @@ namespace stdx
 		impl_t m_impl;
 	};
 }
+
+#undef _ThrowLinuxError
 #endif

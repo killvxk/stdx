@@ -69,7 +69,7 @@ namespace stdx
 		}
 		HANDLE file;
 		stdx::buffer buffer;
-		size_t offset;
+		int64 offset;
 		bool eof;
 	};
 
@@ -234,11 +234,12 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context;
 					callback(stdx::file_read_event(), std::current_exception());
 					return;
 				}
 			}
-			
 			return;
 		}
 		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
@@ -272,6 +273,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::file_write_event(), std::current_exception());
 					return;
 				}
@@ -658,12 +661,169 @@ namespace stdx
 #undef _ThrowWinError
 #endif // WIN32
 #ifdef LINUX
+#include <stdx/io.h>
+#include <sys/stat.h>
 
-struct file_executer
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
+
+struct file_io_context
 {
-	int get_fd(epoll_event *ev)
-	{
-
-	}
+	int file;
+	size_t size;
+	char* buffer;
+	int64 offset;
+	std::function<void(file_io_context)> *callback;
 };
+//文件读取完成事件
+struct file_read_event
+{
+	file_read_event() = default;
+	~file_read_event() = default;
+	file_read_event(const file_read_event &other)
+		:file(other.file)
+		, buffer(other.buffer)
+		, offset(other.offset)
+		, eof(other.eof)
+	{}
+	file_read_event(file_read_event &&other)
+		:file(std::move(other.file))
+		, buffer(std::move(other.buffer))
+		, offset(std::move(other.offset))
+		, eof(std::move(other.eof))
+	{}
+	file_read_event &operator=(const file_read_event &other)
+	{
+		file = other.file;
+		buffer = other.buffer;
+		offset = other.offset;
+		eof = other.eof;
+		return *this;
+	}
+	file_read_event(file_io_context *ptr)
+		:file(ptr->file)
+		, buffer(ptr->size, ptr->buffer)
+		, offset(ptr->offset)
+		, eof(ptr->eof)
+	{
+	}
+	int file;
+	stdx::buffer buffer;
+	int64 offset;
+	bool eof;
+};
+
+//文件写入完成事件
+struct file_write_event
+{
+	file_write_event() = default;
+	~file_write_event() = default;
+	file_write_event(const file_write_event &other)
+		:file(other.file)
+		, size(other.size)
+	{}
+	file_write_event(file_write_event &&other)
+		:file(std::move(other.file))
+		, size(std::move(other.size))
+	{}
+	file_write_event &operator=(const file_write_event &other)
+	{
+		file = other.file;
+		size = other.size;
+		return *this;
+	}
+	file_write_event(file_io_context *ptr)
+		:file(ptr->file)
+		, size(ptr->size)
+	{}
+	int file;
+	size_t size;
+	};
+//文件访问类型
+struct file_access_type
+{
+	enum
+	{
+		read = O_RDONLY,
+		write = O_WRONLY,
+		all = O_RDWR
+	};
+};
+//文件打开类型
+struct file_open_type
+{
+	enum
+	{
+		open = 0,
+		create = O_TRUNC,
+		new_file = O_CREAT|O_EXCL,
+		create_open = O_CREAT
+	};
+};
+class _FileIOService
+{
+public:
+	int create_file(const std::string &path,int32 access_type,int32 open_type,mode_t mode)
+	{
+		return open(path.c_str(),access_type|open_type,mode);
+	}
+	int create_file(const std::string &path, int32 access_type, int32 open_type)
+	{
+		return open(path.c_str(), access_type | open_type);
+	}
+	void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+	{
+		size = size + (size%512);
+		char *buffer = (char*)calloc(size, sizeof(char));
+		posix_memalign((void**)&buffer, 512,size);
+		memset(buffer, 0, size);
+		auto context = m_aiocp.get_context();
+		file_io_context *ptr = new file_io_context;
+		ptr->size = size;
+		ptr->buffer = buffer;
+		ptr->offset = offset;
+		ptr->file = file;
+		//设置回调
+		std::function<void(file_io_context*, std::exception_ptr)> *call= new std::function<void(file_io_context*, std::exception_ptr)>;
+		*call = [callback, size](file_io_context *context_ptr, std::exception_ptr error)
+		{
+			if (error)
+			{
+				callback(file_read_event(), error);
+				delete context_ptr;
+				return;
+			}
+			if (context_ptr->size < size)
+			{
+				context_ptr->eof = true;
+			}
+			file_read_event context(context_ptr);
+			delete context_ptr;
+			callback(context, nullptr);
+		};
+		//投递操作
+		try
+		{
+			aio_read(context, file, buffer, size, offset, invalid_eventfd, ptr);
+		}
+		catch (const std::exception&)
+		{
+			delete call;
+			delete ptr;
+			callback();
+		}
+	}
+	int64 get_file_size(int file) const
+	{
+		struct stat state;
+		if (fstat(file, &state) == -1)
+		{
+			_ThrowLinuxError
+		}
+		return state.st_size;
+	}
+private:
+	stdx::aiocp<file_io_context> m_aiocp;
+};
+#undef _ThrowLinuxError
 #endif //LINUX

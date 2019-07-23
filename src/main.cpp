@@ -1,7 +1,9 @@
 ﻿#include <stdx/async/task.h>
 #include <iostream>
-//#include <stdx/file.h>
-//#include <stdx/net/socket.h>
+#include <stdx/file.h>
+#include <stdx/net/socket.h>
+#include <sstream>
+#include <stdx/string.h>
 int main()
 {
 #ifdef WIN32
@@ -75,23 +77,7 @@ int main()
 			});
 		});
 	}
-	//auto t = stdx::async([]() 
-	//{
-	//	std::cout << "hello";
-	//});
-	std::cin.get();
 #pragma endregion
 #endif // WIN32
-	//auto t = stdx::async([]() 
-	//{
-	//	return stdx::async([]()
-	//	{
-	//		return std::string(CRLF);
-	//	});
-	//}).then([](stdx::task_result<std::string> str)
-	//{
-	//	std::cout <<"hello world" << str.get().c_str();
-	//});
-	//t.wait();
 	return 0;
 }

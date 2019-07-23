@@ -327,6 +327,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::network_send_event(), std::current_exception());
 					return;
 				}
@@ -365,6 +367,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::network_recv_event(), std::current_exception());
 					return;
 				}
@@ -451,6 +455,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::network_send_event(), std::current_exception());
 					return;
 				}
@@ -487,6 +493,8 @@ namespace stdx
 				}
 				catch (const std::exception&)
 				{
+					delete call;
+					delete context_ptr;
 					callback(stdx::network_recv_event(), std::current_exception());
 					return;
 				}
