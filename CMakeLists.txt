@@ -9,3 +9,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 
 # 包含子项目。
 add_subdirectory ("src")
+add_subdirectory ("test")

@@ -8,64 +8,27 @@ namespace stdx
 	class _Buffer
 	{
 	public:
-		_Buffer(size_t size = 4096)
-			:m_size(size)
-			, m_data((char*)calloc(sizeof(char), m_size))
-		{
-			//if (m_data == nullptr)
-			//{
-			//	throw std::bad_alloc();
-			//}
-		}
-		explicit _Buffer(size_t size, char* data)
-			:m_size(size)
-			, m_data(data)
-		{}
-		~_Buffer()
-		{
-			free(m_data);
-		}
-		char &operator[](const size_t &i) const
-		{
-			if (i >= m_size)
-			{
-				throw std::out_of_range("out of range");
-			}
-			return *(m_data + i);
-		}
+		_Buffer(size_t size = 4096);
+			
+		explicit _Buffer(size_t size, char* data);
+
+		~_Buffer();
+
+		char &operator[](const size_t &i) const;
+
 		operator char*() const
 		{
 			return m_data;
 		}
-		void realloc(size_t size)
-		{
-			if (size == 0)
-			{
-				throw std::invalid_argument("invalid argument: 0");
-			}
-			if (size > m_size)
-			{
-				if (::realloc(m_data, m_size) == nullptr)
-				{
-					throw std::bad_alloc();
-				}
-				m_size = size;
-			}
-		}
+
+		void realloc(size_t size);
+
 		const size_t &size() const
 		{
 			return m_size;
 		}
 
-		void copy_from(const _Buffer &other)
-		{
-			auto new_size = other.size();
-			if (new_size > m_size)
-			{
-				realloc(new_size);
-			}
-			memcpy(m_data, other, new_size);
-		}
+		void copy_from(const _Buffer &other);
 	private:
 		size_t m_size;
 		char *m_data;
@@ -279,28 +242,6 @@ namespace stdx
 			close(m_handle);
 		}
 
-		//已弃用
-		//void add_event(int fd, const uint32 &events)
-		//{
-		//	epoll_event e;
-		//	e.events = events;
-		//	e.data.fd = fd;
-		//	if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
-		//	{
-		//		_ThrowLinuxError
-		//	}
-		//}
-
-		//void del_event(int fd)
-		//{
-		//	epoll_event e;
-		//	e.data.fd = fd;
-		//	if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
-		//	{
-		//		_ThrowLinuxError
-		//	}
-		//}
-
 		void add_event(int fd, epoll_event *event_ptr)
 		{
 			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, event_ptr) == -1)
@@ -379,33 +320,33 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
+	inline int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
 	{
 		return syscall(SYS_io_setup, nr_events, ctx_idp);
 	}
 
-	int io_destroy(aio_context_t ctx_id)
+	inline int io_destroy(aio_context_t ctx_id)
 	{
 		return syscall(SYS_io_destroy, ctx_id);
 	}
 
-	int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
+	inline int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
 	{
 		return syscall(SYS_io_submit,ctx_id,nr,iocbpp );
 	}
 
-	int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
+	inline int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
 	{
 		return syscall(SYS_io_getevents, ctx_id, min_nr, nr, events, timeout);
 	}
 
-	int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
+	inline int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
 	{
 		return syscall(SYS_io_cancel, ctx_id, iocb, result);
 	}
 #define invalid_eventfd -1
 	template<typename _Data>
-	void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
+	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
@@ -428,7 +369,7 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
+	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));
@@ -588,7 +529,7 @@ namespace stdx
 			auto iterator = m_map.find(fd);
 			if (iterator != std::end(m_map))
 			{
-				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
+				std::lock_guard<stdx::spin_lock> wait(iterator->second.m_lock);
 				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
 				{
 					m_poll.add_event(&ev);
@@ -609,7 +550,7 @@ namespace stdx
 			auto iterator = m_map.find(fd);
 			if (iterator != std::end(m_map))
 			{
-				std::unique_lock<stdx::spin_lock> lock(iterator->second.m_lock);
+				std::unique_lock<stdx::spin_lock> wait(iterator->second.m_lock);
 				if (!iterator->second.m_queue.empty())
 				{
 					auto ev = iterator->second.m_queue.front();

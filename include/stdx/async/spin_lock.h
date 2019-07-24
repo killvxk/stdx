@@ -9,26 +9,14 @@ namespace stdx
 	class _SpinLock
 	{
 	public:
-		_SpinLock()
-			:m_locked(false)
-		{}
+		_SpinLock();
 		~_SpinLock() = default;
 
-		void lock()
-		{
-			bool exp = false;
-			while (!m_locked.compare_exchange_strong(exp,true))
-			{
-				exp = false;
-			}
-		}
+		void wait();
 
-		void unlock()
-		{
-			m_locked.store(false);
-		}
+		void unlock();
 	private:
-		volatile std::atomic_bool m_locked;
+		std::atomic_bool m_locked;
 	};
 	class spin_lock
 	{
@@ -48,9 +36,9 @@ namespace stdx
 		{
 			m_impl = other.m_impl;
 		}
-		void lock()
+		void wait()
 		{
-			m_impl->lock();
+			m_impl->wait();
 		}
 		void unlock()
 		{

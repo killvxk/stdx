@@ -10,36 +10,22 @@ namespace stdx
 	{
 	public:
 		//默认构造函数
-		_Barrier()
-			:mutex(std::make_shared<std::mutex>())
-			, notify_count(0)
-			, cv(std::make_shared<std::condition_variable>())
-		{}
+		_Barrier();
 		//析构函数
-		~_Barrier()
-		{
-		}
+		~_Barrier() = default;
 
 		//等待通过
-		void wait()
-		{
-			std::unique_lock<std::mutex> lock(*mutex);
-			auto &n = notify_count;
-			cv->wait(lock, [&n]() { return (int)n; });
-			notify_count -= 1;
-		}
+		void wait();
+
 		//通过
-		void pass()
-		{
-            notify_count+=1;
-			cv->notify_one();
-		}
+		void pass();
+
 		template<class _Rep,class _Period>
 			bool wait_for(const std::chrono::duration<_Rep, _Period> &time)
 		{
-			std::unique_lock<std::mutex> lock(*mutex);
+			std::unique_lock<std::mutex> wait(*mutex);
 			auto &n = notify_count;
-			if (cv->wait_for(lock, time, [&n]() { return (int)n; }))
+			if (cv->wait_for(wait, time, [&n]() { return (int)n; }))
 			{
 				notify_count -= 1;
 				return true;

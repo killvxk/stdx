@@ -1,4 +1,5 @@
-ï»¿#include <stdx/async/task.h>
+
+#include <stdx/async/task.h>
 #include <iostream>
 #include <stdx/file.h>
 #include <stdx/net/socket.h>
@@ -6,9 +7,10 @@
 #include <stdx/string.h>
 #include <sstream>
 #include <stdx/string.h>
-int main(int argc,char **argv)
+int main(int argc, char **argv)
 {
-#ifdef ENALE_WEB
+#define ENABLE_WEB
+#ifdef ENABLE_WEB
 #pragma region web_test
 	stdx::network_io_service service;
 	stdx::socket s = stdx::open_socket(service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
@@ -22,7 +24,7 @@ int main(int argc,char **argv)
 		std::cerr << e.what();
 		return -1;
 	}
-	std::cout << "å·²ç›‘å¬http://localhost:8080" << std::endl;
+	std::cout << "ÒÑ¼àÌýhttp://localhost:8080" << std::endl;
 	s.listen(65535);
 	stdx::file_io_service file_io_service;
 	while (true)
@@ -84,74 +86,76 @@ int main(int argc,char **argv)
 //#define ENABLE_FILE_TO_HEADER
 #ifdef ENABLE_FILE_TO_HEADER
 	size_t size = argc - 1;
-	std::cout <<"æ­£åœ¨å¯åŠ¨æ–‡ä»¶è½¬æ¢	å…±"<< size<<"ä¸ª"<<"......" <<std::endl;
-	std::cout << "å¯åŠ¨æ–‡ä»¶IOæœåŠ¡......";
+	std::cout << "ÕýÔÚÆô¶¯ÎÄ¼þ×ª»»	¹²" << size << "¸ö" << "......" << std::endl;
+	std::cout << "Æô¶¯ÎÄ¼þIO·þÎñ......";
 	stdx::file_io_service io_service;
 	std::cout << "done!" << std::endl;
-	std::cout << "å¼€å‘æ–‡ä»¶è½¬æ¢......" << std::endl;
+	std::cout << "¿ªÊ¼ÎÄ¼þ×ª»»......" << std::endl;
 	int errs = 0;
 	int *errs_ptr = &errs;
 	std::shared_ptr<std::atomic_int> nr_done_ptr = std::make_shared<std::atomic_int>(0);
 
 	for (size_t i = 1; i <= size; i++)
 	{
-		std::cout << "æ­£åœ¨è½¬æ¢	ç¬¬"<<i<<"ä¸ª	å…±"<<size<<"ä¸ª......" << std::endl;
+		std::cout << "ÕýÔÚ×ª»»	µÚ" << i << "¸ö	¹²" << size << "¸ö......" << std::endl;
 		try
 		{
-			auto file = stdx::open_file(io_service, argv[i], stdx::file_access_type::read, stdx::file_open_type::open);
-			file.read_to_end(0).then([errs_ptr,i,io_service,argv](stdx::task_result<stdx::file_read_event> &r) mutable
+			std::string path = argv[i];
+			stdx::replace_string<std::string>(path, "\\", "/");
+			auto file = stdx::open_file(io_service,path, stdx::file_access_type::read, stdx::file_open_type::open);
+			file.read_to_end(0).then([errs_ptr, i, io_service, argv,&path](stdx::task_result<stdx::file_read_event> &r) mutable
 			{
 				try
 				{
 					auto e = r.get();
-					std::string path = argv[i];
-					path.append(".h");
-					auto new_file = stdx::open_file(io_service,path,stdx::file_access_type::write,stdx::file_open_type::create);
+					std::string new_path = argv[i];
+					new_path.append(".h");
+					auto new_file = stdx::open_file(io_service, new_path, stdx::file_access_type::write, stdx::file_open_type::create);
 					std::stringstream builder;
 					std::vector<std::string> tmp;
 					std::string chars = "/";
-					stdx::spit_string(path,chars, tmp);
+					stdx::spit_string(new_path, chars, tmp);
 					stdx::replace_string<std::string>(tmp.back(), ".", "_");
 					builder << "#pragma once" << next_line
 						<< "namespace __files" << next_line
 						<< "{" << next_line
 						<< "//" << argv[i] << next_line
-						<< "    static char " << tmp.back()<<"[] " <<"= {";
+						<< "    static char " << tmp.back() << "[] " << "= {";
 					for (size_t i = 0; i < e.buffer.size(); i++)
 					{
 						builder << (int)e.buffer[i];
-						if (i != (e.buffer.size()-1))
+						if (i != (e.buffer.size() - 1))
 						{
-							builder <<",";
+							builder << ",";
 						}
 					}
 					builder << "};" << next_line
-							<<"}"<< next_line;
+						<< "}" << next_line;
 					std::string content = builder.str();
 					new_file.write(content, 0).wait();
 				}
 				catch (const std::system_error &e)
 				{
 					*errs_ptr += 1;
-					std::cerr << "è½¬æ¢å‘ç”Ÿé”™è¯¯:" << e.code().message() << std::endl << "é”™è¯¯ä»£ç :" << e.code().value() << std::endl;
-					std::cout << "è·³è¿‡ç¬¬" << i << "ä¸ª......" << std::endl;
+					std::cerr << "×ª»»·¢Éú´íÎó:" << e.code().message() << std::endl << "´íÎó´úÂë:" << e.code().value() << std::endl;
+					std::cout << "Ìø¹ýµÚ" << i << "¸ö......" << std::endl;
 				}
-			}).then([&i,&size,nr_done_ptr]() 
+			}).then([&i, &size, nr_done_ptr]()
 			{
 				*nr_done_ptr += 1;
-				std::cout << "è½¬æ¢å®Œæˆ	ç¬¬" << i << "ä¸ª	å…±" << size << "ä¸ª......" << std::endl;
+				std::cout << "×ª»»Íê³É	µÚ" << i << "¸ö	¹²" << size << "¸ö......" << std::endl;
 			}).wait();
 		}
 		catch (const std::system_error &e)
 		{
 			errs += 1;
-			std::cerr << "è½¬æ¢å‘ç”Ÿé”™è¯¯:"<<e.code().message()<<std::endl<<"é”™è¯¯ä»£ç :"<<e.code().value() << std::endl;
-			std::cout << "è·³è¿‡ç¬¬"<<i<<"ä¸ª......"<< std::endl;
+			std::cerr << "×ª»»·¢Éú´íÎó:" << e.code().message() << std::endl << "´íÎó´úÂë:" << e.code().value() << std::endl;
+			std::cout << "Ìø¹ýµÚ" << i << "¸ö......" << std::endl;
 		}
 	}
 	std::cout << "done!" << std::endl;
 	int success = size - errs;
-	std::cout << "è½¬æ¢å·²å®Œæˆ:	"<<"Success(s):" <<success<<"	Error(s):"<<errs << std::endl;
+	std::cout << "×ª»»ÒÑÍê³É:	" << "Success(s):" << success << "	Error(s):" << errs << std::endl;
 #endif // ENABLE_FILE_TO_HEADER
 	return 0;
 }
