@@ -295,5 +295,151 @@ stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const
 #undef _ThrowWinError
 #endif // WIN32
 #ifdef LINUX
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
+stdx::_FileIOService::_FileIOService()
+	:m_aiocp(2048)
+{}
+
+stdx::_FileIOService::~_FileIOService()
+{
+
+}
+
+
+int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type, mode_t mode)
+{
+	return open(path.c_str(), access_type | open_type, mode);
+}
+
+int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type)
+{
+	return open(path.c_str(), access_type | open_type);
+}
+
+void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 & offset, std::function<void(file_read_event, std::exception_ptr)>&& callback)
+{
+	auto  r_size = size + (size % 512);
+	char *buffer = (char*)calloc(r_size, sizeof(char));
+	posix_memalign((void**)&buffer, 512, r_size);
+	memset(buffer, 0, r_size);
+	auto context = m_aiocp.get_context();
+	file_io_context *ptr = new file_io_context;
+	ptr->size = r_size;
+	ptr->buffer = buffer;
+	ptr->offset = offset;
+	ptr->file = file;
+	//设置回调
+	std::function<void(file_io_context*, std::exception_ptr)> *call = new std::function<void(file_io_context*, std::exception_ptr)>;
+	*call = [callback, size](file_io_context *context_ptr, std::exception_ptr error)
+	{
+		if (error)
+		{
+			callback(file_read_event(), error);
+			delete context_ptr;
+			return;
+		}
+		if (context_ptr->size < size)
+		{
+			context_ptr->eof = true;
+		}
+		file_read_event context(context_ptr);
+		delete context_ptr;
+		callback(context, nullptr);
+	};
+	//投递操作
+	try
+	{
+		stdx::aio_read(context, file, buffer, size, offset, invalid_eventfd, ptr);
+	}
+	catch (const std::exception&)
+	{
+		delete call;
+		delete ptr;
+		callback(file_read_event(), std::current_exception());
+	}
+}
+
+void stdx::_FileIOService::write_file(int file, const char * buffer, const size_t & size, const int64 & offset, std::function<void(file_write_event, std::exception_ptr)>&& callback)
+{
+	auto  r_size = size + (size % 512);
+	char *buf = (char*)calloc(r_size, sizeof(char));
+	posix_memalign((void**)&buf, 512, r_size);
+	memset(buf, 0, r_size);
+	memcpy(buf, buffer, size);
+	auto context = m_aiocp.get_context();
+	file_io_context *ptr = new file_io_context;
+	ptr->size = r_size;
+	ptr->buffer = buf;
+	ptr->offset = offset;
+	ptr->file = file;
+	//设置回调
+	std::function<void(file_io_context*, std::exception_ptr)> *call = new std::function<void(file_io_context*, std::exception_ptr)>;
+	*call = [callback, size](file_io_context *context_ptr, std::exception_ptr error)
+	{
+		if (error)
+		{
+			callback(file_write_event(), error);
+			delete context_ptr;
+			return;
+		}
+		if (context_ptr->size < size)
+		{
+			context_ptr->eof = true;
+		}
+		file_write_event context(context_ptr);
+		delete context_ptr;
+		callback(context, nullptr);
+	};
+	//投递操作
+	try
+	{
+		stdx::aio_write(context,file,buf,r_size,offset,invalid_eventfd,ptr);
+	}
+	catch (const std::exception&)
+	{
+		delete call;
+		delete ptr;
+		callback(file_write_event(), std::current_exception());
+	}
+
+}
+
+int64 stdx::_FileIOService::get_file_size(int file) const
+{
+	struct stat state;
+	if (fstat(file, &state) == -1)
+	{
+		_ThrowLinuxError
+	}
+	return state.st_size;
+}
+
+//void stdx::_FileIOService::init_thread()
+//{
+//	for (size_t i = 0, cores = cpu_cores() * 2; i < cores; i++)
+//	{
+//		stdx::threadpool::run([](aiocp_t &aiocp, std::shared_ptr<bool> alive)
+//		{
+//			while (*alive)
+//			{
+//				std::exception_ptr error(nullptr);
+//				try
+//				{
+//					auto *context_ptr = aiocp.get();
+//					auto *call = context_ptr->callback;
+//					(*call)(context_ptr, error);
+//					delete call;
+//				}
+//				catch (const std::exception&)
+//				{
+//					error = std::current_exception();
+//				}
+//				
+//			}
+//		}, m_aiocp, m_alive);
+//	}
+//}
+#undef _ThrowLinuxError
 #endif // LINUX

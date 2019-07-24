@@ -301,7 +301,7 @@ namespace stdx
 		}
 		void del_event(int fd)
 		{
-			return m_impl->del_event();
+			return m_impl->del_event(fd);
 		}
 
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
@@ -475,17 +475,16 @@ namespace stdx
 		bool m_existed;
 		std::queue<epoll_event> m_queue;
 	};
-#define set_context(ev,x) ev.data.ptr=&x
-#define get_context(type,ev_ptr) (type*)(ev_ptr->data.ptr)
+
 	template<typename _IOContext,typename _Executer>
-	class _Poller
+	class _Reactor
 	{
 	public:
-		_Poller()
+		_Reactor()
 			:m_map()
 			,m_poll()
 		{}
-		~_Poller()=default;
+		~_Reactor()=default;
 
 		void bind(int fd)
 		{
@@ -575,18 +574,18 @@ namespace stdx
 	};
 	
 	template<typename _IOContext, typename _Executer>
-	class poller
+	class reactor
 	{
-		using impl_t = std::shared_ptr<_Poller<_IOContext,_Executer>>;
+		using impl_t = std::shared_ptr<_Reactor<_IOContext,_Executer>>;
 	public:
-		poller()
-			:m_impl(std::make_shared<_Poller<_IOContext,_Executer>>())
+		reactor()
+			:m_impl(std::make_shared<_Reactor<_IOContext,_Executer>>())
 		{}
-		poller(const poller<_IOContext, _Executer> &other)
+		reactor(const reactor<_IOContext, _Executer> &other)
 			:m_impl(other.m_impl)
 		{}
-		~poller()=default;
-		poller<_IOContext, _Executer> &operator=(const poller<_IOContext, _Executer> &other)
+		~reactor()=default;
+		reactor<_IOContext, _Executer> &operator=(const reactor<_IOContext, _Executer> &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
