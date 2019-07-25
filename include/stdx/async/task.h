@@ -117,8 +117,8 @@ namespace stdx
 	public:
 		task() = default;
 		template<typename _Fn, typename ..._Args>
-		task(_Fn &fn, _Args &...args)
-			:m_impl(std::make_shared<_Task<_R>>(fn, args...))
+		task(_Fn &&fn, _Args &&...args)
+			:m_impl(std::make_shared<_Task<_R>>(std::move(fn), args...))
 		{}
 
 		//template<typename _Fn, typename ..._Args>
