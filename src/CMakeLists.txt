@@ -10,7 +10,10 @@ message(${net_src})
 add_library (stdx SHARED ${src} ${async_src} ${net_src})
 add_library(libstdx STATIC ${src} ${async_src} ${net_src})
 include_directories(${PROJECT_SOURCE_DIR}/include)
-
+set_target_properties(stdx PROPERTIES OUTPUT_NAME "stdx")
+if(UNIX)
+	set_target_properties(libstdx PROPERTIES OUTPUT_NAME "stdx")
+endif()
 
 
 # TODO: 如有需要，请添加测试并安装目标。

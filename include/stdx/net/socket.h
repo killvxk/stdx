@@ -257,7 +257,7 @@ namespace stdx
 	{
 	public:
 		using iocp_t = stdx::iocp<network_io_context>;
-		_NetworkIOService();	
+		_NetworkIOService();
 
 		delete_copy(_NetworkIOService);
 
@@ -575,22 +575,22 @@ namespace stdx
 		template<typename _Fn>
 		void recv_utill(const size_t &size, _Fn &call)
 		{
-			static_assert(stdx::is_arguments_type<_Fn,stdx::task_result<stdx::network_recv_event>>,"the input function not be allowed");
+			static_assert(stdx::is_arguments_type<_Fn, stdx::task_result<stdx::network_recv_event>>, "the input function not be allowed");
 			static_assert(stdx::is_result_type<_Fn, bool>, "the input function not be allowed");
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
 			{
-				if (stdx::invoke(call,r))
+				if (stdx::invoke(call, r))
 				{
 					recv_utill(size, call);
 				}
 			});
 		}
 
-		template<typename _Fn,typename _ErrHandler>
-		void recv_utill_error(const size_t &size,_Fn &call,_ErrHandler &err_handler)
+		template<typename _Fn, typename _ErrHandler>
+		void recv_utill_error(const size_t &size, _Fn &call, _ErrHandler &err_handler)
 		{
-			static_assert(stdx::is_arguments_type<_Fn,stdx::network_recv_event>, "the input function not be allowed");
-			return this->recv_utill(size, [call,err_handler](stdx::task_result<network_recv_event> r)
+			static_assert(stdx::is_arguments_type<_Fn, stdx::network_recv_event>, "the input function not be allowed");
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r)
 			{
 				try
 				{
@@ -704,15 +704,15 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void recv_utill(const size_t &size,_Fn &call)
+		void recv_utill(const size_t &size, _Fn &call)
 		{
 			return m_impl->recv_utill(size, call);
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void recv_utill_error(const size_t &size,_Fn &call, _ErrHandler &err_handler)
+		void recv_utill_error(const size_t &size, _Fn &call, _ErrHandler &err_handler)
 		{
-			return m_impl->recv_utill_error(size, call,err_handler);
+			return m_impl->recv_utill_error(size, call, err_handler);
 		}
 	private:
 		impl_t m_impl;
@@ -732,3 +732,4 @@ namespace stdx
 #ifdef LINUX
 
 #endif //LINUX
+}

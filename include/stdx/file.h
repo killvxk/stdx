@@ -403,7 +403,7 @@ namespace stdx
 		char* buffer;
 		int64 offset;
 		bool eof;
-		std::function<void(file_io_context,std::exception_ptr)> *callback;
+		std::function<void(file_io_context*,std::exception_ptr)> *callback;
 	};
 	//文件读取完成事件
 	struct file_read_event
@@ -494,7 +494,10 @@ namespace stdx
 	{
 		using aiocp_t = stdx::aiocp<file_io_context>;
 	public:
+		
 		_FileIOService();
+
+		_FileIOService(uint32 nr_events);
 
 		~_FileIOService();
 
@@ -507,12 +510,151 @@ namespace stdx
 		void write_file(int file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback);
 
 		int64 get_file_size(int file) const;
+
+		void close_file(int file);
 	private:
 		aiocp_t m_aiocp;
 		std::shared_ptr<bool> m_alive;
 
 		void init_thread();
 	};
+	
+	//文件IO服务
+	class file_io_service
+	{
+		using impl_t = std::shared_ptr<_FileIOService>;
+	public:
+		file_io_service()
+			:m_impl(std::make_shared<_FileIOService>())
+		{}
+		file_io_service(const file_io_service &other)
+			:m_impl(other.m_impl)
+		{}
+		file_io_service(file_io_service &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		file_io_service &operator=(const file_io_service &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator bool() const
+		{
+			return (bool)m_impl;
+		}
+
+		int create_file(const std::string &path, int32 access_type, int32 file_open_type, mode_t model)
+		{
+			return m_impl->create_file(path, access_type, file_open_type, model);
+		}
+
+		int create_file(const std::string &path, int32 access_type, int32 file_open_type)
+		{
+			return m_impl->create_file(path, access_type, file_open_type);
+		}
+
+		void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+		{
+			return m_impl->read_file(file, size, offset, std::move(callback));
+		}
+		void write_file(int file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+		{
+			return m_impl->write_file(file, buffer, size, offset, std::move(callback));
+		}
+		void close_file(int file)
+		{
+			return m_impl->close_file(file);
+		}
+		int64 get_file_size(int file) const
+		{
+			return m_impl->get_file_size(file);
+		}
+	private:
+		impl_t m_impl;
+	};
+	//异步文件流实现
+//	class _FileStream
+//	{
+//		using io_service_t = file_io_service;
+//	public:
+//		_FileStream(const io_service_t &io_service);
+//
+//		~_FileStream();
+//
+//		void init(const std::string &path, const int32 &access_type, const int32 &open_type, const mode_t &model)
+//		{
+//			m_file = m_io_service.create_file(path, access_type, open_type, model);
+//		}
+//
+//		void init(const std::string &path, const int32 &access_type, const int32 &open_type)
+//		{
+//			m_file = m_io_service.create_file(path, access_type, open_type);
+//		}
+//
+//		stdx::task<file_read_event> read(const size_t &size, const int64 &offset);
+//
+//		//返回true则继续
+//		//template<typename _Fn>
+//		//void read_utill(const size_t &size, const int64 &offset, _Fn &call)
+//		//{
+//		//	using args_t = typename stdx::function_info<_Fn>::arguments;
+//		//	static_assert(std::is_same<args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
+//		//	this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
+//		//	{
+//		//		if (stdx::invoke(call, r))
+//		//		{
+//		//			auto e = r.get();
+//		//			read_utill(size, e.buffer.size() + offset, ex);
+//		//		}
+//		//	});
+//		//}
+//
+//		//template<typename _Fn, typename _ErrHandler>
+//		//void read_utill_eof(const size_t &size, const int64 &offset, _Fn &call, _ErrHandler &err_handler)
+//		//{
+//		//	using args_t = typename stdx::function_info<_Fn>::arguments;
+//		//	static_assert(std::is_same<args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
+//		//	return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r)
+//		//	{
+//		//		try
+//		//		{
+//		//			auto e = r.get();
+//		//			stdx::invoke(call, e);
+//		//			if (e.eof)
+//		//			{
+//		//				return false;
+//		//			}
+//		//			else
+//		//			{
+//		//				return true;
+//		//			}
+//		//		}
+//		//		catch (const std::exception&)
+//		//		{
+//		//			stdx::invoke(err_handler, std::current_exception());
+//		//			return false;
+//		//		}
+//		//	});
+//		//}
+//
+//		stdx::task<stdx::file_read_event> read_to_end(const int64 &offset)
+//		{
+//			return read(size() - offset, offset);
+//		}
+//
+//
+//		stdx::task<file_write_event> write(const char* buffer, const size_t &size, const int64 &offset);
+//
+//		void close();
+//
+//		int64 size() const
+//		{
+//			return m_io_service.get_file_size(m_file);
+//		}
+//	private:
+//		io_service_t m_io_service;
+//		int m_file;
+//	};
 }
 #undef _ThrowLinuxError
 #endif //LINUX

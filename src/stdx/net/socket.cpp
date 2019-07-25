@@ -36,6 +36,10 @@ stdx::_NetworkIOService::_NetworkIOService()
 stdx::_NetworkIOService::~_NetworkIOService()
 {
 	*m_alive = false;
+	for (size_t i = 0,size = cpu_cores()*2; i < size; i++)
+	{
+		m_iocp.post(0, nullptr, nullptr);
+	}
 }
 
 SOCKET stdx::_NetworkIOService::create_socket(const int &addr_family, const int &sock_type, const int &protocol)
@@ -327,6 +331,10 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 			 while (*alive)
 			 {
 				 auto *context_ptr = iocp.get();
+				 if (context_ptr == nullptr)
+				 {
+					 continue;
+				 }
 				 std::exception_ptr error(nullptr);
 				 try
 				 {

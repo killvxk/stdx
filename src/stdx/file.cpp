@@ -26,6 +26,10 @@ stdx::_FileIOService::_FileIOService()
 stdx::_FileIOService::~_FileIOService()
 {
 	*m_alive = false;
+	for (size_t i = 0,size = cpu_cores()*2; i < size; i++)
+	{
+		m_iocp.post(0, nullptr, nullptr);
+	}
 }
 
 HANDLE stdx::_FileIOService::create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model)
@@ -164,6 +168,10 @@ void stdx::_FileIOService::init_threadpoll() noexcept
 			while (*alive)
 			{
 				auto *context_ptr = iocp.get();
+				if (context_ptr == nullptr)
+				{
+					continue;
+				}
 				std::exception_ptr error(nullptr);
 				try
 				{
@@ -300,27 +308,42 @@ stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const
 
 stdx::_FileIOService::_FileIOService()
 	:m_aiocp(2048)
-{}
+	,m_alive(std::make_shared<bool>(true))
+{
+	init_thread();
+}
+
+stdx::_FileIOService::_FileIOService(uint32 nr_events)
+	:m_aiocp(nr_events)
+	, m_alive(std::make_shared<bool>(true))
+{
+	init_thread();
+}
 
 stdx::_FileIOService::~_FileIOService()
 {
-
+	*m_alive = false;
 }
 
 
 int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type, mode_t mode)
 {
-	return open(path.c_str(), access_type | open_type, mode);
+	return open(path.c_str(), access_type | open_type|O_DIRECT, mode);
 }
 
 int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type)
 {
-	return open(path.c_str(), access_type | open_type);
+	return open(path.c_str(), access_type | open_type|O_DIRECT);
 }
 
 void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 & offset, std::function<void(file_read_event, std::exception_ptr)>&& callback)
 {
-	auto  r_size = size + (size % 512);
+	auto  r_size = size;
+	auto tmp = size % 512;
+	if (tmp!=0)
+	{
+		r_size += (512 - tmp);
+	}
 	char *buffer = (char*)calloc(r_size, sizeof(char));
 	posix_memalign((void**)&buffer, 512, r_size);
 	memset(buffer, 0, r_size);
@@ -348,10 +371,11 @@ void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 
 		delete context_ptr;
 		callback(context, nullptr);
 	};
+	ptr->callback = call;
 	//投递操作
 	try
 	{
-		stdx::aio_read(context, file, buffer, size, offset, invalid_eventfd, ptr);
+		stdx::aio_read(context, file, buffer, r_size, offset, invalid_eventfd, ptr);
 	}
 	catch (const std::exception&)
 	{
@@ -363,7 +387,12 @@ void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 
 
 void stdx::_FileIOService::write_file(int file, const char * buffer, const size_t & size, const int64 & offset, std::function<void(file_write_event, std::exception_ptr)>&& callback)
 {
-	auto  r_size = size + (size % 512);
+	auto  r_size = size;
+	auto tmp = size % 512;
+	if (tmp != 0)
+	{
+		r_size += (512 - tmp);
+	}
 	char *buf = (char*)calloc(r_size, sizeof(char));
 	posix_memalign((void**)&buf, 512, r_size);
 	memset(buf, 0, r_size);
@@ -392,6 +421,7 @@ void stdx::_FileIOService::write_file(int file, const char * buffer, const size_
 		delete context_ptr;
 		callback(context, nullptr);
 	};
+	ptr->callback = call;
 	//投递操作
 	try
 	{
@@ -416,30 +446,124 @@ int64 stdx::_FileIOService::get_file_size(int file) const
 	return state.st_size;
 }
 
-//void stdx::_FileIOService::init_thread()
+void stdx::_FileIOService::close_file(int file)
+{
+	close(file);
+}
+
+void stdx::_FileIOService::init_thread()
+{
+	for (size_t i = 0, cores = cpu_cores() * 2; i < cores; i++)
+	{
+		stdx::threadpool::run([](aiocp_t &aiocp, std::shared_ptr<bool> alive)
+		{
+			while (*alive)
+			{
+				std::exception_ptr error(nullptr);
+				int64 res = 0;
+				auto *context_ptr = aiocp.get(res);
+				auto *call = context_ptr->callback;
+				try
+				{
+					if (res < 0)
+					{
+						throw std::system_error(std::error_code(-res, std::system_category()), strerror(-res));
+					}
+					else
+					{
+						context_ptr->size = res;
+					}
+					(*call)(context_ptr, error);
+					delete call;
+				}
+				catch (const std::exception&)
+				{
+					error = std::current_exception();
+					(*call)(nullptr, error);
+					delete call;
+				}
+			}
+		}, m_aiocp, m_alive);
+	}
+}
+
+//stdx::_FileStream::_FileStream(const io_service_t &io_service)
+//	:m_io_service(io_service)
+//	, m_file(-1)
+//{}
+//
+//stdx::_FileStream::~_FileStream()
 //{
-//	for (size_t i = 0, cores = cpu_cores() * 2; i < cores; i++)
+//	if (m_file != -1)
 //	{
-//		stdx::threadpool::run([](aiocp_t &aiocp, std::shared_ptr<bool> alive)
-//		{
-//			while (*alive)
-//			{
-//				std::exception_ptr error(nullptr);
-//				try
-//				{
-//					auto *context_ptr = aiocp.get();
-//					auto *call = context_ptr->callback;
-//					(*call)(context_ptr, error);
-//					delete call;
-//				}
-//				catch (const std::exception&)
-//				{
-//					error = std::current_exception();
-//				}
-//				
-//			}
-//		}, m_aiocp, m_alive);
+//		m_io_service.close_file(m_file);
+//		m_file = -1;
 //	}
 //}
+//
+//stdx::task<stdx::file_read_event> stdx::_FileStream::read(const size_t &size, const int64 &offset)
+//{
+//	if (!m_io_service)
+//	{
+//		throw std::logic_error("this io service has been free");
+//	}
+//	stdx::promise_ptr<file_read_event> promise = stdx::make_promise_ptr<file_read_event>();
+//	auto f = [](stdx::promise_ptr<file_read_event> promise)
+//	{
+//		return promise->get_future().get();
+//	};
+//	stdx::task<file_read_event> task(f,promise);
+//	m_io_service.read_file(m_file, size, offset, [promise,&task](file_read_event context, std::exception_ptr error) mutable ->void
+//	{
+//		if (error)
+//		{
+//			promise->set_exception(error);
+//		}
+//		else
+//		{
+//			promise->set_value(context);
+//		}
+//		task.run_on_this_thread();
+//		return;
+//	});
+//	return task;
+//}
+
+//stdx::task<stdx::file_write_event> stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset)
+//{
+//	if (!m_io_service)
+//	{
+//		throw std::logic_error("this io service has been free");
+//	}
+//	stdx::promise_ptr<file_write_event> promise = stdx::make_promise_ptr<file_write_event>();
+//	auto f = [](stdx::promise_ptr<file_read_event> promise)
+//	{
+//		return promise->get_future().get();
+//	};
+//	stdx::task<file_write_event> task(f,promise);
+//	m_io_service.write_file(m_file, buffer, size, offset, [promise, &task](file_write_event context, std::exception_ptr error) mutable
+//	{
+//		if (error)
+//		{
+//			promise->set_exception(error);
+//		}
+//		else
+//		{
+//			promise->set_value(context);
+//		}
+//		task.run_on_this_thread();
+//	});
+//	return task;
+//}
+
+//void stdx::_FileStream::close()
+//{
+//	if (m_file != -1)
+//	{
+//		m_io_service.close_file(m_file);
+//		m_file = -1;
+//	}
+//}
+
 #undef _ThrowLinuxError
 #endif // LINUX

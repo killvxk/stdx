@@ -156,6 +156,43 @@ int main(int argc, char **argv)
 	int success = size - errs;
 	std::cout << "转换已完成:	" << "Success(s):" << success << "	Error(s):" << errs << std::endl;
 #endif // ENABLE_FILE_TO_HEADER
-	stdx::_FileIOService service;
+#define ENABLE_FILE
+#ifdef ENABLE_FILE
+	stdx::file_io_service service;
+	int fd = service.create_file("./a.txt", stdx::file_access_type::all, stdx::file_open_type::open);
+	std::string str = "Hello World!!!!!!!!!";
+	service.write_file(fd, str.c_str(), str.size(), 0, [](stdx::file_write_event e, std::exception_ptr error)
+	{
+		try
+		{
+			if (error)
+			{
+				std::rethrow_exception(error);
+			}
+			std::cout << "success in writing file! bytes:" << e.size << std::endl;
+		}
+		catch (const std::exception&err)
+		{
+			std::cerr << err.what();
+		}
+	});
+	service.read_file(fd, str.size(), 0, [](stdx::file_read_event e, std::exception_ptr error)
+	{
+		try
+		{
+			if (error)
+			{
+				std::rethrow_exception(error);
+			}
+			std::cout << "success in reading file! bytes:" << e.buffer << std::endl;
+		}
+		catch (const std::exception&err)
+		{
+			std::cerr << err.what();
+		}
+	});
+	close(fd);
+	std::cin.get();
+#endif // ENABLE_FILE
 	return 0;
 }
