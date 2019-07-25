@@ -2,13 +2,12 @@
 #include <stdx/async/task.h>
 #include <iostream>
 #include <stdx/file.h>
-//#include <stdx/net/socket.h>
+#include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
-#include <sstream>
 int main(int argc, char **argv)
 {
-//#define ENABLE_WEB
+#define ENABLE_WEB
 #ifdef ENABLE_WEB
 #pragma region web_test
 	stdx::network_io_service service;
@@ -156,7 +155,7 @@ int main(int argc, char **argv)
 	int success = size - errs;
 	std::cout << "转换已完成:	" << "Success(s):" << success << "	Error(s):" << errs << std::endl;
 #endif // ENABLE_FILE_TO_HEADER
-#define ENABLE_FILE
+//#define ENABLE_FILE
 #ifdef ENABLE_FILE
 	stdx::file_io_service service;
 	int fd = service.create_file("./a.txt", stdx::file_access_type::all, stdx::file_open_type::open);

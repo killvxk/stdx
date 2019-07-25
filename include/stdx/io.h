@@ -158,7 +158,7 @@ namespace stdx
 
 		void post(DWORD size,_IOContext *context_ptr,OVERLAPPED *ol_ptr)
 		{
-			bool r = PostQueuedCompletionStatus(m_iocp, size, context_ptr, ol_ptr);
+			bool r = PostQueuedCompletionStatus(m_iocp, size, (ULONG_PTR)context_ptr, ol_ptr);
 			if (!r)
 			{
 				//处理错误
