@@ -15,4 +15,4 @@
 * 异步文件IO
 ---
 
-[前往](https://github.com/NaturalSelect/stdx/wiki)"Wiki"
+[中文文档](https://github.com/NaturalSelect/stdx/wiki)
