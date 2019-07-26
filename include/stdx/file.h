@@ -539,6 +539,9 @@ namespace stdx
 		file_io_service()
 			:m_impl(std::make_shared<_FileIOService>())
 		{}
+		file_io_service(uint32 nr_events)
+			:m_impl(std::make_shared<_FileIOService>(nr_events))
+		{}
 		file_io_service(const file_io_service &other)
 			:m_impl(other.m_impl)
 		{}
