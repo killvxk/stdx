@@ -1,13 +1,13 @@
 
-#include <stdx/async/task.h>
+
 #include <iostream>
 #include <stdx/file.h>
-#include <stdx/net/socket.h>
+//#include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
 int main(int argc, char **argv)
 {
-#define ENABLE_WEB
+//#define ENABLE_WEB
 #ifdef ENABLE_WEB
 #pragma region web_test
 	stdx::network_io_service service;
@@ -155,43 +155,50 @@ int main(int argc, char **argv)
 	int success = size - errs;
 	std::cout << "转换已完成:	" << "Success(s):" << success << "	Error(s):" << errs << std::endl;
 #endif // ENABLE_FILE_TO_HEADER
-//#define ENABLE_FILE
+#define ENABLE_FILE
 #ifdef ENABLE_FILE
 	stdx::file_io_service service;
-	int fd = service.create_file("./a.txt", stdx::file_access_type::all, stdx::file_open_type::open);
-	std::string str = "Hello World!!!!!!!!!";
-	service.write_file(fd, str.c_str(), str.size(), 0, [](stdx::file_write_event e, std::exception_ptr error)
+
+	//int fd = service.create_file("./a.txt", stdx::file_access_type::read, stdx::file_open_type::open);
+	//stdx::task_complete_event<stdx::file_read_event> ce;
+	//service.read_file(fd, 1024, 0, [ce](stdx::file_read_event e,std::exception_ptr err)mutable 
+	//{
+	//	ce.set_value(e);
+	//	ce.run_on_this_thread();
+	//});
+	//ce.get_task().then([](stdx::file_read_event e) 
+	//{
+	//	std::cout << e.buffer;
+	//});
+	stdx::file_stream stream = stdx::open_file(service,"./a.txt", stdx::file_access_type::read, stdx::file_open_type::open);
+	stream.read(1024, 0).then([stream](stdx::file_read_event e) mutable
 	{
-		try
+		std::cout << e.buffer<<"size:"<<e.buffer.size();
+		std::string str = "OK!";
+		stream.write(str.c_str(),str.size(),e.buffer.size()).then([](stdx::task_result<stdx::file_write_event> r) 
 		{
-			if (error)
+			try
 			{
-				std::rethrow_exception(error);
+				r.get();
+
 			}
-			std::cout << "success in writing file! bytes:" << e.size << std::endl;
-		}
-		catch (const std::exception&err)
-		{
-			std::cerr << err.what();
-		}
-	});
-	service.read_file(fd, str.size(), 0, [](stdx::file_read_event e, std::exception_ptr error)
-	{
-		try
-		{
-			if (error)
+			catch (const std::exception&err)
 			{
-				std::rethrow_exception(error);
+				std::cerr << err.what();
 			}
-			std::cout << "success in reading file! bytes:" << e.buffer << std::endl;
-		}
-		catch (const std::exception&err)
-		{
-			std::cerr << err.what();
-		}
+		});
 	});
-	close(fd);
 	std::cin.get();
 #endif // ENABLE_FILE
+//#define ENABLE_TASK
+#ifdef ENABLE_TASK
+	stdx::task<void> t([]() 
+	{
+		std::cout << "hello world";
+	});
+	t.run_on_this_thread();
+	std::cin.get();
+#endif // ENABLE_TASK
+
 	return 0;
 }

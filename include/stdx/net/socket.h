@@ -7,8 +7,7 @@
 #include <WinSock2.h>
 #pragma comment(lib,"Ws2_32.lib ")
 #endif 
-namespace stdx
-{
+
 #ifdef WIN32
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
@@ -33,6 +32,8 @@ namespace stdx
 							throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_STR.c_str());\
 						}\
 
+namespace stdx
+{
 	struct _WSAStarter
 	{
 		WSAData wsa;
@@ -521,13 +522,37 @@ namespace stdx
 			m_handle = m_io_service.create_socket(addr_family, sock_type, protocol);
 		}
 
-		stdx::task<stdx::network_send_event> send(const char *data, const size_t &size);
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
 
-		stdx::task<stdx::network_send_event> send_to(const network_addr &addr, const char *data, const size_t &size);
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send(data, size, ce);
+		}
 
-		stdx::task<stdx::network_recv_event> recv(const size_t &size);
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
 
-		stdx::task<stdx::network_recv_event> recv_from(const network_addr &addr, const size_t &size);
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send_to(addr,data, size, ce);
+		}
+
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size,stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv(size, ce);
+		}
+
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr, const size_t &size, stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr,const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv_from(addr,size, ce);
+		}
 
 		void bind(network_addr &addr)
 		{
@@ -573,7 +598,7 @@ namespace stdx
 
 		//返回true则继续
 		template<typename _Fn>
-		void recv_utill(const size_t &size, _Fn &call)
+		void recv_utill(const size_t &size, _Fn &&call)
 		{
 			static_assert(stdx::is_arguments_type<_Fn, stdx::task_result<stdx::network_recv_event>>, "the input function not be allowed");
 			static_assert(stdx::is_result_type<_Fn, bool>, "the input function not be allowed");
@@ -587,7 +612,7 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void recv_utill_error(const size_t &size, _Fn &call, _ErrHandler &err_handler)
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			static_assert(stdx::is_arguments_type<_Fn, stdx::network_recv_event>, "the input function not be allowed");
 			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r)
@@ -683,22 +708,22 @@ namespace stdx
 			return m_impl->remote_addr();
 		}
 
-		stdx::task<network_send_event> send(const char *data, const size_t &size)
+		stdx::task<network_send_event> &send(const char *data, const size_t &size)
 		{
 			return m_impl->send(data, size);
 		}
 
-		stdx::task<network_send_event> send_to(const network_addr &addr, const char *data, const size_t &size)
+		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
 		{
 			return m_impl->send_to(addr, data, size);
 		}
 
-		stdx::task<network_recv_event> recv(const size_t &size)
+		stdx::task<network_recv_event> &recv(const size_t &size)
 		{
 			return m_impl->recv(size);
 		}
 
-		stdx::task<network_recv_event> recv_from(const network_addr &addr, const size_t &size)
+		stdx::task<network_recv_event> &recv_from(const network_addr &addr, const size_t &size)
 		{
 			return m_impl->recv_from(addr, size);
 		}

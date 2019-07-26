@@ -383,108 +383,88 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 }
  }
 
- stdx::task<stdx::network_send_event> stdx::_Socket::send(const char * data, const size_t & size)
+ stdx::task<stdx::network_send_event> &stdx::_Socket::send(const char * data, const size_t & size,stdx::task_complete_event<stdx::network_send_event> ce)
  {
 	 if (!m_io_service)
 	 {
 		 throw std::logic_error("this io service has been free");
 	 }
-	 stdx::promise_ptr<network_send_event> promise = stdx::make_promise_ptr<network_send_event>();
-	 stdx::task<network_send_event> task([promise]()
-	 {
-		 return promise->get_future().get();
-	 });
-	 m_io_service.send(m_handle, data, size, [promise, task](stdx::network_send_event context, std::exception_ptr error) mutable
+	 m_io_service.send(m_handle, data, size, [ce](stdx::network_send_event context, std::exception_ptr error) mutable
 	 {
 		 if (error)
 		 {
-			 promise->set_exception(error);
+			 ce.set_exception(error);
 		 }
 		 else
 		 {
-			 promise->set_value(context);
+			 ce.set_value(context);
 		 }
-		 task.run_on_this_thread();
+		 ce.run_on_this_thread();
 	 });
-	 return task;
+	 return ce.get_task();
  }
 
- stdx::task<stdx::network_send_event> stdx::_Socket::send_to(const network_addr & addr, const char * data, const size_t & size)
+ stdx::task<stdx::network_send_event> &stdx::_Socket::send_to(const network_addr & addr, const char * data, const size_t & size,stdx::task_complete_event<stdx::network_send_event> ce)
  {
 	 if (!m_io_service)
 	 {
 		 throw std::logic_error("this io service has been free");
 	 }
-	 stdx::promise_ptr<network_send_event> promise = stdx::make_promise_ptr<network_send_event>();
-	 stdx::task<network_send_event> task([promise]()
-	 {
-		 return promise->get_future().get();
-	 });
-	 m_io_service.send_to(m_handle, addr, data, size, [promise, task](stdx::network_send_event context, std::exception_ptr error) mutable
+	 m_io_service.send_to(m_handle, addr, data, size, [ce](stdx::network_send_event context, std::exception_ptr error) mutable
 	 {
 		 if (error)
 		 {
-			 promise->set_exception(error);
+			 ce.set_exception(error);
 		 }
 		 else
 		 {
-			 promise->set_value(context);
+			 ce.set_value(context);
 		 }
-		 task.run_on_this_thread();
+		 ce.run_on_this_thread();
 	 });
-	 return task;
+	 return ce.get_task();
  }
 
- stdx::task<stdx::network_recv_event> stdx::_Socket::recv(const size_t & size)
+ stdx::task<stdx::network_recv_event> &stdx::_Socket::recv(const size_t & size, stdx::task_complete_event<stdx::network_recv_event> ce)
  {
 	 if (!m_io_service)
 	 {
 		 throw std::logic_error("this io service has been free");
 	 }
-	 stdx::promise_ptr<network_recv_event> promise = stdx::make_promise_ptr<network_recv_event>();
-	 stdx::task<network_recv_event> task([promise]()
-	 {
-		 return promise->get_future().get();
-	 });
-	 m_io_service.recv(m_handle, size, [promise, task](stdx::network_recv_event context, std::exception_ptr error) mutable
+	 m_io_service.recv(m_handle, size, [ce](stdx::network_recv_event context, std::exception_ptr error) mutable
 	 {
 		 if (error)
 		 {
-			 promise->set_exception(error);
+			 ce.set_exception(error);
 		 }
 		 else
 		 {
-			 promise->set_value(context);
+			 ce.set_value(context);
 		 }
-		 task.run_on_this_thread();
+		 ce.run_on_this_thread();
 	 });
-	 return task;
+	 return ce.get_task();
  }
 
- stdx::task<stdx::network_recv_event> stdx::_Socket::recv_from(const network_addr & addr, const size_t & size)
+ stdx::task<stdx::network_recv_event> &stdx::_Socket::recv_from(const network_addr & addr, const size_t & size,stdx::task_complete_event<stdx::network_recv_event> ce)
  {
 	 if (!m_io_service)
 	 {
 		 throw std::logic_error("this io service has been free");
 	 }
-	 stdx::promise_ptr<network_recv_event> promise = stdx::make_promise_ptr<network_recv_event>();
-	 stdx::task<network_recv_event> task([promise]()
-	 {
-		 return promise->get_future().get();
-	 });
-	 m_io_service.recv_from(m_handle, addr, size, [promise, task](stdx::network_recv_event context, std::exception_ptr error) mutable
+	 m_io_service.recv_from(m_handle, addr, size, [ce](stdx::network_recv_event context, std::exception_ptr error) mutable
 	 {
 		 if (error)
 		 {
-			 promise->set_exception(error);
+			 ce.set_exception(error);
 		 }
 		 else
 		 {
-			 promise->set_value(context);
+			 ce.set_value(context);
 		 }
-		 task.run_on_this_thread();
+		 ce.run_on_this_thread();
 	 });
-	 return task;
+	 return ce.get_task();
  }
 
  void stdx::_Socket::close()

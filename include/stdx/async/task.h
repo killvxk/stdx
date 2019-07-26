@@ -6,8 +6,8 @@
 #include <stdx/traits/ref_type.h>
 #include <stdx/traits/value_type.h>
 #include <stdx/function.h>
-//#include <stdx/tuple.h>
 #include <stdx/env.h>
+
 namespace stdx
 {
 	//Task状态
@@ -120,11 +120,6 @@ namespace stdx
 		task(_Fn &&fn, _Args &&...args)
 			:m_impl(std::make_shared<_Task<_R>>(std::move(fn), args...))
 		{}
-
-		//template<typename _Fn, typename ..._Args>
-		//task(_Fn &&fn, _Args &&...args)
-		//	:m_impl(std::make_shared<_Task<_R>>(fn, args...))
-		//{}
 
 		explicit task(impl_t impl)
 			:m_impl(impl)
@@ -654,4 +649,82 @@ namespace stdx
 	{
 		return task<_R>::start(fn,args...);
 	}
+
+	template<typename _R>
+	class _TaskCompleteEvent
+	{
+	public:
+		_TaskCompleteEvent()
+			:m_promise(stdx::make_promise_ptr<_R>())
+			, m_task([](promise_ptr<_R> promise) 
+			{
+				return promise->get_future().get();
+			},m_promise)
+		{}
+		~_TaskCompleteEvent()=default;
+		void set_value(const _R &value)
+		{
+			m_promise->set_value(value);
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_promise->set_exception(error);
+		}
+		stdx::task<_R> &get_task()
+		{
+			return m_task;
+		}
+		void run()
+		{
+			m_task.run();
+		}
+		void run_on_this_thread()
+		{
+			m_task.run_on_this_thread();
+		}
+	private:
+		promise_ptr<_R> m_promise;
+		stdx::task<_R> m_task;
+	};
+
+	template<typename _R>
+	class task_complete_event
+	{
+		using impl_t = std::shared_ptr<_TaskCompleteEvent<_R>>;
+	public:
+		task_complete_event()
+			:m_impl(std::make_shared<_TaskCompleteEvent<_R>>())
+		{}
+		task_complete_event(const task_complete_event<_R> &other)
+			:m_impl(other.m_impl)
+		{}
+		~task_complete_event()=default;
+		task_complete_event<_R> &operator=(const task_complete_event<_R> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void set_value(const _R &value)
+		{
+			m_impl->set_value(value);
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_impl->set_exception(error);
+		}
+		stdx::task<_R> &get_task()
+		{
+			return m_impl->get_task();
+		}
+		void run()
+		{
+			m_impl->run();
+		}
+		void run_on_this_thread()
+		{
+			m_impl->run_on_this_thread();
+		}
+	private:
+		impl_t m_impl;
+	};
 }

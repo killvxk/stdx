@@ -233,56 +233,46 @@ stdx::_FileStream::~_FileStream()
 	}
 }
 
-stdx::task<stdx::file_read_event> stdx::_FileStream::read(const size_t &size, const int64 &offset)
+stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int64 & offset, stdx::task_complete_event<stdx::file_read_event> ce)
 {
 	if (!m_io_service)
 	{
 		throw std::logic_error("this io service has been free");
 	}
-	stdx::promise_ptr<file_read_event> promise = stdx::make_promise_ptr<file_read_event>();
-	stdx::task<file_read_event> task([promise]()
-	{
-		return promise->get_future().get();
-	});
-	m_io_service.read_file(m_file, size, offset, [promise, task](file_read_event context, std::exception_ptr error) mutable
+	m_io_service.read_file(m_file, size, offset, [ce](file_read_event context, std::exception_ptr error) mutable
 	{
 		if (error)
 		{
-			promise->set_exception(error);
+			ce.set_exception(error);
 		}
 		else
 		{
-			promise->set_value(context);
+			ce.set_value(context);
 		}
-		task.run_on_this_thread();
+		ce.run_on_this_thread();
 	});
-	return task;
+	return ce.get_task();
 }
 
-stdx::task<stdx::file_write_event> stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset)
+stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset, stdx::task_complete_event<stdx::file_write_event> ce)
 {
 	if (!m_io_service)
 	{
 		throw std::logic_error("this io service has been free");
 	}
-	stdx::promise_ptr<file_write_event> promise = stdx::make_promise_ptr<file_write_event>();
-	stdx::task<file_write_event> task([promise]()
-	{
-		return promise->get_future().get();
-	});
-	m_io_service.write_file(m_file, buffer, size, offset, [promise, task](file_write_event context, std::exception_ptr error) mutable
+	m_io_service.write_file(m_file, buffer, size, offset, [ce](file_write_event context, std::exception_ptr error) mutable
 	{
 		if (error)
 		{
-			promise->set_exception(error);
+			ce.set_exception(error);
 		}
 		else
 		{
-			promise->set_value(context);
+			ce.set_value(context);
 		}
-		task.run_on_this_thread();
+		ce.run_on_this_thread();
 	});
-	return task;
+	return ce.get_task();
 }
 
 void stdx::_FileStream::close()
@@ -487,83 +477,77 @@ void stdx::_FileIOService::init_thread()
 	}
 }
 
-//stdx::_FileStream::_FileStream(const io_service_t &io_service)
-//	:m_io_service(io_service)
-//	, m_file(-1)
-//{}
-//
-//stdx::_FileStream::~_FileStream()
-//{
-//	if (m_file != -1)
-//	{
-//		m_io_service.close_file(m_file);
-//		m_file = -1;
-//	}
-//}
-//
-//stdx::task<stdx::file_read_event> stdx::_FileStream::read(const size_t &size, const int64 &offset)
-//{
-//	if (!m_io_service)
-//	{
-//		throw std::logic_error("this io service has been free");
-//	}
-//	stdx::promise_ptr<file_read_event> promise = stdx::make_promise_ptr<file_read_event>();
-//	auto f = [](stdx::promise_ptr<file_read_event> promise)
-//	{
-//		return promise->get_future().get();
-//	};
-//	stdx::task<file_read_event> task(f,promise);
-//	m_io_service.read_file(m_file, size, offset, [promise,&task](file_read_event context, std::exception_ptr error) mutable ->void
-//	{
-//		if (error)
-//		{
-//			promise->set_exception(error);
-//		}
-//		else
-//		{
-//			promise->set_value(context);
-//		}
-//		task.run_on_this_thread();
-//		return;
-//	});
-//	return task;
-//}
+stdx::_FileStream::_FileStream(const io_service_t &io_service)
+	:m_io_service(io_service)
+	, m_file(-1)
+{}
 
-//stdx::task<stdx::file_write_event> stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset)
-//{
-//	if (!m_io_service)
-//	{
-//		throw std::logic_error("this io service has been free");
-//	}
-//	stdx::promise_ptr<file_write_event> promise = stdx::make_promise_ptr<file_write_event>();
-//	auto f = [](stdx::promise_ptr<file_read_event> promise)
-//	{
-//		return promise->get_future().get();
-//	};
-//	stdx::task<file_write_event> task(f,promise);
-//	m_io_service.write_file(m_file, buffer, size, offset, [promise, &task](file_write_event context, std::exception_ptr error) mutable
-//	{
-//		if (error)
-//		{
-//			promise->set_exception(error);
-//		}
-//		else
-//		{
-//			promise->set_value(context);
-//		}
-//		task.run_on_this_thread();
-//	});
-//	return task;
-//}
+stdx::_FileStream::~_FileStream()
+{
+	if (m_file != -1)
+	{
+		m_io_service.close_file(m_file);
+		m_file = -1;
+	}
+}
 
-//void stdx::_FileStream::close()
-//{
-//	if (m_file != -1)
-//	{
-//		m_io_service.close_file(m_file);
-//		m_file = -1;
-//	}
-//}
+stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int64 & offset,stdx::task_complete_event<stdx::file_read_event> ce)
+{
+	if (!m_io_service)
+	{
+		throw std::logic_error("this io service has been free");
+	}
+	m_io_service.read_file(m_file, size, offset, [ce](file_read_event context, std::exception_ptr error) mutable
+	{
+		if (error)
+		{
+			ce.set_exception(error);
+		}
+		else
+		{
+			ce.set_value(context);
+		}
+		ce.run_on_this_thread();
+	});
+	return ce.get_task();
+}
 
+
+stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce)
+{
+	if (!m_io_service)
+	{
+		throw std::logic_error("this io service has been free");
+	}
+	m_io_service.write_file(m_file, buffer, size, offset, [ce](file_write_event context, std::exception_ptr error) mutable
+	{
+		if (error)
+		{
+			ce.set_exception(error);
+		}
+		else
+		{
+			ce.set_value(context);
+		}
+		ce.run_on_this_thread();
+	});
+	return ce.get_task();
+}
+
+void stdx::_FileStream::close()
+{
+	if (m_file != -1)
+	{
+		m_io_service.close_file(m_file);
+		m_file = -1;
+	}
+}
+
+stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
+{
+	stdx::file_stream file(io_service);
+	file.init(path, access_type, open_type);
+	return file;
+}
 #undef _ThrowLinuxError
 #endif // LINUX
