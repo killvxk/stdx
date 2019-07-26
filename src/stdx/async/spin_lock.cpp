@@ -13,7 +13,7 @@ void stdx::_SpinLock::wait()
 	}
 }
 
-void stdx::_SpinLock::unlock()
+void stdx::_SpinLock::unlock() noexcept
 {
 	m_locked.store(false);
 }

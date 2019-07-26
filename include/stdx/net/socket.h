@@ -169,7 +169,10 @@ namespace stdx
 
 	struct network_send_event
 	{
-		network_send_event() = default;
+		network_send_event()
+			:sock(INVALID_SOCKET)
+			,size(0)
+		{}
 		~network_send_event() = default;
 		network_send_event(const network_send_event &other)
 			:sock(other.sock)
@@ -195,7 +198,11 @@ namespace stdx
 
 	struct network_recv_event
 	{
-		network_recv_event() = default;
+		network_recv_event()
+			:sock(INVALID_SOCKET)
+			,buffer(0,nullptr)
+			,size(0)
+		{}
 		~network_recv_event() = default;
 		network_recv_event(const network_recv_event &other)
 			:sock(other.sock)

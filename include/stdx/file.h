@@ -38,7 +38,12 @@ namespace stdx
 	//文件读取完成事件
 	struct file_read_event
 	{
-		file_read_event() = default;
+		file_read_event()
+			:file(INVALID_HANDLE_VALUE)
+			,buffer(0,nullptr)
+			,offset(0)
+			,eof(false)
+		{}
 		~file_read_event() = default;
 		file_read_event(const file_read_event &other)
 			:file(other.file)
@@ -76,7 +81,10 @@ namespace stdx
 	//文件写入完成事件
 	struct file_write_event
 	{
-		file_write_event() = default;
+		file_write_event()
+			:file(INVALID_HANDLE_VALUE)
+			,size(0)
+		{}
 		~file_write_event() = default;
 		file_write_event(const file_write_event &other)
 			:file(other.file)
@@ -350,7 +358,7 @@ namespace stdx
 
 		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset)
 		{
-			m_impl->read(size, offset);
+			return m_impl->read(size, offset);
 		}
 
 		stdx::task<file_write_event> &write(const char* buffer,const size_t &size,const int64 &offset)
@@ -420,7 +428,12 @@ namespace stdx
 	//文件读取完成事件
 	struct file_read_event
 	{
-		file_read_event() = default;
+		file_read_event()
+			:file(-1)
+			, buffer(0,nullptr)
+			, offset(0)
+			, eof(false)
+		{}
 		~file_read_event() = default;
 		file_read_event(const file_read_event &other)
 			:file(other.file)
@@ -458,7 +471,10 @@ namespace stdx
 	//文件写入完成事件
 	struct file_write_event
 	{
-		file_write_event() = default;
+		file_write_event()
+			:file(-1)
+			,size(0)
+		{}
 		~file_write_event() = default;
 		file_write_event(const file_write_event &other)
 			:file(other.file)

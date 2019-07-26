@@ -61,6 +61,7 @@ void stdx::_FileIOService::read_file(HANDLE file, const DWORD &size, const int64
 	{
 		if (error)
 		{
+			free(context_ptr->buffer);
 			callback(file_read_event(), error);
 			delete context_ptr;
 			return;
@@ -349,6 +350,7 @@ void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 
 	{
 		if (error)
 		{
+			free(context_ptr->buffer);
 			callback(file_read_event(), error);
 			delete context_ptr;
 			return;
@@ -397,6 +399,10 @@ void stdx::_FileIOService::write_file(int file, const char * buffer, const size_
 	std::function<void(file_io_context*, std::exception_ptr)> *call = new std::function<void(file_io_context*, std::exception_ptr)>;
 	*call = [callback, size](file_io_context *context_ptr, std::exception_ptr error)
 	{
+		if (context_ptr->buffer != nullptr)
+		{
+			free(context_ptr->buffer);
+		}
 		if (error)
 		{
 			callback(file_write_event(), error);

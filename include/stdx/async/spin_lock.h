@@ -14,7 +14,7 @@ namespace stdx
 
 		void wait();
 
-		void unlock();
+		void unlock() noexcept;
 	private:
 		std::atomic_bool m_locked;
 	};
@@ -40,7 +40,7 @@ namespace stdx
 		{
 			m_impl->wait();
 		}
-		void unlock()
+		void unlock() noexcept
 		{
 			m_impl->unlock();
 		}
