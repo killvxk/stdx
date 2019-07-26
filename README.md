@@ -5,14 +5,14 @@
 * 部分内容仅完成了一半(WINDOWS部分)
 ---
 包括:
-* Task
-* SpinLock
-* ThreadPool
-* Barrier
-* TypeList
-* FunctionInfo
+* 多线程任务
+* 简单自旋锁
+* 线程池
+* 屏障
+* 类型列表
+* 函数信息
 * Socket(windows only)
-* AsyncFileStream(windows only)
+* 异步文件IO
 ---
-帮助我进行开发:
-2145973003@qq.com
+
+[前往](https://github.com/NaturalSelect/stdx/wiki)"Wiki"
