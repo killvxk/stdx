@@ -156,7 +156,7 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename ..._Args>
-		static task<_R> start(_Fn &fn, _Args &...args)
+		static task<_R> start(_Fn &&fn, _Args &&...args)
 		{
 			auto t = task<_R>(fn, args...);
 			t.run();
@@ -645,7 +645,7 @@ namespace stdx
 
 	//启动一个Task
 	template<typename _Fn, typename ..._Args,typename _R = typename stdx::function_info<_Fn>::result>
-	inline stdx::task<_R> async(const _Fn &fn, _Args &...args)
+	inline stdx::task<_R> async(_Fn &&fn, _Args &&...args)
 	{
 		return task<_R>::start(fn,args...);
 	}

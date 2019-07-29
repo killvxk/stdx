@@ -1,5 +1,3 @@
-
-
 #include <iostream>
 #include <stdx/file.h>
 //#include <stdx/net/socket.h>
@@ -155,7 +153,7 @@ int main(int argc, char **argv)
 	int success = size - errs;
 	std::cout << "转换已完成:	" << "Success(s):" << success << "	Error(s):" << errs << std::endl;
 #endif // ENABLE_FILE_TO_HEADER
-#define ENABLE_FILE
+//#define ENABLE_FILE
 #ifdef ENABLE_FILE
 	stdx::file_io_service service;
 
@@ -192,6 +190,7 @@ int main(int argc, char **argv)
 #endif // ENABLE_FILE
 //#define ENABLE_TASK
 #ifdef ENABLE_TASK
+
 	stdx::task<void> t([]() 
 	{
 		std::cout << "hello world";
@@ -199,6 +198,21 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
-
+	struct test
+	{
+		int i;
+		void execute()
+		{
+			auto t = stdx::async([this]() mutable
+			{
+				i = 1;
+			});
+			t.wait();
+		}
+	};
+	test t;
+	t.i = 0;
+	t.execute();
+	printf("val:%d",t.i);
 	return 0;
 }

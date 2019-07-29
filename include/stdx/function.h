@@ -124,7 +124,7 @@ namespace stdx
 	template<typename _t, typename _fn>
 	struct _ActionRunner
 	{
-		static _t run(_fn &fn)
+		static _t run(_fn &&fn)
 		{
 			return fn();
 		}
@@ -133,7 +133,7 @@ namespace stdx
 	template<typename _fn>
 	struct _ActionRunner<void, _fn>
 	{
-		static void run(_fn &fn)
+		static void run(_fn &&fn)
 		{
 			fn();
 			return;
@@ -147,7 +147,7 @@ namespace stdx
 		_Runable()
 			:_BasicRunable<_R>()
 		{}
-		_Runable(_Fn &&fn)
+		_Runable(const _Fn &fn)
 			:_BasicRunable<_R>()
 			, m_func(fn)
 		{}
@@ -155,7 +155,7 @@ namespace stdx
 
 		virtual _R run() override
 		{
-			return _ActionRunner<_R,_Fn>::run(m_func);
+			return _ActionRunner<_R,_Fn>::run(std::move(m_func));
 		}
 
 		operator bool()
