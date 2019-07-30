@@ -512,7 +512,6 @@ namespace stdx
 			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicTask>>(nullptr))
 			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
-
 		{
 		}
 

@@ -470,160 +470,170 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	//struct ev_queue
-	//{
-	//	ev_queue()
-	//		:m_lock()
-	//		,m_existed(false)
-	//		,m_queue()
-	//	{}
-	//	ev_queue(ev_queue &&other)
-	//		:m_lock(other.m_lock)
-	//		,m_existed(other.m_existed)
-	//		,m_queue(std::move(other.m_queue))
-	//	{}
-	//	~ev_queue() = default;
-	//	ev_queue &operator=(const ev_queue &&other)
-	//	{
-	//		m_lock = other.m_lock;
-	//		m_existed = other.m_existed;
-	//		m_queue = std::move(other.m_queue);
-	//		return *this;
-	//	}
-	//	stdx::spin_lock m_lock;
-	//	bool m_existed;
-	//	std::queue<epoll_event> m_queue;
-	//};
+	struct ev_queue
+	{
+		ev_queue()
+			:m_lock()
+			,m_existed(false)
+			,m_queue()
+		{}
+		ev_queue(ev_queue &&other)
+			:m_lock(other.m_lock)
+			,m_existed(other.m_existed)
+			,m_queue(std::move(other.m_queue))
+		{}
+		~ev_queue() = default;
+		ev_queue &operator=(const ev_queue &&other)
+		{
+			m_lock = other.m_lock;
+			m_existed = other.m_existed;
+			m_queue = std::move(other.m_queue);
+			return *this;
+		}
+		stdx::spin_lock m_lock;
+		bool m_existed;
+		std::queue<epoll_event> m_queue;
+	};
 
-	//template<typename _IOContext,typename _Executer>
-	//class _Reactor
-	//{
-	//public:
-	//	_Reactor()
-	//		:m_map()
-	//		,m_poll()
-	//	{}
-	//	~_Reactor()=default;
+	class _Reactor
+	{
+	public:
+		_Reactor()
+			:m_map()
+			,m_poll()
+		{}
+		~_Reactor()=default;
 
-	//	void bind(int fd)
-	//	{
-	//		auto iterator = m_map.find(fd);
-	//		if (iterator == std::end(m_map))
-	//		{
-	//			m_map.emplace(fd,std::move(make()));
-	//		}
-	//	}
+		void bind(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator == std::end(m_map))
+			{
+				m_map.emplace(fd, std::move(make()));
+			}
+		}
 
-	//	template<typename _Fn>
-	//	void *get(_Fn &callback)
-	//	{
-	//		static_assert(is_arguments_type(_Fn, _IOContext*), "ths input function not be allowed");
-	//		auto ev = m_poll.wait(-1);
-	//		int fd = (int)_Executer::get_fd(&ev);
-	//		std::function<void(_IOContext*)> call = [this](_IOContext *ptr,_Fn &callback,int fd) mutable
-	//		{
-	//			callback(ptr);
-	//			loop(fd);
-	//		};
-	//		threadpool::run([](epoll_event &ev,int fd, std::function<void(_IOContext*)> call,_Fn &callback)
-	//		{
-	//			try
-	//			{
-	//				_Executer::execute(&ev);
-	//			}
-	//			catch (const std::exception& e)
-	//			{
-	//				auto ptr = (_IOContext*)ev.data.ptr;
-	//				call(ptr,callback,fd);
-	//				return;
-	//			}
-	//			auto ptr = (_IOContext*)ev.data.ptr;
-	//			call(ptr);
-	//		},ev,fd,call,callback,callback,fd);
-	//	}
+		void unbind(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				m_map.erase(iterator);
+			}
+		}
 
-	//	void push(int fd,const epoll_event &ev)
-	//	{
-	//		auto iterator = m_map.find(fd);
-	//		if (iterator != std::end(m_map))
-	//		{
-	//			std::lock_guard<stdx::spin_lock> wait(iterator->second.m_lock);
-	//			if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
-	//			{
-	//				m_poll.add_event(&ev);
-	//				iterator->second.m_existed = true;
-	//			}
-	//			else
-	//			{
-	//				iterator->second.m_queue.push(std::move(ev));
-	//			}
-	//		}
-	//		else
-	//		{
-	//			throw std::invalid_argument("invalid argument: fd");
-	//		}
-	//	}
-	//	void loop(int fd)
-	//	{
-	//		auto iterator = m_map.find(fd);
-	//		if (iterator != std::end(m_map))
-	//		{
-	//			std::unique_lock<stdx::spin_lock> wait(iterator->second.m_lock);
-	//			if (!iterator->second.m_queue.empty())
-	//			{
-	//				auto ev = iterator->second.m_queue.front();
-	//				m_poll.update_event(fd, &ev);
-	//				iterator->second.m_queue.pop();
-	//			}
-	//			else
-	//			{
-	//				m_poll.del_event(fd);
-	//				iterator->second.m_existed = false;
-	//			}
-	//		}
-	//	}
-	//private:
-	//	stdx::ev_queue make()
-	//	{
-	//		return ev_queue();
-	//	}
-	//private:
-	//	std::unordered_map<int,ev_queue> m_map;
-	//	stdx::epoll m_poll;
-	//};
-	//
-	//template<typename _IOContext, typename _Executer>
-	//class reactor
-	//{
-	//	using impl_t = std::shared_ptr<_Reactor<_IOContext,_Executer>>;
-	//public:
-	//	reactor()
-	//		:m_impl(std::make_shared<_Reactor<_IOContext,_Executer>>())
-	//	{}
-	//	reactor(const reactor<_IOContext, _Executer> &other)
-	//		:m_impl(other.m_impl)
-	//	{}
-	//	~reactor()=default;
-	//	reactor<_IOContext, _Executer> &operator=(const reactor<_IOContext, _Executer> &other)
-	//	{
-	//		m_impl = other.m_impl;
-	//		return *this;
-	//	}
-	//	void bind(int fd)
-	//	{
-	//		return m_impl->bind(fd);
-	//	}
-	//	_IOContext *get()
-	//	{
-	//		return m_impl->get();
-	//	}
-	//	void push(int fd,const epoll_event &ev)
-	//	{
-	//		return m_impl->push(fd,ev);
-	//	}
-	//private:
-	//	impl_t m_impl;
-	//};
+		template<typename _Fn>
+		void *get(_Fn &&execute)
+		{
+			static_assert(is_arguments_type(_Fn, epoll_event*), "ths input function not be allowed");
+			epoll_event *ev = m_poll.wait(-1);
+			int fd = ev->data.ptr->fd;
+			std::function<void(epoll_event*,_Fn&&,int)> call = [this](epoll_event *ev_ptr,_Fn &&execute,int fd) mutable
+			{
+				try
+				{
+					execute(ev_ptr);
+				}
+				catch (...)
+				{
+				}
+				loop(fd);
+			};
+			threadpool::run([](epoll_event &ev,_Fn &&execute,int fd, std::function<void(epoll_event*, _Fn&&,int)> &&call)
+			{
+				call(ev, execute, fd);
+			},ev, execute,fd,call);
+		}
+
+		void push(int fd,epoll_event &&ev)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
+				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
+				{
+					m_poll.add_event(fd,&ev);
+					iterator->second.m_existed = true;
+				}
+				else
+				{
+					iterator->second.m_queue.push(std::move(ev));
+				}
+			}
+			else
+			{
+				throw std::invalid_argument("invalid argument: fd");
+			}
+		}
+		void loop(int fd)
+		{
+			auto iterator = m_map.find(fd);
+			if (iterator != std::end(m_map))
+			{
+				std::unique_lock<stdx::spin_lock> lock(iterator->second.m_lock);
+				if (!iterator->second.m_queue.empty())
+				{
+					auto ev = iterator->second.m_queue.front();
+					m_poll.update_event(fd, &ev);
+					iterator->second.m_queue.pop();
+				}
+				else
+				{
+					m_poll.del_event(fd);
+					iterator->second.m_existed = false;
+				}
+			}
+		}
+	private:
+		stdx::ev_queue make()
+		{
+			return ev_queue();
+		}
+	private:
+		std::unordered_map<int,ev_queue> m_map;
+		stdx::epoll m_poll;
+	};
+	
+	class reactor
+	{
+		using impl_t = std::shared_ptr<stdx::_Reactor>;
+	public:
+		reactor()
+			:m_impl(std::make_shared<stdx::_Reactor>())
+		{}
+		reactor(const reactor &other)
+			:m_impl(other.m_impl)
+		{}
+		~reactor()=default;
+		reactor &operator=(const reactor &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void bind(int fd)
+		{
+			return m_impl->bind(fd);
+		}
+
+		void unbind(int fd)
+		{
+			return m_impl->unbind(fd);
+		}
+
+		template<typename _Fn>
+		void get(_Fn &&execute)
+		{
+			return m_impl->get(execute);
+		}
+
+		void push(int fd,const epoll_event &&ev)
+		{
+			return m_impl->push(fd,ev);
+		}
+	private:
+		impl_t m_impl;
+	};
 }
 
 #undef _ThrowLinuxError

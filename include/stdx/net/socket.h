@@ -762,5 +762,35 @@ namespace stdx
 #endif //Win32
 
 #ifdef LINUX
-
+#include <sys/socket.h>
+#include <netdb.h>
+namespace stdx
+{
+	struct protocol
+	{
+		enum
+		{
+			ip = IPPROTO_IP,
+			tcp = IPPROTO_TCP,
+			udp = IPPROTO_UDP
+		};
+	};
+	struct socket_type
+	{
+		enum
+		{
+			raw = SOCK_RAW,
+			stream = SOCK_STREAM,
+			dgram = SOCK_DGRAM
+		};
+	};
+	struct addr_family
+	{
+		enum
+		{
+			ip = AF_INET,
+			ipv6 = AF_INET6
+		};
+	};
+}
 #endif //LINUX

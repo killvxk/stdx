@@ -51,3 +51,4 @@ void stdx::_Buffer::copy_from(const stdx::_Buffer &other)
 	}
 	memcpy(m_data, other, new_size);
 }
+
