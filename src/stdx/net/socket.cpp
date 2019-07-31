@@ -296,29 +296,6 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 return addr;
  }
 
- bool stdx::_NetworkIOService::poll(SOCKET sock, int16 mode, int32 timeout) const
- {
-	 WSAPOLLFD fd;
-	 fd.events = mode;
-	 int r = WSAPoll(&fd, 1, timeout);
-	 if (r == 0)
-	 {
-		 return false;
-	 }
-	 if (r > 0)
-	 {
-		 if (fd.revents == mode)
-		 {
-			 return true;
-		 }
-	 }
-	 if (r == SOCKET_ERROR)
-	 {
-		 _ThrowWSAError
-	 }
-	 return false;
- }
-
  //static LPFN_ACCEPTEX accept_ex;
  //static LPFN_GETACCEPTEXSOCKADDRS get_addr_ex;
 
@@ -486,5 +463,37 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 #endif
 
 #ifdef LINUX
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
+ void stdx::_NetworkIOService::connect(int sock, stdx::network_addr &addr)
+ {
+	 if (::connect(sock,addr,network_addr::addr_len) == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+ }
+
+ stdx::network_addr stdx::_NetworkIOService::get_local_addr(int sock) const
+ {
+	 network_addr addr;
+	 socklen_t len = network_addr::addr_len;
+	 if (getsockname(sock, addr, &len) == -1)
+	 {
+		 _ThrowLinuxError
+	 } 
+	 return addr;
+ }
+
+ stdx::network_addr stdx::_NetworkIOService::get_remote_addr(int sock)const
+ {
+	 network_addr addr;
+	 socklen_t len = network_addr::addr_len;
+	 if (getpeername(sock, addr, &len) == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+	 return addr;
+ }
+#undef _ThrowLinuxError
 #endif // LINUX

@@ -527,7 +527,7 @@ namespace stdx
 		{
 			static_assert(is_arguments_type(_Fn, epoll_event*), "ths input function not be allowed");
 			epoll_event *ev = m_poll.wait(-1);
-			int fd = ev->data.ptr->fd;
+			int fd = ev->data.ptr->get_fd();
 			std::function<void(epoll_event*,_Fn&&,int)> call = [this](epoll_event *ev_ptr,_Fn &&execute,int fd) mutable
 			{
 				try

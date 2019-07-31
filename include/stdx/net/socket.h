@@ -301,8 +301,6 @@ namespace stdx
 
 		network_addr get_remote_addr(SOCKET sock) const;
 
-		bool poll(SOCKET sock, int16 mode, int32 timeout) const;
-
 		//void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
 		//{
 		//	GUID id = WSAID_ACCEPTEX;
@@ -494,10 +492,6 @@ namespace stdx
 		network_addr get_remote_addr(SOCKET sock) const
 		{
 			return m_impl->get_remote_addr(sock);
-		}
-		bool poll(SOCKET sock, int16 mode, int32 timeout) const
-		{
-			return m_impl->poll(sock, mode, timeout);
 		}
 		operator bool() const
 		{
@@ -764,6 +758,11 @@ namespace stdx
 #ifdef LINUX
 #include <sys/socket.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
+
 namespace stdx
 {
 	struct protocol
@@ -792,5 +791,201 @@ namespace stdx
 			ipv6 = AF_INET6
 		};
 	};
+
+	class network_addr
+	{
+	public:
+		network_addr() = default;
+		network_addr(unsigned long ip, const uint16 &port)
+		{
+			m_handle.sin_family = addr_family::ip;
+			m_handle.sin_addr.s_addr = ip;
+			m_handle.sin_port = htons(port);
+		}
+		network_addr(const char *ip, const uint16 &port)
+			:network_addr(inet_addr(ip), port)
+		{}
+		network_addr(const network_addr &other)
+			:m_handle(other.m_handle)
+		{}
+		~network_addr() = default;
+		operator sockaddr_in* ()
+		{
+			return &m_handle;
+		}
+
+		operator sockaddr*()
+		{
+			return (sockaddr*)&m_handle;
+		}
+
+		network_addr &operator=(const network_addr &other)
+		{
+			m_handle = other.m_handle;
+			return *this;
+		}
+
+		network_addr &operator=(network_addr &&other)
+		{
+			m_handle = other.m_handle;
+			return *this;
+		}
+
+		const static int addr_len = sizeof(sockaddr);
+		network_addr &port(const uint16 &port)
+		{
+			m_handle.sin_port = htons(port);
+			return *this;
+		}
+		uint16 port() const
+		{
+			return ntohs(m_handle.sin_port);
+		}
+		const char *ip() const
+		{
+			return inet_ntoa(m_handle.sin_addr);
+		}
+		network_addr &ip(const char *ip)
+		{
+			m_handle.sin_addr.s_addr = inet_addr(ip);
+			return *this;
+		}
+	private:
+		sockaddr_in m_handle;
+	};
+
+	struct network_io_context
+	{
+		network_io_context() = default;
+		~network_io_context() = default;
+		int get_fd() const
+		{
+			return this_socket;
+		}
+		int this_socket;
+		network_addr addr;
+		char *buffer;
+		size_t size;
+		int target_socket;
+		std::function <void(network_io_context*, std::exception_ptr)> *callback;
+	};
+	struct network_send_event
+	{
+		network_send_event()
+			:sock(-1)
+			,size(0)
+		{}
+		~network_send_event() = default;
+		network_send_event(const network_send_event &other)
+			:sock(other.sock)
+			, size(other.size)
+		{}
+		network_send_event(network_send_event &&other)
+			:sock(std::move(other.sock))
+			, size(std::move(other.size))
+		{}
+		network_send_event &operator=(const network_send_event &other)
+		{
+			sock = other.sock;
+			size = other.size;
+			return *this;
+		}
+		network_send_event(network_io_context *ptr)
+			:sock(ptr->this_socket)
+			, size(ptr->size)
+		{}
+		int sock;
+		size_t size;
+	};
+
+	struct network_recv_event
+	{
+		network_recv_event()
+			:sock(-1)
+			, buffer(0, nullptr)
+			, size(0)
+		{}
+		~network_recv_event() = default;
+		network_recv_event(const network_recv_event &other)
+			:sock(other.sock)
+			, buffer(other.buffer)
+			, size(other.size)
+		{}
+		network_recv_event(network_recv_event &&other)
+			:sock(std::move(other.sock))
+			, buffer(other.buffer)
+			, size(other.size)
+		{}
+		network_recv_event &operator=(const network_recv_event &other)
+		{
+			sock = other.sock;
+			buffer = other.buffer;
+			size = other.size;
+			return *this;
+		}
+		network_recv_event(network_io_context *ptr)
+			:sock(ptr->target_socket)
+			, buffer(ptr->size,ptr->buffer)
+			, size(ptr->size)
+		{}
+		int sock;
+		stdx::buffer buffer;
+		size_t size;
+	};
+	class _NetworkIOService
+	{
+	public:
+		_NetworkIOService()
+			:m_reactor()
+		{}
+		~_NetworkIOService() = default;
+		int create_socket(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			return ::socket(addr_family, sock_type, protocol);
+		}
+
+		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
+
+		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
+
+		void connect(int sock, stdx::network_addr &addr);
+
+		int accept(int sock, network_addr &addr)
+		{
+			socklen_t len = network_addr::addr_len;
+			return ::accept(sock, (sockaddr*)addr,&len);
+		}
+
+		int accept(int sock)
+		{
+			return ::accept(sock, nullptr, nullptr);
+		}
+
+		void listen(int sock, int backlog)
+		{
+			::listen(sock, backlog);
+		}
+
+		void bind(int sock, network_addr &addr)
+		{
+			::bind(sock, addr, network_addr::addr_len);
+		}
+
+		void send_to(int sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback);
+
+		void recv_from(int sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
+
+		void close(int sock)
+		{
+			::close(sock);
+		}
+
+		network_addr get_local_addr(int sock) const;
+
+		network_addr get_remote_addr(int sock) const;
+	private:
+		stdx::reactor m_reactor;
+	};
 }
+#undef _ThrowLinuxError
 #endif //LINUX

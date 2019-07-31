@@ -527,6 +527,8 @@ namespace stdx
 
 		_FileIOService(uint32 nr_events);
 
+		delete_copy(_FileIOService);
+
 		~_FileIOService();
 
 		int create_file(const std::string &path, int32 access_type, int32 open_type, mode_t mode);
