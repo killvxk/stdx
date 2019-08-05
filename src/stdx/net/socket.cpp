@@ -466,9 +466,24 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
+
+ int stdx::_NetworkIOService::create_socket(const int &addr_family, const int &sock_type, const int &protocol)
+ {
+
+	 int sock = ::socket(addr_family, sock_type, protocol);
+	 if (sock == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+	 if (protocol == stdx::protocol::tcp)
+	 {
+		 m_reactor.bind(sock);
+	 }
+ }
+
  void stdx::_NetworkIOService::connect(int sock, stdx::network_addr &addr)
  {
-	 if (::connect(sock,addr,network_addr::addr_len) == -1)
+	 if (::connect(sock, addr, network_addr::addr_len) == -1)
 	 {
 		 _ThrowLinuxError
 	 }
@@ -481,7 +496,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 if (getsockname(sock, addr, &len) == -1)
 	 {
 		 _ThrowLinuxError
-	 } 
+	 }
 	 return addr;
  }
 
@@ -494,6 +509,180 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 _ThrowLinuxError
 	 }
 	 return addr;
+ }
+
+ int stdx::_NetworkIOService::accept(int sock, network_addr &addr)
+ {
+	 socklen_t len = network_addr::addr_len;
+	 int new_sock = ::accept(sock, (sockaddr*)addr, &len);
+	 if (new_sock == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+	 return new_sock;
+ }
+ 
+ int stdx::_NetworkIOService::accept(int sock)
+ {
+	 int new_sock = ::accept(sock,nullptr,nullptr);
+	 if (new_sock == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+	 return new_sock;
+ }
+
+ void stdx::_NetworkIOService::send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback)
+ {
+	 stdx::threadpool::run([sock,data,size,callback]() 
+	 {
+		 int r = ::send(sock, data, size, 0);
+		 std::exception_ptr err(nullptr);
+		 try
+		 {
+			 if (r < 0)
+			 {
+				 _ThrowLinuxError
+			 }
+		 }
+		 catch (const std::exception&)
+		 {
+			 err = std::current_exception();
+		 }
+		 if (err)
+		 {
+			 callback(network_send_event(), err);
+			 return;
+		 }
+		 network_send_event ev;
+		 ev.sock = sock;
+		 ev.size = r;
+		 callback(ev, err);
+	 });
+ }
+
+ void stdx::_NetworkIOService::recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+ {
+	 epoll_event ev;
+	 ev.events = stdx::epoll_events::in;
+	 stdx::network_io_context *context = new stdx::network_io_context;
+	 context->this_socket = sock;
+	 context->size = size;
+	 char *buf = (char*)calloc(size, sizeof(char));
+	 context->buffer = buf;
+	 ev.data.ptr = context;
+	 m_reactor.push(sock,ev);
+ }
+
+ void stdx::_NetworkIOService::send_to(int sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback)
+ {
+	 stdx::threadpool::run([sock,addr,data,size,callback]() 
+	 {
+		 socklen_t len = stdx::network_addr::addr_len;
+		 ssize_t r = ::sendto(sock, data, size, 0, (const sockaddr*)addr,len);
+		 std::exception_ptr err(nullptr);
+		 try
+		 {
+			 if (r < 0)
+			 {
+				 _ThrowLinuxError
+			 }
+		 }
+		 catch (const std::exception&)
+		 {
+			 err = std::current_exception();
+		 }
+		 if (err)
+		 {
+			 callback(network_send_event(), err);
+			 return;
+		 }
+		 network_send_event ev;
+		 ev.sock = sock;
+		 ev.size = r;
+		 callback(ev, err);
+	 });
+ }
+
+ void stdx::_NetworkIOService::recv_from(int sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+ {
+	 stdx::threadpool::run([sock,addr,size,callback]() 
+	 {
+		 char *buf = (char*)calloc(size, sizeof(char));
+		 socklen_t len = stdx::network_addr::addr_len;
+		 ssize_t r = ::recvfrom(sock, buf, size, 0, addr, &len);
+		 std::exception_ptr err(nullptr);
+		 try
+		 {
+			 if (r < 0)
+			 {
+				 _ThrowLinuxError
+			 }
+		 }
+		 catch (const std::exception&)
+		 {
+			 err = std::current_exception();
+		 }
+		 if (err)
+		 {
+			 free(buf);
+			 callback(network_recv_event(), err);
+			 return;
+		 }
+		 network_recv_event ev;
+		 ev.sock = sock;
+		 ev.size = r;
+		 ev.buffer = stdx::buffer(size, buf);
+		 callback(ev, err);
+	 });
+ }
+
+ void stdx::_NetworkIOService::close(int sock)
+ {
+	 ::close(sock);
+	 m_reactor.unbind(sock); //It is OK!
+ }
+
+ 
+ void stdx::_NetworkIOService::init_threadpoll() noexcept
+ {
+	 for (size_t i = 0,cores = cpu_cores()*2; i < cores; i++)
+	 {
+		 stdx::threadpool::run([](stdx::reactor reactor) 
+		 {
+			 while (true)
+			 {
+				 reactor.get([](epoll_event *ev_ptr)
+				 {
+					 stdx::network_io_context *context = (stdx::network_io_context *)ev_ptr->data.ptr;
+					 int r = ::recv(context->this_socket, context->buffer, context->size, 0);
+					 context->size = r;
+					 auto *callback = context->callback;
+					 std::exception_ptr err(nullptr);
+					 try
+					 {
+						 if (r < 0)
+						 {
+							 _ThrowLinuxError
+						 }
+					 }
+					 catch (const std::exception&)
+					 {
+						 err = std::current_exception();
+					 }
+					 if (err)
+					 {
+						 (*callback)(context, err);
+						 //free(context->buffer);
+						 //delete callback;
+						 //delete context;
+						 return;
+					 }
+					 (*callback)(context, err);
+				 });
+			 }
+		 },m_reactor);
+	 }
  }
 #undef _ThrowLinuxError
 #endif // LINUX

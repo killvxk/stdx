@@ -198,21 +198,5 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
-	struct test
-	{
-		int i;
-		void execute()
-		{
-			auto t = stdx::async([this]() mutable
-			{
-				i = 1;
-			});
-			t.wait();
-		}
-	};
-	test t;
-	t.i = 0;
-	t.execute();
-	printf("val:%d",t.i);
 	return 0;
 }

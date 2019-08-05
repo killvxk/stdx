@@ -751,7 +751,7 @@ namespace stdx
 
 namespace stdx
 {
-	stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol);
+	extern stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol);
 }
 #endif //Win32
 
@@ -814,7 +814,7 @@ namespace stdx
 			return &m_handle;
 		}
 
-		operator sockaddr*()
+		operator sockaddr*() const
 		{
 			return (sockaddr*)&m_handle;
 		}
@@ -939,10 +939,7 @@ namespace stdx
 			:m_reactor()
 		{}
 		~_NetworkIOService() = default;
-		int create_socket(const int &addr_family, const int &sock_type, const int &protocol)
-		{
-			return ::socket(addr_family, sock_type, protocol);
-		}
+		int create_socket(const int &addr_family, const int &sock_type, const int &protocol);
 
 		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
 
@@ -950,16 +947,9 @@ namespace stdx
 
 		void connect(int sock, stdx::network_addr &addr);
 
-		int accept(int sock, network_addr &addr)
-		{
-			socklen_t len = network_addr::addr_len;
-			return ::accept(sock, (sockaddr*)addr,&len);
-		}
+		int accept(int sock, network_addr &addr);
 
-		int accept(int sock)
-		{
-			return ::accept(sock, nullptr, nullptr);
-		}
+		int accept(int sock);
 
 		void listen(int sock, int backlog)
 		{
@@ -975,16 +965,14 @@ namespace stdx
 
 		void recv_from(int sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
 
-		void close(int sock)
-		{
-			::close(sock);
-		}
+		void close(int sock);
 
 		network_addr get_local_addr(int sock) const;
 
 		network_addr get_remote_addr(int sock) const;
 	private:
 		stdx::reactor m_reactor;
+		void init_threadpoll() noexcept;
 	};
 }
 #undef _ThrowLinuxError

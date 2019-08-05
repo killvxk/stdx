@@ -232,6 +232,7 @@ namespace stdx
 #include <unordered_map>
 #include <queue>
 #include <stdx/async/spin_lock.h>
+#include <mutex>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
@@ -545,8 +546,9 @@ namespace stdx
 			},ev, execute,fd,call);
 		}
 
-		void push(int fd,epoll_event &&ev)
+		void push(int fd,epoll_event &ev)
 		{
+			ev.events |= stdx::epoll_events::once;
 			auto iterator = m_map.find(fd);
 			if (iterator != std::end(m_map))
 			{
@@ -627,7 +629,7 @@ namespace stdx
 			return m_impl->get(execute);
 		}
 
-		void push(int fd,const epoll_event &&ev)
+		void push(int fd,epoll_event &ev)
 		{
 			return m_impl->push(fd,ev);
 		}
