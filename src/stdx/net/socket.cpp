@@ -318,7 +318,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 					 DWORD flag = 0;
 					 if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
 					 {
-						 //在这里出错
+						 //脭脷脮芒脌茂鲁枚麓铆
 						 _ThrowWSAError
 					 }
 				 }
@@ -572,7 +572,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
-			 if (r < 0)
+			 if (r < 1)
 			 {
 				 _ThrowLinuxError
 			 }
@@ -630,7 +630,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
-			 if (r < 0)
+			 if (r < 1)
 			 {
 				 _ThrowLinuxError
 			 }
@@ -661,7 +661,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
-			 if (r < 0)
+			 if (r < 1)
 			 {
 				 _ThrowLinuxError
 			 }
@@ -710,7 +710,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 						 std::exception_ptr err(nullptr);
 						 try
 						 {
-							 if (r < 0)
+							 if (r < 1)
 							 {
 								 _ThrowLinuxError
 							 }
