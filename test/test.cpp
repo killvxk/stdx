@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stdx/file.h>
-//#include <stdx/net/socket.h>
+#include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
 int main(int argc, char **argv)
@@ -198,5 +198,91 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
+#define ENABLE_TCP
+#ifdef ENABLE_TCP
+#ifdef WIN32
+	//client
+	stdx::network_io_service service;
+	stdx::socket client = stdx::open_socket(service,stdx::addr_family::ip,stdx::socket_type::stream,stdx::protocol::tcp);
+	stdx::network_addr addr("103.91.209.203",1232);
+	client.connect(addr);
+	std::string str = U("NMSL,GCC");
+	client.send(str.c_str(), str.size()).then([](stdx::network_send_event ev) 
+	{
+		std::cout << ev.size << next_line;
+	}).wait();
+#endif // WIN32
+#ifdef LINUX
+	//server
+	stdx::network_io_service service;
+	stdx::socket ser = stdx::open_tcpsocket(service);
+	stdx::network_addr addr("0.0.0.0", 25566);
+	std::cout << "bind..."<<next_line;
+	ser.bind(addr);
+	std::cout << "done!" << next_line;
+	std::cout << "listen" << next_line;
+	ser.listen(1024);
+	std::cout << "done!" << next_line;
+	while (true)
+	{
+		std::cout << "accept" << next_line;
+		stdx::socket c = ser.accept();
+		std::cout << "done!" << next_line;
+		std::cout << "recv" << next_line;
+		stdx::task<void> t = c.recv(8).then([c](stdx::task_result<stdx::network_recv_event> r) mutable
+		{
+			std::cout << "done!" <<next_line;
+			try
+			{
+				auto ev = r.get();
+				std::cout << U("size:") << ev.buffer.size() << next_line << ev.buffer << next_line;
+			}
+			catch (const std::exception&e)
+			{
+				std::cerr << e.what();
+			}
+			c.close();
+		});
+		std::cout <<"complete:" << t.is_complete() <<next_line;
+		std::cout << "go on!" <<next_line;
+	}
+	//int ser = service.create_socket(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+	//stdx::network_addr addr("0.0.0.0",25566);
+	//service.bind(ser,addr);
+	//service.listen(ser, 1024);
+	//while (true)
+	//{
+	//	int c = -1;
+	//	try
+	//	{
+	//		c = service.accept(ser);
+	//	}
+	//	catch (const std::exception&e)
+	//	{
+	//		std::cerr << e.what();
+	//		return 0;
+	//	}
+	//	
+	//	service.recv(c, 8, [](stdx::network_recv_event ev,std::exception_ptr err) 
+	//	{
+	//		if (err)
+	//		{
+	//			try
+	//			{
+	//				std::rethrow_exception(err);
+	//			}
+	//			catch (const std::exception&e)
+	//			{
+	//				std::cerr << e.what();
+	//			}
+	//			return;
+	//		}
+	//		std::cout <<U("size:") << ev.buffer.size() << next_line << ev.buffer << next_line;
+	//	});
+	//}
+#endif // LINUX
+
+#endif // ENABLE_TCP
+
 	return 0;
 }

@@ -12,7 +12,7 @@ namespace stdx
 		_SpinLock();
 		~_SpinLock() = default;
 
-		void wait();
+		void lock();
 
 		void unlock() noexcept;
 	private:
@@ -36,9 +36,9 @@ namespace stdx
 		{
 			m_impl = other.m_impl;
 		}
-		void wait()
+		void lock()
 		{
-			m_impl->wait();
+			m_impl->lock();
 		}
 		void unlock() noexcept
 		{

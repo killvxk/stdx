@@ -215,7 +215,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock wait, state_ptr state)
+		static void call(stdx::runable_ptr<_t> call, promise_ptr<_t> promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -226,12 +226,12 @@ namespace stdx
 			catch (const std::exception&)
 			{
 				//加锁
-				wait.wait();
+				lock.lock();
 				//如果有callback
 				if (*next)
 				{
 					//解锁
-					wait.unlock();
+					lock.unlock();
 					//运行callback
 					(*next)->run_on_this_thread();
 				}
@@ -239,17 +239,17 @@ namespace stdx
 				*state = task_state::error;
 				promise->set_exception(std::current_exception());
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				return;
 			}
 			//加锁
-			wait.wait();
+			lock.lock();
 			//如果有callback
 			if (*next)
 			{
 				*state = task_state::complete;
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行callback
 				(*next)->run_on_this_thread();
 				return;
@@ -257,7 +257,7 @@ namespace stdx
 			//设置状态为完成
 			*state = task_state::complete;
 			//解锁
-			wait.unlock();
+			lock.unlock();
 			return;
 		}
 	};
@@ -265,7 +265,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock wait, state_ptr state)
+		static void call(stdx::runable_ptr<void> call, promise_ptr<void> promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -277,12 +277,12 @@ namespace stdx
 			catch (const std::exception&)
 			{
 				//加锁
-				wait.wait();
+				lock.lock();
 				//如果有callback
 				if (*next)
 				{
 					//解锁
-					wait.unlock();
+					lock.unlock();
 					//运行callback
 					(*next)->run_on_this_thread();
 				}
@@ -290,17 +290,17 @@ namespace stdx
 				*state = task_state::error;
 				promise->set_exception(std::current_exception());
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				return;
 			}
 			//加锁
-			wait.wait();
+			lock.lock();
 			//如果有callback
 			if (*next)
 			{
 				*state = task_state::complete;
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行callback
 				(*next)->run_on_this_thread();
 				return;
@@ -308,7 +308,7 @@ namespace stdx
 			//设置状态为完成
 			*state = task_state::complete;
 			//解锁
-			wait.unlock();
+			lock.unlock();
 			return;
 		}
 	};
@@ -317,7 +317,7 @@ namespace stdx
 	struct _TaskNextBuilder
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			using arg_t = typename stdx::function_info<Fn>::arguments;
 			static_assert( is_arguments_type(Fn, stdx::task_result<Result> )||is_arguments_type(Fn,Result)||is_arguments_type(Fn,void), "the input function not be allowed");
@@ -329,24 +329,24 @@ namespace stdx
 	struct _TaskNextBuilder<Input,Result,void>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future,state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future,state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<Input> &future)
 			{
-				future.wait();
+				future.lock();
 				return fn();
 			}, fn, future);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				t->run();
 				return t;
 			}
 			*next = t;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -354,23 +354,23 @@ namespace stdx
 	struct _TaskNextBuilder<Input, Result, stdx::task_result<Input>>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<Input> &future)
 			{
 				return std::bind(fn, task_result<Input>(future))();
 			}, fn, future);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				t->run();
 				return t;
 			}
 			*next = t;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -379,24 +379,24 @@ namespace stdx
 	struct _TaskNextBuilder<void, Result, void>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<void> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<void> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<void> &future)
 			{
 				future.wait();
 				return fn();
 			}, fn, future);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				t->run();
 				return t;
 			}
 			*next = t;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -405,23 +405,23 @@ namespace stdx
 	struct _TaskNextBuilder<Input, Result,Input>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<Input> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<Input> &future)
 			{
 				return std::bind(fn,future.get())();
 			}, fn, future);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				t->run();
 				return t;
 			}
 			*next = t;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -430,7 +430,7 @@ namespace stdx
 	struct _TaskNextBuilder<stdx::task<Input>,Result,Input>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			promise_ptr<Input> promise = stdx::make_promise_ptr<Input>();
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn,std::shared_future<Input> result)
@@ -446,17 +446,17 @@ namespace stdx
 					t->run_on_this_thread();
 				});
 			},t,future,promise);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				start->run();
 				return t;
 			}
 			*next = start;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -465,7 +465,7 @@ namespace stdx
 	struct _TaskNextBuilder<stdx::task<Input>, Result, stdx::task_result<Input>>
 	{
 		template<typename Fn>
-		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, state_ptr state, stdx::spin_lock wait, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
+		static std::shared_ptr<_Task<Result>> build(Fn &&fn, std::shared_future<stdx::task<Input>> &future, state_ptr state, stdx::spin_lock lock, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next)
 		{
 			promise_ptr<stdx::task_result<Input>> promise = stdx::make_promise_ptr<stdx::task_result<Input>>();
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<stdx::task_result<Input>> result)
@@ -481,17 +481,17 @@ namespace stdx
 					t->run_on_this_thread();
 				});
 			}, t, future, promise);
-			wait.wait();
+			lock.lock();
 			if ((*state == task_state::complete) || (*state == task_state::error))
 			{
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//运行
 				start->run();
 				return t;
 			}
 			*next = start;
-			wait.unlock();
+			lock.unlock();
 			return t;
 		}
 	};
@@ -533,7 +533,7 @@ namespace stdx
 		virtual void run() override
 		{
 			//加锁
-			m_lock.wait();
+			m_lock.lock();
 			//如果不在运行
 			if (*m_state != stdx::task_state::running)
 			{
@@ -553,17 +553,17 @@ namespace stdx
 			auto f = [](stdx::runable_ptr<R> r
 				, promise_ptr<R> promise
 				, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>>  next
-				, stdx::spin_lock wait
+				, stdx::spin_lock lock
 				, state_ptr state)
 			{
-				stdx::_TaskCompleter<R>::call(r, promise, next, wait, state);
+				stdx::_TaskCompleter<R>::call(r, promise, next, lock, state);
 			};
 			//放入线程池
 			stdx::threadpool::run(f, m_action, m_promise, m_next, m_lock, m_state);
 		}
 		void run_on_this_thread() override 
 		{
-		    m_lock.wait();
+		    m_lock.lock();
 			if (!m_state)
 			{
 				m_lock.unlock();
@@ -629,7 +629,7 @@ namespace stdx
 		{
 			return then([other](stdx::task_result<void>&) 
 			{
-				other->wait();
+				other->lock();
 			});
 		}
 

@@ -233,6 +233,8 @@ namespace stdx
 #include <queue>
 #include <stdx/async/spin_lock.h>
 #include <mutex>
+#include <stdx/function.h>
+#include <stdx/async/threadpool.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
@@ -261,37 +263,13 @@ namespace stdx
 			close(m_handle);
 		}
 
-		void add_event(int fd, epoll_event *event_ptr)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, event_ptr) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void add_event(int fd, epoll_event *event_ptr);
 
-		void del_event(int fd)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd,NULL) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void del_event(int fd);
 
-		void update_event(int fd, epoll_event *event_ptr)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_MOD, fd, event_ptr) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void update_event(int fd, epoll_event *event_ptr);
 
-		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
-		{
-			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void wait(epoll_event *event_ptr, const int &maxevents, const int &timeout) const;
 	private:
 		int m_handle;
 	};
@@ -505,31 +483,18 @@ namespace stdx
 		{}
 		~_Reactor()=default;
 
-		void bind(int fd)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator == std::end(m_map))
-			{
-				m_map.emplace(fd, std::move(make()));
-			}
-		}
+		void bind(int fd);
 
-		void unbind(int fd)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator != std::end(m_map))
-			{
-				m_map.erase(iterator);
-			}
-		}
+		void unbind(int fd);
 
-		template<typename _Fn>
-		void *get(_Fn &&execute)
+		template<typename _Finder,typename _Fn>
+		void get(_Fn &&execute)
 		{
 			static_assert(is_arguments_type(_Fn, epoll_event*), "ths input function not be allowed");
-			epoll_event *ev = m_poll.wait(-1);
-			int fd = ev->data.ptr->get_fd();
-			std::function<void(epoll_event*,_Fn&&,int)> call = [this](epoll_event *ev_ptr,_Fn &&execute,int fd) mutable
+			epoll_event ev = m_poll.wait(-1);
+			auto *ev_ptr = &ev;
+			int fd = _Finder::find(ev_ptr);
+			std::function<void(epoll_event*,_Fn)> call = [](epoll_event *ev_ptr,_Fn execute) mutable
 			{
 				try
 				{
@@ -538,55 +503,17 @@ namespace stdx
 				catch (...)
 				{
 				}
-				loop(fd);
 			};
-			threadpool::run([](epoll_event &ev,_Fn &&execute,int fd, std::function<void(epoll_event*, _Fn&&,int)> &&call)
+			stdx::threadpool::run([this](epoll_event *ev, _Fn execute, int fd, std::function<void(epoll_event*, _Fn)> call) mutable
 			{
-				call(ev, execute, fd);
-			},ev, execute,fd,call);
+				call(ev,execute);
+				loop(fd);
+			}, ev_ptr,execute, fd,call);
 		}
 
-		void push(int fd,epoll_event &ev)
-		{
-			ev.events |= stdx::epoll_events::once;
-			auto iterator = m_map.find(fd);
-			if (iterator != std::end(m_map))
-			{
-				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
-				{
-					m_poll.add_event(fd,&ev);
-					iterator->second.m_existed = true;
-				}
-				else
-				{
-					iterator->second.m_queue.push(std::move(ev));
-				}
-			}
-			else
-			{
-				throw std::invalid_argument("invalid argument: fd");
-			}
-		}
-		void loop(int fd)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator != std::end(m_map))
-			{
-				std::unique_lock<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (!iterator->second.m_queue.empty())
-				{
-					auto ev = iterator->second.m_queue.front();
-					m_poll.update_event(fd, &ev);
-					iterator->second.m_queue.pop();
-				}
-				else
-				{
-					m_poll.del_event(fd);
-					iterator->second.m_existed = false;
-				}
-			}
-		}
+		void push(int fd, epoll_event &ev);
+
+		void loop(int fd);
 	private:
 		stdx::ev_queue make()
 		{
@@ -623,10 +550,10 @@ namespace stdx
 			return m_impl->unbind(fd);
 		}
 
-		template<typename _Fn>
+		template<typename _Finder, typename _Fn>
 		void get(_Fn &&execute)
 		{
-			return m_impl->get(execute);
+			return m_impl->get<_Finder>(std::move(execute));
 		}
 
 		void push(int fd,epoll_event &ev)

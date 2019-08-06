@@ -128,12 +128,23 @@ namespace stdx
 		{
 			return fn();
 		}
+
+		static _t run(_fn &fn)
+		{
+			return fn();
+		}
 	};
 
 	template<typename _fn>
 	struct _ActionRunner<void, _fn>
 	{
 		static void run(_fn &&fn)
+		{
+			fn();
+			return;
+		}
+
+		static void run(_fn &fn)
 		{
 			fn();
 			return;

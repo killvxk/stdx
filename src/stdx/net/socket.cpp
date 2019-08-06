@@ -458,6 +458,16 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 sock.init(addr_family, sock_type, protocol);
 	 return sock;
  }
+
+ stdx::socket stdx::open_tcpsocket(const stdx::network_io_service &io_service)
+ {
+	 return stdx::open_socket(io_service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+ }
+
+ stdx::socket stdx::open_udpsocket(const stdx::network_io_service &io_service)
+ {
+	 return stdx::open_socket(io_service, stdx::addr_family::ip, stdx::socket_type::dgram, stdx::protocol::udp);
+ }
 #undef _ThrowWinError
 #undef _ThrowWSAError
 #endif
@@ -477,8 +487,10 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 }
 	 if (protocol == stdx::protocol::tcp)
 	 {
-		 m_reactor.bind(sock);
+		 /*int flag = fcntl(sock, F_GETFL, 0);
+		 fcntl(sock, F_SETFL, flag | O_NONBLOCK);*/
 	 }
+	 return sock;
  }
 
  void stdx::_NetworkIOService::connect(int sock, stdx::network_addr &addr)
@@ -519,17 +531,37 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 {
 		 _ThrowLinuxError
 	 }
+	 m_reactor.bind(new_sock);
 	 return new_sock;
  }
  
  int stdx::_NetworkIOService::accept(int sock)
  {
-	 int new_sock = ::accept(sock,nullptr,nullptr);
+	 socklen_t len = network_addr::addr_len;
+	 network_addr addr;
+	 int new_sock = ::accept(sock, (sockaddr*)addr, &len);
 	 if (new_sock == -1)
 	 {
 		 _ThrowLinuxError
 	 }
+	 m_reactor.bind(new_sock);
 	 return new_sock;
+ }
+
+ void stdx::_NetworkIOService::listen(int sock,int backlog)
+ {
+	 if (::listen(sock, backlog) == -1)
+	 {
+		 _ThrowLinuxError
+	 }
+ }
+
+ void stdx::_NetworkIOService::bind(int sock, stdx::network_addr &addr)
+ {
+	 if (::bind(sock, addr, network_addr::addr_len) == -1)
+	 {
+		 _ThrowLinuxError
+	 }
  }
 
  void stdx::_NetworkIOService::send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback)
@@ -561,7 +593,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 });
  }
 
- void stdx::_NetworkIOService::recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+ void stdx::_NetworkIOService::recv(int sock, const size_t &size, std::function<void(network_recv_event,std::exception_ptr)>&& callback)
  {
 	 epoll_event ev;
 	 ev.events = stdx::epoll_events::in;
@@ -570,6 +602,21 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 context->size = size;
 	 char *buf = (char*)calloc(size, sizeof(char));
 	 context->buffer = buf;
+	 std::function<void(stdx::network_io_context*,std::exception_ptr)> *call = new std::function<void(stdx::network_io_context*, std::exception_ptr)>;
+	 *call = [callback](stdx::network_io_context* context, std::exception_ptr err) mutable
+	 {
+		 if (err)
+		 {
+			 free(context->buffer);
+			 delete context;
+			 callback(stdx::network_recv_event(), err);
+			 return;
+		 }
+		 stdx::network_recv_event ev(context);
+		 delete context;
+		 callback(ev, err);
+	 };
+	 context->callback = call;
 	 ev.data.ptr = context;
 	 m_reactor.push(sock,ev);
  }
@@ -648,41 +695,183 @@ void stdx::_NetworkIOService::close(SOCKET sock)
  {
 	 for (size_t i = 0,cores = cpu_cores()*2; i < cores; i++)
 	 {
-		 stdx::threadpool::run([](stdx::reactor reactor) 
+		 stdx::threadpool::run([](stdx::reactor reactor,std::shared_ptr<bool> alive) 
 		 {
-			 while (true)
+			 while (*alive)
 			 {
-				 reactor.get([](epoll_event *ev_ptr)
+				 try
 				 {
-					 stdx::network_io_context *context = (stdx::network_io_context *)ev_ptr->data.ptr;
-					 int r = ::recv(context->this_socket, context->buffer, context->size, 0);
-					 context->size = r;
-					 auto *callback = context->callback;
-					 std::exception_ptr err(nullptr);
-					 try
+					 reactor.get<stdx::network_io_context_finder>([](epoll_event *ev_ptr)
 					 {
-						 if (r < 0)
+						 stdx::network_io_context *context = (stdx::network_io_context *)ev_ptr->data.ptr;
+						 int r = ::recv(context->this_socket, context->buffer, context->size, 0);
+						 context->size = r;
+						 auto *callback = context->callback;
+						 std::exception_ptr err(nullptr);
+						 try
 						 {
-							 _ThrowLinuxError
+							 if (r < 0)
+							 {
+								 _ThrowLinuxError
+							 }
 						 }
-					 }
-					 catch (const std::exception&)
-					 {
-						 err = std::current_exception();
-					 }
-					 if (err)
-					 {
-						 (*callback)(context, err);
-						 //free(context->buffer);
-						 //delete callback;
-						 //delete context;
-						 return;
-					 }
-					 (*callback)(context, err);
-				 });
+						 catch (const std::exception&)
+						 {
+							 err = std::current_exception();
+						 }
+						 try
+						 {
+							 (*callback)(context, err);
+						 }
+						 catch (const std::exception&)
+						 {
+
+						 }
+						 delete callback;
+					 });
+				 }
+				 catch (const std::exception&e)
+				 {
+				 }
 			 }
-		 },m_reactor);
+		 },m_reactor,m_alive);
 	 }
  }
+
+ int stdx::network_io_context_finder::find(epoll_event *ev)
+ {
+	 stdx::network_io_context *cxt = (stdx::network_io_context*)ev->data.ptr;
+	 return cxt->this_socket;
+ }
+
+ stdx::_Socket::_Socket(const io_service_t & io_service, int s)
+	 :m_io_service(io_service)
+	 , m_handle(s)
+ {}
+
+ stdx::_Socket::_Socket(const io_service_t & io_service)
+	 : m_io_service(io_service)
+	 , m_handle(-1)
+ {}
+
+ stdx::_Socket::~_Socket()
+ {
+	 if (m_handle != -1)
+	 {
+		 m_io_service.close(m_handle);
+		 m_handle = -1;
+	 }
+ }
+
+ stdx::task<stdx::network_send_event> &stdx::_Socket::send(const char * data, const size_t & size, stdx::task_complete_event<stdx::network_send_event> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.send(m_handle, data, size, [ce](stdx::network_send_event context, std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ stdx::task<stdx::network_send_event> &stdx::_Socket::send_to(const network_addr & addr, const char * data, const size_t & size, stdx::task_complete_event<stdx::network_send_event> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.send_to(m_handle, addr, data, size, [ce](stdx::network_send_event context, std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ stdx::task<stdx::network_recv_event> &stdx::_Socket::recv(const size_t & size, stdx::task_complete_event<stdx::network_recv_event> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.recv(m_handle, size, [ce](stdx::network_recv_event context, std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ stdx::task<stdx::network_recv_event> &stdx::_Socket::recv_from(const network_addr & addr, const size_t & size, stdx::task_complete_event<stdx::network_recv_event> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.recv_from(m_handle, addr, size, [ce](stdx::network_recv_event context, std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ void stdx::_Socket::close()
+ {
+	 if (m_handle != -1)
+	 {
+		 m_io_service.close(m_handle);
+		 m_handle = -1;
+	 }
+ }
+
+ stdx::socket stdx::open_socket(const stdx::network_io_service & io_service, const int & addr_family, const int & sock_type, const int & protocol)
+ {
+	 stdx::socket sock(io_service);
+	 sock.init(addr_family, sock_type, protocol);
+	 return sock;
+ }
+
+ stdx::socket stdx::open_tcpsocket(const stdx::network_io_service &io_service)
+ {
+	 return stdx::open_socket(io_service, stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+ }
+
+ stdx::socket stdx::open_udpsocket(const stdx::network_io_service &io_service)
+ {
+	 return stdx::open_socket(io_service, stdx::addr_family::ip, stdx::socket_type::dgram, stdx::protocol::udp);
+ }
+
 #undef _ThrowLinuxError
 #endif // LINUX

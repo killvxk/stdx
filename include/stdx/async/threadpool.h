@@ -28,7 +28,7 @@ namespace stdx
 		template<typename _Fn, typename ..._Args>
 		void run(_Fn &&task, _Args &&...args) noexcept
 		{
-			m_count_lock.wait();
+			m_count_lock.lock();
 			if (*m_free_count ==0)
 			{
 				*m_free_count+=1;

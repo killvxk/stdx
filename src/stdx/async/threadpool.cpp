@@ -29,7 +29,7 @@ stdx::_Threadpool::~_Threadpool() noexcept
 void stdx::_Threadpool::add_thread() noexcept
 {
 	//创建线程
-	std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock wait, std::shared_ptr<uint32> count, stdx::spin_lock count_lock, std::shared_ptr<bool> alive)
+	std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, std::shared_ptr<uint32> count, stdx::spin_lock count_lock, std::shared_ptr<bool> alive)
 	{
 		//如果存活
 		while (*alive)
@@ -39,7 +39,7 @@ void stdx::_Threadpool::add_thread() noexcept
 			{
 				//如果10分钟后未通知
 				//退出线程
-				count_lock.wait();
+				count_lock.lock();
 				*count -= 1;
 				count_lock.unlock();
 				return;
@@ -50,13 +50,13 @@ void stdx::_Threadpool::add_thread() noexcept
 				//减去一个计数
 				*count -= 1;
 				//进入自旋锁
-				wait.wait();
+				lock.lock();
 				//获取任务
 				runable_ptr t(std::move(tasks->front()));
 				//从queue中pop
 				tasks->pop();
 				//解锁
-				wait.unlock();
+				lock.unlock();
 				//执行任务
 				try
 				{
@@ -65,13 +65,13 @@ void stdx::_Threadpool::add_thread() noexcept
 						t->run();
 					}
 				}
-				catch (const std::exception &)
+				catch (const std::exception &e)
 				{
 					//忽略出现的错误
 				}
 				//完成或终止后
 				//添加计数
-				count_lock.wait();
+				count_lock.lock();
 				*count += 1;
 				count_lock.unlock();
 			}

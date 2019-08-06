@@ -22,9 +22,9 @@ namespace stdx
 		//等待通过
 		void wait()
 		{
-			std::unique_lock<std::mutex> wait(*mutex);
+			std::unique_lock<std::mutex> lock(*mutex);
 			auto &n = notify_count;
-			cv->wait(wait, [&n]() { return (int)n; });
+			cv->wait(lock, [&n]() { return (int)n; });
 			notify_count -= 1;
 		}
 
@@ -39,9 +39,9 @@ namespace stdx
 		template<class _Rep,class _Period>
 			bool wait_for(const std::chrono::duration<_Rep, _Period> &time)
 		{
-			std::unique_lock<std::mutex> wait(*mutex);
+			std::unique_lock<std::mutex> lock(*mutex);
 			auto &n = notify_count;
-			if (cv->wait_for(wait, time, [&n]() { return (int)n; }))
+			if (cv->wait_for(lock, time, [&n]() { return (int)n; }))
 			{
 				notify_count -= 1;
 				return true;
