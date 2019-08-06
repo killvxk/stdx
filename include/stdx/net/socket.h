@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <stdx/async/task.h>
 #include <stdx/async/spin_lock.h>
 #include <stdx/io.h>
@@ -603,7 +603,7 @@ namespace stdx
 		{
 			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
 			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
-			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
+			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
 			{
 				if (stdx::invoke(call, r))
 				{
@@ -616,7 +616,7 @@ namespace stdx
 		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
-			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r)
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
 			{
 				try
 				{
@@ -733,15 +733,15 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void recv_utill(const size_t &size, _Fn &call)
+		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			return m_impl->recv_utill(size, call);
+			return m_impl->recv_utill(size, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void recv_utill_error(const size_t &size, _Fn &call, _ErrHandler &err_handler)
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			return m_impl->recv_utill_error(size, call, err_handler);
+			return m_impl->recv_utill_error(size,std::move(call),std::move(err_handler));
 		}
 	private:
 		impl_t m_impl;
@@ -1175,7 +1175,7 @@ namespace stdx
 		{
 			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
 			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
-			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
+			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
 			{
 				if (stdx::invoke(call, r))
 				{
@@ -1188,7 +1188,7 @@ namespace stdx
 		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
-			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r)
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
 			{
 				try
 				{
@@ -1304,15 +1304,15 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void recv_utill(const size_t &size, _Fn &call)
+		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			return m_impl->recv_utill(size, call);
+			return m_impl->recv_utill(size, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void recv_utill_error(const size_t &size, _Fn &call, _ErrHandler &err_handler)
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			return m_impl->recv_utill_error(size, call, err_handler);
+			return m_impl->recv_utill_error(size, std::move(call), std::move(err_handler));
 		}
 	private:
 		impl_t m_impl;
