@@ -277,7 +277,7 @@ namespace stdx
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
 			static_assert(std::is_same<args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
-			return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r) 
+			return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try
 				{
@@ -371,15 +371,15 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset,_Fn &call)
+		void read_utill(const size_t &size, const int64 &offset,_Fn &&call)
 		{
-			return m_impl->read_utill(size, offset, call);
+			return m_impl->read_utill(size, offset, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &call,_ErrHandler &err_handler)
+		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call,_ErrHandler &&err_handler)
 		{
-			return m_impl->read_utill_eof(size, offset,call,err_handler);
+			return m_impl->read_utill_eof(size, offset,std::move(call),std::move(err_handler));
 		}
 
 		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
@@ -649,7 +649,7 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler)
+		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler) mutable
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
 			static_assert(std::is_same<typename args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
@@ -753,15 +753,15 @@ namespace stdx
 		}
 
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset, _Fn &call)
+		void read_utill(const size_t &size, const int64 &offset, _Fn &&call)
 		{
-			return m_impl->read_utill(size, offset, call);
+			return m_impl->read_utill(size, offset, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &call, _ErrHandler &err_handler)
+		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			return m_impl->read_utill_eof(size, offset, call, err_handler);
+			return m_impl->read_utill_eof(size, offset, std::move(call), std::move(err_handler));
 		}
 
 		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
