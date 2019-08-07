@@ -649,11 +649,11 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler) mutable
+		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
 			static_assert(std::is_same<typename args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
-			return read_utill(size, offset, [call,err_handler](stdx::task_result<stdx::file_read_event> r)
+			return read_utill(size, offset, [call, err_handler](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try
 				{
@@ -682,9 +682,9 @@ namespace stdx
 		}
 
 
-		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
+		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
 
-		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset)
+		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset)
 		{
 			stdx::task_complete_event<stdx::file_write_event> ce;
 			return write(buffer, size, offset, ce);
@@ -703,8 +703,8 @@ namespace stdx
 
 	class file_stream
 	{
-		using impl_t = std::shared_ptr<_FileStream>;
-		using io_service_t = file_io_service;
+		using impl_t = std::shared_ptr<stdx::_FileStream>;
+		using io_service_t = stdx::file_io_service;
 	public:
 
 		explicit file_stream(const io_service_t &io_service)
