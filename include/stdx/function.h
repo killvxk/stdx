@@ -103,15 +103,9 @@ namespace stdx
 	};
 #define is_result_type(_Fn,_Result) stdx::_IsResult<_Fn, _Result>::value
 	template<typename _Fn,typename ..._Args>
-	inline typename stdx::function_info<_Fn>::result invoke(const _Fn &callable,const _Args &...args)
+	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args &&...args)
 	{
-		return callable(std::forward(args)...);
-	}
-
-	template<typename _Fn, typename ..._Args>
-	inline typename stdx::function_info<_Fn>::result invoke(_Fn &callable, const _Args &...args)
-	{
-		return callable(std::forward(args)...);
+		return callable(args...);
 	}
 	template<typename _R = void>
 	class _BasicRunable
@@ -124,6 +118,11 @@ namespace stdx
 	template<typename _t, typename _fn>
 	struct _ActionRunner
 	{
+		static _t run(_fn &&fn)
+		{
+			return fn();
+		}
+
 		static _t run(_fn &fn)
 		{
 			return fn();
@@ -133,6 +132,12 @@ namespace stdx
 	template<typename _fn>
 	struct _ActionRunner<void, _fn>
 	{
+		static void run(_fn &&fn)
+		{
+			fn();
+			return;
+		}
+
 		static void run(_fn &fn)
 		{
 			fn();
@@ -147,7 +152,7 @@ namespace stdx
 		_Runable()
 			:_BasicRunable<_R>()
 		{}
-		_Runable(_Fn &&fn)
+		_Runable(const _Fn &fn)
 			:_BasicRunable<_R>()
 			, m_func(fn)
 		{}
@@ -155,7 +160,7 @@ namespace stdx
 
 		virtual _R run() override
 		{
-			return _ActionRunner<_R,_Fn>::run(m_func);
+			return _ActionRunner<_R,_Fn>::run(std::move(m_func));
 		}
 
 		operator bool()

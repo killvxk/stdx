@@ -16,10 +16,9 @@ namespace stdx
 			, cv(std::make_shared<std::condition_variable>())
 		{}
 		//析构函数
-		~_Barrier()
-		{
-		}
+		~_Barrier() = default;
 
+		//等待通过
 		//等待通过
 		void wait()
 		{
@@ -28,12 +27,15 @@ namespace stdx
 			cv->wait(lock, [&n]() { return (int)n; });
 			notify_count -= 1;
 		}
+
+		//通过
 		//通过
 		void pass()
 		{
-            notify_count+=1;
-			cv->notify_one();
+			notify_count += 1;
+			this->cv->notify_one();
 		}
+
 		template<class _Rep,class _Period>
 			bool wait_for(const std::chrono::duration<_Rep, _Period> &time)
 		{
@@ -58,14 +60,14 @@ namespace stdx
 	{
 		using impl_t = std::shared_ptr<stdx::_Barrier>;
 	public:
-		barrier()
+		barrier() 
 			:m_impl(std::make_shared<_Barrier>())
 		{}
-		barrier(const barrier &other)
+		barrier(const barrier &other) 
 			:m_impl(other.m_impl)
 		{}
-		barrier(barrier &&other)
-			:m_impl(std::move(other.m_impl))
+		barrier(barrier && other)
+			: m_impl(std::move(other.m_impl))
 		{}
 		~barrier() = default;
 		barrier &operator=(const barrier &other)

@@ -8,64 +8,27 @@ namespace stdx
 	class _Buffer
 	{
 	public:
-		_Buffer(size_t size = 4096)
-			:m_size(size)
-			, m_data((char*)calloc(sizeof(char), m_size))
-		{
-			//if (m_data == nullptr)
-			//{
-			//	throw std::bad_alloc();
-			//}
-		}
-		explicit _Buffer(size_t size, char* data)
-			:m_size(size)
-			, m_data(data)
-		{}
-		~_Buffer()
-		{
-			free(m_data);
-		}
-		char &operator[](const size_t &i) const
-		{
-			if (i >= m_size)
-			{
-				throw std::out_of_range("out of range");
-			}
-			return *(m_data + i);
-		}
+		_Buffer(size_t size = 4096);
+			
+		explicit _Buffer(size_t size, char* data);
+
+		~_Buffer();
+
+		char &operator[](const size_t &i) const;
+
 		operator char*() const
 		{
 			return m_data;
 		}
-		void realloc(size_t size)
-		{
-			if (size == 0)
-			{
-				throw std::invalid_argument("invalid argument: 0");
-			}
-			if (size > m_size)
-			{
-				if (::realloc(m_data, m_size) == nullptr)
-				{
-					throw std::bad_alloc();
-				}
-				m_size = size;
-			}
-		}
+
+		void realloc(size_t size);
+
 		const size_t &size() const
 		{
 			return m_size;
 		}
 
-		void copy_from(const _Buffer &other)
-		{
-			auto new_size = other.size();
-			if (new_size > m_size)
-			{
-				realloc(new_size);
-			}
-			memcpy(m_data, other, new_size);
-		}
+		void copy_from(const _Buffer &other);
 	private:
 		size_t m_size;
 		char *m_data;
@@ -186,7 +149,21 @@ namespace stdx
 				//处理错误
 				_ThrowWinError
 			}
+			if (ol == nullptr)
+			{
+				return nullptr;
+			}
 			return CONTAINING_RECORD(ol,_IOContext, m_ol);
+		}
+
+		void post(DWORD size,_IOContext *context_ptr,OVERLAPPED *ol_ptr)
+		{
+			bool r = PostQueuedCompletionStatus(m_iocp, size, (ULONG_PTR)context_ptr, ol_ptr);
+			if (!r)
+			{
+				//处理错误
+				_ThrowWinError
+			}
 		}
 
 	private:
@@ -227,6 +204,10 @@ namespace stdx
 		{
 			m_impl->bind<_HandleType>(file_handle);
 		}
+		void post(DWORD size, _IOContext *context_ptr, OVERLAPPED *ol_ptr)
+		{
+			m_impl->post(size, context_ptr, ol_ptr);
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -251,6 +232,9 @@ namespace stdx
 #include <unordered_map>
 #include <queue>
 #include <stdx/async/spin_lock.h>
+#include <mutex>
+#include <stdx/function.h>
+#include <stdx/async/threadpool.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
@@ -279,59 +263,13 @@ namespace stdx
 			close(m_handle);
 		}
 
-		//已弃用
-		//void add_event(int fd, const uint32 &events)
-		//{
-		//	epoll_event e;
-		//	e.events = events;
-		//	e.data.fd = fd;
-		//	if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, &e) == -1)
-		//	{
-		//		_ThrowLinuxError
-		//	}
-		//}
+		void add_event(int fd, epoll_event *event_ptr);
 
-		//void del_event(int fd)
-		//{
-		//	epoll_event e;
-		//	e.data.fd = fd;
-		//	if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd, &e) == -1)
-		//	{
-		//		_ThrowLinuxError
-		//	}
-		//}
+		void del_event(int fd);
 
-		void add_event(int fd, epoll_event *event_ptr)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_ADD, fd, event_ptr) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void update_event(int fd, epoll_event *event_ptr);
 
-		void del_event(int fd)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_DEL, fd,NULL) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
-
-		void update_event(int fd, epoll_event *event_ptr)
-		{
-			if (epoll_ctl(m_handle, EPOLL_CTL_MOD, fd, event_ptr) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
-
-		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
-		{
-			if (epoll_wait(m_handle, event_ptr, maxevents, timeout) == -1)
-			{
-				_ThrowLinuxError
-			}
-		}
+		void wait(epoll_event *event_ptr, const int &maxevents, const int &timeout) const;
 	private:
 		int m_handle;
 	};
@@ -360,7 +298,7 @@ namespace stdx
 		}
 		void del_event(int fd)
 		{
-			return m_impl->del_event();
+			return m_impl->del_event(fd);
 		}
 
 		void wait(epoll_event *event_ptr,const int &maxevents,const int &timeout) const
@@ -379,33 +317,33 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
+	inline int io_setup(unsigned nr_events, aio_context_t *ctx_idp)
 	{
 		return syscall(SYS_io_setup, nr_events, ctx_idp);
 	}
 
-	int io_destroy(aio_context_t ctx_id)
+	inline int io_destroy(aio_context_t ctx_id)
 	{
 		return syscall(SYS_io_destroy, ctx_id);
 	}
 
-	int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
+	inline int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp)
 	{
 		return syscall(SYS_io_submit,ctx_id,nr,iocbpp );
 	}
 
-	int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
+	inline int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout)
 	{
 		return syscall(SYS_io_getevents, ctx_id, min_nr, nr, events, timeout);
 	}
 
-	int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
+	inline int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result)
 	{
 		return syscall(SYS_io_cancel, ctx_id, iocb, result);
 	}
 #define invalid_eventfd -1
 	template<typename _Data>
-	void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
+	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
@@ -428,7 +366,7 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
+	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));
@@ -465,10 +403,11 @@ namespace stdx
 			io_destroy(m_ctxid);
 		}
 
-		_IOContext *get()
+		_IOContext *get(int64 &res)
 		{
 			io_event ev;
 			io_getevents(m_ctxid, 1, 1,&ev,NULL);
+			res = ev.res;
 			return (_IOContext*)ev.data;
 		}
 		aio_context_t get_context() const
@@ -502,9 +441,9 @@ namespace stdx
 		{
 			return m_impl->get_context();
 		}
-		_IOContext *get()
+		_IOContext *get(int64 &res)
 		{
-			return m_impl->get();
+			return m_impl->get(res);
 		}
 	private:
 		impl_t m_impl;
@@ -534,95 +473,47 @@ namespace stdx
 		bool m_existed;
 		std::queue<epoll_event> m_queue;
 	};
-#define set_context(ev,x) ev.data.ptr=&x
-#define get_context(type,ev_ptr) (type*)(ev_ptr->data.ptr)
-	template<typename _IOContext,typename _Executer>
-	class _Poller
+
+	class _Reactor
 	{
 	public:
-		_Poller()
+		_Reactor()
 			:m_map()
 			,m_poll()
 		{}
-		~_Poller()=default;
+		~_Reactor()=default;
 
-		void bind(int fd)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator == std::end(m_map))
-			{
-				m_map.emplace(fd,std::move(make()));
-			}
-		}
+		void bind(int fd);
 
-		template<typename _Fn>
-		void *get(_Fn &callback)
+		void unbind(int fd);
+
+		template<typename _Finder,typename _Fn>
+		void get(_Fn &&execute)
 		{
-			static_assert(is_arguments_type(_Fn, _IOContext*), "ths input function not be allowed");
-			auto ev = m_poll.wait(-1);
-			int fd = (int)_Executer::get_fd(&ev);
-			std::function<void(_IOContext*)> call = [this](_IOContext *ptr,_Fn &callback,int fd) mutable
-			{
-				callback(ptr);
-				loop(fd);
-			};
-			threadpool::run([](epoll_event &ev,int fd, std::function<void(_IOContext*)> call,_Fn &callback)
+			static_assert(is_arguments_type(_Fn, epoll_event*), "ths input function not be allowed");
+			epoll_event ev = m_poll.wait(-1);
+			auto *ev_ptr = &ev;
+			int fd = _Finder::find(ev_ptr);
+			std::function<void(epoll_event*,_Fn)> call = [](epoll_event *ev_ptr,_Fn execute) mutable
 			{
 				try
 				{
-					_Executer::execute(&ev);
+					execute(ev_ptr);
 				}
-				catch (const std::exception& e)
+				catch (...)
 				{
-					auto ptr = (_IOContext*)ev.data.ptr;
-					call(ptr,callback,fd);
-					return;
 				}
-				auto ptr = (_IOContext*)ev.data.ptr;
-				call(ptr);
-			},ev,fd,call,callback,callback,fd);
+			};
+			stdx::threadpool::run([this](epoll_event *ev, _Fn execute, int fd, std::function<void(epoll_event*, _Fn)> call) mutable
+			{
+				call(ev,execute);
+				loop(fd);
+			}, ev_ptr,execute, fd,call);
 		}
 
-		void push(int fd,const epoll_event &ev)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator != std::end(m_map))
-			{
-				std::lock_guard<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (iterator->second.m_queue.empty() && (!iterator->second.m_existed))
-				{
-					m_poll.add_event(&ev);
-					iterator->second.m_existed = true;
-				}
-				else
-				{
-					iterator->second.m_queue.push(std::move(ev));
-				}
-			}
-			else
-			{
-				throw std::invalid_argument("invalid argument: fd");
-			}
-		}
-		void loop(int fd)
-		{
-			auto iterator = m_map.find(fd);
-			if (iterator != std::end(m_map))
-			{
-				std::unique_lock<stdx::spin_lock> lock(iterator->second.m_lock);
-				if (!iterator->second.m_queue.empty())
-				{
-					auto ev = iterator->second.m_queue.front();
-					m_poll.update_event(fd, &ev);
-					iterator->second.m_queue.pop();
-				}
-				else
-				{
-					m_poll.del_event(fd);
-					iterator->second.m_existed = false;
-				}
-			}
-		}
+		void push(int fd, epoll_event &ev);
+
+		void loop(int fd);
 	private:
 		stdx::ev_queue make()
 		{
@@ -633,19 +524,18 @@ namespace stdx
 		stdx::epoll m_poll;
 	};
 	
-	template<typename _IOContext, typename _Executer>
-	class poller
+	class reactor
 	{
-		using impl_t = std::shared_ptr<_Poller<_IOContext,_Executer>>;
+		using impl_t = std::shared_ptr<stdx::_Reactor>;
 	public:
-		poller()
-			:m_impl(std::make_shared<_Poller<_IOContext,_Executer>>())
+		reactor()
+			:m_impl(std::make_shared<stdx::_Reactor>())
 		{}
-		poller(const poller<_IOContext, _Executer> &other)
+		reactor(const reactor &other)
 			:m_impl(other.m_impl)
 		{}
-		~poller()=default;
-		poller<_IOContext, _Executer> &operator=(const poller<_IOContext, _Executer> &other)
+		~reactor()=default;
+		reactor &operator=(const reactor &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
@@ -654,11 +544,19 @@ namespace stdx
 		{
 			return m_impl->bind(fd);
 		}
-		_IOContext *get()
+
+		void unbind(int fd)
 		{
-			return m_impl->get();
+			return m_impl->unbind(fd);
 		}
-		void push(int fd,const epoll_event &ev)
+
+		template<typename _Finder, typename _Fn>
+		void get(_Fn &&execute)
+		{
+			return m_impl->get<_Finder>(std::move(execute));
+		}
+
+		void push(int fd,epoll_event &ev)
 		{
 			return m_impl->push(fd,ev);
 		}

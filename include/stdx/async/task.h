@@ -6,8 +6,8 @@
 #include <stdx/traits/ref_type.h>
 #include <stdx/traits/value_type.h>
 #include <stdx/function.h>
-//#include <stdx/tuple.h>
 #include <stdx/env.h>
+
 namespace stdx
 {
 	//Task状态
@@ -117,9 +117,10 @@ namespace stdx
 	public:
 		task() = default;
 		template<typename _Fn, typename ..._Args>
-		explicit task(_Fn &fn, _Args &...args)
-			:m_impl(std::make_shared<_Task<_R>>(fn, args...))
+		task(_Fn &&fn, _Args &&...args)
+			:m_impl(std::make_shared<_Task<_R>>(std::move(fn), args...))
 		{}
+
 		explicit task(impl_t impl)
 			:m_impl(impl)
 		{}
@@ -155,7 +156,7 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename ..._Args>
-		static task<_R> start(_Fn &fn, _Args &...args)
+		static task<_R> start(_Fn &&fn, _Args &&...args)
 		{
 			auto t = task<_R>(fn, args...);
 			t.run();
@@ -214,7 +215,7 @@ namespace stdx
 	template<typename _t>
 	struct _TaskCompleter
 	{
-		static void call(stdx::runable_ptr<_t> &call, promise_ptr<_t> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
+		static void call(stdx::runable_ptr<_t> call, promise_ptr<_t> promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -264,7 +265,7 @@ namespace stdx
 	template<>
 	struct _TaskCompleter<void>
 	{
-		static void call(stdx::runable_ptr<void> &call, promise_ptr<void> &promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
+		static void call(stdx::runable_ptr<void> call, promise_ptr<void> promise, std::shared_ptr<std::shared_ptr<stdx::_BasicTask>> next, stdx::spin_lock lock, state_ptr state)
 		{
 			try
 			{
@@ -332,7 +333,7 @@ namespace stdx
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<Input> &future)
 			{
-				future.wait();
+				future.lock();
 				return fn();
 			}, fn, future);
 			lock.lock();
@@ -511,7 +512,6 @@ namespace stdx
 			, m_next(std::make_shared<std::shared_ptr<stdx::_BasicTask>>(nullptr))
 			, m_state(std::make_shared<int>(stdx::task_state::ready))
 			, m_lock()
-
 		{
 		}
 
@@ -629,7 +629,7 @@ namespace stdx
 		{
 			return then([other](stdx::task_result<void>&) 
 			{
-				other->wait();
+				other->lock();
 			});
 		}
 
@@ -644,8 +644,86 @@ namespace stdx
 
 	//启动一个Task
 	template<typename _Fn, typename ..._Args,typename _R = typename stdx::function_info<_Fn>::result>
-	inline stdx::task<_R> async(const _Fn &fn, _Args &...args)
+	inline stdx::task<_R> async(_Fn &&fn, _Args &&...args)
 	{
 		return task<_R>::start(fn,args...);
 	}
+
+	template<typename _R>
+	class _TaskCompleteEvent
+	{
+	public:
+		_TaskCompleteEvent()
+			:m_promise(stdx::make_promise_ptr<_R>())
+			, m_task([](promise_ptr<_R> promise) 
+			{
+				return promise->get_future().get();
+			},m_promise)
+		{}
+		~_TaskCompleteEvent()=default;
+		void set_value(const _R &value)
+		{
+			m_promise->set_value(value);
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_promise->set_exception(error);
+		}
+		stdx::task<_R> &get_task()
+		{
+			return m_task;
+		}
+		void run()
+		{
+			m_task.run();
+		}
+		void run_on_this_thread()
+		{
+			m_task.run_on_this_thread();
+		}
+	private:
+		promise_ptr<_R> m_promise;
+		stdx::task<_R> m_task;
+	};
+
+	template<typename _R>
+	class task_complete_event
+	{
+		using impl_t = std::shared_ptr<_TaskCompleteEvent<_R>>;
+	public:
+		task_complete_event()
+			:m_impl(std::make_shared<_TaskCompleteEvent<_R>>())
+		{}
+		task_complete_event(const task_complete_event<_R> &other)
+			:m_impl(other.m_impl)
+		{}
+		~task_complete_event()=default;
+		task_complete_event<_R> &operator=(const task_complete_event<_R> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void set_value(const _R &value)
+		{
+			m_impl->set_value(value);
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_impl->set_exception(error);
+		}
+		stdx::task<_R> &get_task()
+		{
+			return m_impl->get_task();
+		}
+		void run()
+		{
+			m_impl->run();
+		}
+		void run_on_this_thread()
+		{
+			m_impl->run_on_this_thread();
+		}
+	private:
+		impl_t m_impl;
+	};
 }

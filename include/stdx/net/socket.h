@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <stdx/async/task.h>
 #include <stdx/async/spin_lock.h>
 #include <stdx/io.h>
@@ -7,8 +7,7 @@
 #include <WinSock2.h>
 #pragma comment(lib,"Ws2_32.lib ")
 #endif 
-namespace stdx
-{
+
 #ifdef WIN32
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
@@ -33,6 +32,8 @@ namespace stdx
 							throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),_ERROR_STR.c_str());\
 						}\
 
+namespace stdx
+{
 	struct _WSAStarter
 	{
 		WSAData wsa;
@@ -52,7 +53,7 @@ namespace stdx
 			}
 		}
 	};
-	_WSAStarter _wsastarter;
+	extern _WSAStarter _wsastarter;
 	struct protocol
 	{
 		enum
@@ -168,7 +169,10 @@ namespace stdx
 
 	struct network_send_event
 	{
-		network_send_event() = default;
+		network_send_event()
+			:sock(INVALID_SOCKET)
+			,size(0)
+		{}
 		~network_send_event() = default;
 		network_send_event(const network_send_event &other)
 			:sock(other.sock)
@@ -194,7 +198,11 @@ namespace stdx
 
 	struct network_recv_event
 	{
-		network_recv_event() = default;
+		network_recv_event()
+			:sock(INVALID_SOCKET)
+			,buffer(0,nullptr)
+			,size(0)
+		{}
 		~network_recv_event() = default;
 		network_recv_event(const network_recv_event &other)
 			:sock(other.sock)
@@ -257,302 +265,41 @@ namespace stdx
 	{
 	public:
 		using iocp_t = stdx::iocp<network_io_context>;
-		_NetworkIOService()
-			:m_iocp()
-			,m_alive(std::make_shared<bool>(true))
-		{
-			init_threadpoll();
-		}
-		//_NetworkIOService(const iocp_t &iocp)
-		//	:m_iocp(iocp)
-		//	,m_alive(std::make_shared<bool>(true))
-		//{}
+		_NetworkIOService();
+
 		delete_copy(_NetworkIOService);
-		~_NetworkIOService() 
-		{
-			*m_alive = false;
-		}
-		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocol)
-		{
-			SOCKET sock = ::socket(addr_family, sock_type, protocol);
-			if (sock == INVALID_SOCKET)
-			{
-				_ThrowWSAError
-			}
-			m_iocp.bind(sock);
-			return sock;
-		}
-		SOCKET create_wsasocket(const int &addr_family, const int &sock_type, const int &protocol)
-		{
-			SOCKET sock = WSASocket(addr_family, sock_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
-			if (sock == INVALID_SOCKET)
-			{
-				_ThrowWSAError
-			}
-			m_iocp.bind(sock);
-			return sock;
-		}
+
+		~_NetworkIOService();
+
+		SOCKET create_socket(const int &addr_family, const int &sock_type, const int &protocol);
+
+		SOCKET create_wsasocket(const int &addr_family, const int &sock_type, const int &protocol);
+
 		//发送数据
-		void send(SOCKET sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback)
-		{
-			auto *context_ptr = new network_io_context;
-			context_ptr->this_socket = sock;
-			char *buffer = (char*)std::calloc(sizeof(char), size);
-			//char *buffer = stdx::calloc<char>(size);
-			std::memcpy(buffer, data, size);
-			context_ptr->buffer.buf = buffer;
-			context_ptr->buffer.len = size;
-			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
-			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
-			{
-				if (error)
-				{
-					std::free(context_ptr->buffer.buf);
-					delete context_ptr;
-					callback(network_send_event(), error);
-					return;
-				}
-				network_send_event context(context_ptr);
-				std::free(context_ptr->buffer.buf);
-				//stdx::cfree<char>(context_ptr->buffer.buf, context_ptr->buffer.len);
-				delete context_ptr;
-				callback(context, nullptr);
-			};
-			context_ptr->callback = call;
-			if (WSASend(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
-			{
-				try
-				{
-					_ThrowWSAError
-				}
-				catch (const std::exception&)
-				{
-					delete call;
-					delete context_ptr;
-					callback(stdx::network_send_event(), std::current_exception());
-					return;
-				}
-			}
-		}
+		void send(SOCKET sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
 
 		//接收数据
-		void recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
-		{
-			auto *context_ptr = new network_io_context;
-			context_ptr->this_socket = sock;
-			char *buf = (char*)std::calloc(sizeof(char), size);
-			//char *buf = stdx::calloc<char>(size);
-			context_ptr->buffer.buf = buf;
-			context_ptr->buffer.len = size;
-			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
-			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
-			{
-				if (error)
-				{
-					std::free(context_ptr->buffer.buf);
-					delete context_ptr;
-					callback(network_recv_event(), error);
-					return;
-				}
-				network_recv_event context(context_ptr);
-				delete context_ptr;
-				callback(context, std::exception_ptr(nullptr));
-			};
-			context_ptr->callback = call;
-			if (WSARecv(sock, &(context_ptr->buffer), 1, &(context_ptr->size), &(_NetworkIOService::recv_flag), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
-			{
-				try
-				{
-					_ThrowWSAError
-				}
-				catch (const std::exception&)
-				{
-					delete call;
-					delete context_ptr;
-					callback(stdx::network_recv_event(), std::current_exception());
-					return;
-				}
-			}
-		}
+		void recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
 
-		void connect(SOCKET sock, stdx::network_addr &addr)
-		{
-			if (WSAConnect(sock, addr, network_addr::addr_len, NULL, NULL, NULL, NULL) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-		}
+		void connect(SOCKET sock, stdx::network_addr &addr);
 
-		SOCKET accept(SOCKET sock, network_addr &addr)
-		{
-			int size = network_addr::addr_len;
-			SOCKET s = WSAAccept(sock, addr, &size, NULL, NULL);
-			if (s == INVALID_SOCKET)
-			{
-				_ThrowWSAError
-			}
-			m_iocp.bind(s);
-			return s;
-		}
+		SOCKET accept(SOCKET sock, network_addr &addr);
 
-		SOCKET accept(SOCKET sock)
-		{
-			SOCKET s = WSAAccept(sock, NULL, 0, NULL, NULL);
-			if (s == INVALID_SOCKET)
-			{
-				_ThrowWSAError
-			}
-			m_iocp.bind(s);
-			return s;
-		}
+		SOCKET accept(SOCKET sock);
 
-		void listen(SOCKET sock, int backlog)
-		{
-			if (::listen(sock, backlog) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-		}
+		void listen(SOCKET sock, int backlog);
 
-		void bind(SOCKET sock, network_addr &addr)
-		{
-			if (::bind(sock, addr, network_addr::addr_len) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-		}
+		void bind(SOCKET sock, network_addr &addr);
 
-		void send_to(SOCKET sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback)
-		{
-			stdx::network_io_context *context_ptr = new stdx::network_io_context;
-			context_ptr->addr = addr;
-			context_ptr->this_socket = sock;
-			char *buf = (char*)std::calloc(sizeof(char), size);
-			std::memcpy(buf, data, size);
-			context_ptr->buffer.buf = buf;
-			context_ptr->buffer.len = size;
-			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
-			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
-			{
-				if (error)
-				{
-					std::free(context_ptr->buffer.buf);
-					delete context_ptr;
-					callback(network_send_event(), error);
-					return;
-				}
-				network_send_event context(context_ptr);
-				std::free(context_ptr->buffer.buf);
-				delete context_ptr;
-				callback(context, nullptr);
-			};
-			context_ptr->callback = call;
-			if (WSASendTo(sock, &(context_ptr->buffer), 1, &(context_ptr->size), NULL, (context_ptr->addr), network_addr::addr_len, &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
-			{
-				try
-				{
-					_ThrowWSAError
-				}
-				catch (const std::exception&)
-				{
-					delete call;
-					delete context_ptr;
-					callback(stdx::network_send_event(), std::current_exception());
-					return;
-				}
-			}
-		}
+		void send_to(SOCKET sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback);
 
-		void recv_from(SOCKET sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
-		{
-			auto *context_ptr = new network_io_context;
-			context_ptr->this_socket = sock;
-			char *buf = (char*)std::calloc(sizeof(char), size);
-			context_ptr->buffer.buf = buf;
-			context_ptr->buffer.len = size;
-			auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
-			*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
-			{
-				if (error)
-				{
-					std::free(context_ptr->buffer.buf);
-					delete context_ptr;
-					callback(network_recv_event(), error);
-					return;
-				}
-				network_recv_event context(context_ptr);
-				delete context_ptr;
-				callback(context, std::exception_ptr(nullptr));
-			};
-			context_ptr->callback = call;
-			if (WSARecvFrom(sock, &(context_ptr->buffer), 1, &(context_ptr->size), &(_NetworkIOService::recv_flag), context_ptr->addr, (LPINT)&(network_addr::addr_len), &(context_ptr->m_ol), NULL) == SOCKET_ERROR)
-			{
-				try
-				{
-					_ThrowWSAError
-				}
-				catch (const std::exception&)
-				{
-					delete call;
-					delete context_ptr;
-					callback(stdx::network_recv_event(), std::current_exception());
-					return;
-				}
-			}
-		}
+		void recv_from(SOCKET sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
 
-		void close(SOCKET sock)
-		{
-			if (::closesocket(sock) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-		}
+		void close(SOCKET sock);
 
-		network_addr get_local_addr(SOCKET sock) const
-		{
-			network_addr addr;
-			int len = network_addr::addr_len;
-			if (getsockname(sock, addr, &len) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-			return addr;
-		}
+		network_addr get_local_addr(SOCKET sock) const;
 
-		network_addr get_remote_addr(SOCKET sock) const
-		{
-			network_addr addr;
-			int len = network_addr::addr_len;
-			if (getpeername(sock, addr, &len) == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-			return addr;
-		}
-
-		bool poll(SOCKET sock, int16 mode, int32 timeout) const
-		{
-			WSAPOLLFD fd;
-			fd.events = mode;
-			int r = WSAPoll(&fd, 1, timeout);
-			if (r == 0)
-			{
-				return false;
-			}
-			if (r > 0)
-			{
-				if (fd.revents == mode)
-				{
-					return true;
-				}
-			}
-			if (r == SOCKET_ERROR)
-			{
-				_ThrowWSAError
-			}
-			return false;
-		}
+		network_addr get_remote_addr(SOCKET sock) const;
 
 		//void _GetAcceptEx(SOCKET s, LPFN_ACCEPTEX *ptr)
 		//{
@@ -650,44 +397,8 @@ namespace stdx
 		std::shared_ptr<bool> m_alive;
 		//static LPFN_ACCEPTEX accept_ex;
 		//static LPFN_GETACCEPTEXSOCKADDRS get_addr_ex;
-		void init_threadpoll() noexcept
-		{
-			for (size_t i = 0,cores = cpu_cores()*2; i < cores; i++)
-			{
-				stdx::threadpool::run([](iocp_t iocp, std::shared_ptr<bool> alive)
-				{
-					while (*alive)
-					{
-						auto *context_ptr = iocp.get();
-						std::exception_ptr error(nullptr);
-						try
-						{
-							DWORD flag = 0;
-							if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
-							{
-								//在这里出错
-								_ThrowWSAError
-							}
-						}
-						catch (const std::exception&)
-						{
-							error = std::current_exception();
-						}
-						auto *call = context_ptr->callback;
-						try
-						{
-							(*call)(context_ptr, error);
-						}
-						catch (const std::exception&)
-						{
-						}
-						delete call;
-					}
-				}, m_iocp, m_alive);
-			}
-		}
+		void init_threadpoll() noexcept;
 	};
-	DWORD _NetworkIOService::recv_flag = 0;
 
 	class network_io_service
 	{
@@ -782,10 +493,6 @@ namespace stdx
 		{
 			return m_impl->get_remote_addr(sock);
 		}
-		bool poll(SOCKET sock, int16 mode, int32 timeout) const
-		{
-			return m_impl->poll(sock, mode, timeout);
-		}
 		operator bool() const
 		{
 			return (bool)m_impl;
@@ -803,134 +510,49 @@ namespace stdx
 		//	, m_handle(m_io_service.create_socket(addr_family, sock_type, protocol))
 		//{}
 
-		explicit _Socket(const io_service_t &io_service, SOCKET s)
-			:m_io_service(io_service)
-			, m_handle(s)
-		{}
+		explicit _Socket(const io_service_t &io_service, SOCKET s);
 
-		explicit _Socket(const io_service_t &io_service)
-			:m_io_service(io_service)
-			,m_handle(INVALID_SOCKET)
-		{}
+		explicit _Socket(const io_service_t &io_service);
 
 		delete_copy(_Socket);
 
-		~_Socket()
-		{
-			if (m_handle != INVALID_SOCKET)
-			{
-				m_io_service.close(m_handle);
-				m_handle = INVALID_SOCKET;
-			}
-		}
+		~_Socket();
 
 		void init(const int &addr_family, const int &sock_type, const int &protocol)
 		{
 			m_handle = m_io_service.create_socket(addr_family, sock_type, protocol);
 		}
 
-		stdx::task<stdx::network_send_event> send(const char *data, const size_t &size)
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
+
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size)
 		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			stdx::promise_ptr<network_send_event> promise = stdx::make_promise_ptr<network_send_event>();
-			stdx::task<network_send_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.send(m_handle, data, size, [promise, task](stdx::network_send_event context, std::exception_ptr error) mutable
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-				}
-				else
-				{
-					promise->set_value(context);
-				}
-				task.run_on_this_thread();
-			});
-			return task;
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send(data, size, ce);
 		}
 
-		stdx::task<stdx::network_send_event> send_to(const network_addr &addr, const char *data, const size_t &size)
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
+
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
 		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			stdx::promise_ptr<network_send_event> promise = stdx::make_promise_ptr<network_send_event>();
-			stdx::task<network_send_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.send_to(m_handle, addr, data, size, [promise, task](stdx::network_send_event context, std::exception_ptr error) mutable
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-				}
-				else
-				{
-					promise->set_value(context);
-				}
-				task.run_on_this_thread();
-			});
-			return task;
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send_to(addr,data, size, ce);
 		}
 
-		stdx::task<stdx::network_recv_event> recv(const size_t &size)
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size,stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size)
 		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			stdx::promise_ptr<network_recv_event> promise = stdx::make_promise_ptr<network_recv_event>();
-			stdx::task<network_recv_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.recv(m_handle, size, [promise, task](stdx::network_recv_event context, std::exception_ptr error) mutable
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-				}
-				else
-				{
-					promise->set_value(context);
-				}
-				task.run_on_this_thread();
-			});
-			return task;
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv(size, ce);
 		}
 
-		stdx::task<stdx::network_recv_event> recv_from(const network_addr &addr, const size_t &size)
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr, const size_t &size, stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr,const size_t &size)
 		{
-			if (!m_io_service)
-			{
-				throw std::logic_error("this io service has been free");
-			}
-			stdx::promise_ptr<network_recv_event> promise = stdx::make_promise_ptr<network_recv_event>();
-			stdx::task<network_recv_event> task([promise]()
-			{
-				return promise->get_future().get();
-			});
-			m_io_service.recv_from(m_handle, addr, size, [promise, task](stdx::network_recv_event context, std::exception_ptr error) mutable
-			{
-				if (error)
-				{
-					promise->set_exception(error);
-				}
-				else
-				{
-					promise->set_value(context);
-				}
-				task.run_on_this_thread();
-			});
-			return task;
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv_from(addr,size, ce);
 		}
 
 		void bind(network_addr &addr)
@@ -953,14 +575,7 @@ namespace stdx
 			return m_io_service.accept(m_handle);
 		}
 
-		void close()
-		{
-			if (m_handle != INVALID_SOCKET)
-			{
-				m_io_service.close(m_handle);
-				m_handle = INVALID_SOCKET;
-			}
-		}
+		void close();
 
 		void connect(network_addr &addr)
 		{
@@ -984,24 +599,24 @@ namespace stdx
 
 		//返回true则继续
 		template<typename _Fn>
-		void recv_utill(const size_t &size, _Fn &call)
+		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			static_assert(stdx::is_arguments_type<_Fn,stdx::task_result<stdx::network_recv_event>>,"the input function not be allowed");
-			static_assert(stdx::is_result_type<_Fn, bool>, "the input function not be allowed");
-			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r)
+			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
+			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
+			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
 			{
-				if (stdx::invoke(call,r))
+				if (stdx::invoke(call, r))
 				{
 					recv_utill(size, call);
 				}
 			});
 		}
 
-		template<typename _Fn,typename _ErrHandler>
-		void recv_utill_error(const size_t &size,_Fn &call,_ErrHandler &err_handler)
+		template<typename _Fn, typename _ErrHandler>
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			static_assert(stdx::is_arguments_type<_Fn,stdx::network_recv_event>, "the input function not be allowed");
-			return this->recv_utill(size, [call,err_handler](stdx::task_result<network_recv_event> r)
+			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
 			{
 				try
 				{
@@ -1021,6 +636,9 @@ namespace stdx
 		io_service_t m_io_service;
 		SOCKET m_handle;
 	};
+
+	class socket;
+
 	class socket
 	{
 		using impl_t = std::shared_ptr<_Socket>;
@@ -1094,36 +712,36 @@ namespace stdx
 			return m_impl->remote_addr();
 		}
 
-		stdx::task<network_send_event> send(const char *data, const size_t &size)
+		stdx::task<network_send_event> &send(const char *data, const size_t &size)
 		{
 			return m_impl->send(data, size);
 		}
 
-		stdx::task<network_send_event> send_to(const network_addr &addr, const char *data, const size_t &size)
+		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
 		{
 			return m_impl->send_to(addr, data, size);
 		}
 
-		stdx::task<network_recv_event> recv(const size_t &size)
+		stdx::task<network_recv_event> &recv(const size_t &size)
 		{
 			return m_impl->recv(size);
 		}
 
-		stdx::task<network_recv_event> recv_from(const network_addr &addr, const size_t &size)
+		stdx::task<network_recv_event> &recv_from(const network_addr &addr, const size_t &size)
 		{
 			return m_impl->recv_from(addr, size);
 		}
 
 		template<typename _Fn>
-		void recv_utill(const size_t &size,_Fn &call)
+		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			return m_impl->recv_utill(size, call);
+			return m_impl->recv_utill(size, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void recv_utill_error(const size_t &size,_Fn &call, _ErrHandler &err_handler)
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			return m_impl->recv_utill_error(size, call,err_handler);
+			return m_impl->recv_utill_error(size,std::move(call),std::move(err_handler));
 		}
 	private:
 		impl_t m_impl;
@@ -1136,15 +754,580 @@ namespace stdx
 
 namespace stdx
 {
-	inline stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol)
-	{
-		stdx::socket sock(io_service);
-		sock.init(addr_family,sock_type,protocol);
-		return sock;
-	}
+	extern stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol);
+	extern stdx::socket open_tcpsocket(const stdx::network_io_service &io_service);
+	extern stdx::socket open_udpsocket(const stdx::network_io_service &io_service);
 }
 #endif //Win32
 
 #ifdef LINUX
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#define _ThrowLinuxError auto _ERROR_CODE = errno;\
+						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
+namespace stdx
+{
+	struct protocol
+	{
+		enum
+		{
+			ip = IPPROTO_IP,
+			tcp = IPPROTO_TCP,
+			udp = IPPROTO_UDP
+		};
+	};
+	struct socket_type
+	{
+		enum
+		{
+			raw = SOCK_RAW,
+			stream = SOCK_STREAM,
+			dgram = SOCK_DGRAM
+		};
+	};
+	struct addr_family
+	{
+		enum
+		{
+			ip = AF_INET,
+			ipv6 = AF_INET6
+		};
+	};
+
+	class network_addr
+	{
+	public:
+		network_addr() = default;
+		network_addr(unsigned long ip, const uint16 &port)
+		{
+			m_handle.sin_family = addr_family::ip;
+			m_handle.sin_addr.s_addr = ip;
+			m_handle.sin_port = htons(port);
+		}
+		network_addr(const char *ip, const uint16 &port)
+			:network_addr(inet_addr(ip), port)
+		{}
+		network_addr(const network_addr &other)
+			:m_handle(other.m_handle)
+		{}
+		~network_addr() = default;
+		operator sockaddr_in* ()
+		{
+			return &m_handle;
+		}
+
+		operator sockaddr*() const
+		{
+			return (sockaddr*)&m_handle;
+		}
+
+		network_addr &operator=(const network_addr &other)
+		{
+			m_handle = other.m_handle;
+			return *this;
+		}
+
+		network_addr &operator=(network_addr &&other)
+		{
+			m_handle = other.m_handle;
+			return *this;
+		}
+
+		const static int addr_len = sizeof(sockaddr);
+		network_addr &port(const uint16 &port)
+		{
+			m_handle.sin_port = htons(port);
+			return *this;
+		}
+		uint16 port() const
+		{
+			return ntohs(m_handle.sin_port);
+		}
+		const char *ip() const
+		{
+			return inet_ntoa(m_handle.sin_addr);
+		}
+		network_addr &ip(const char *ip)
+		{
+			m_handle.sin_addr.s_addr = inet_addr(ip);
+			return *this;
+		}
+	private:
+		sockaddr_in m_handle;
+	};
+
+	struct network_io_context
+	{
+		network_io_context() = default;
+		~network_io_context() = default;
+		int this_socket;
+		network_addr addr;
+		char *buffer;
+		size_t size;
+		int target_socket;
+		std::function <void(network_io_context*, std::exception_ptr)> *callback;
+	};
+	struct network_send_event
+	{
+		network_send_event()
+			:sock(-1)
+			,size(0)
+		{}
+		~network_send_event() = default;
+		network_send_event(const network_send_event &other)
+			:sock(other.sock)
+			, size(other.size)
+		{}
+		network_send_event(network_send_event &&other)
+			:sock(std::move(other.sock))
+			, size(std::move(other.size))
+		{}
+		network_send_event &operator=(const network_send_event &other)
+		{
+			sock = other.sock;
+			size = other.size;
+			return *this;
+		}
+		network_send_event(network_io_context *ptr)
+			:sock(ptr->this_socket)
+			, size(ptr->size)
+		{}
+		int sock;
+		size_t size;
+	};
+
+	struct network_recv_event
+	{
+		network_recv_event()
+			:sock(-1)
+			, buffer(0, nullptr)
+			, size(0)
+		{}
+		~network_recv_event() = default;
+		network_recv_event(const network_recv_event &other)
+			:sock(other.sock)
+			, buffer(other.buffer)
+			, size(other.size)
+		{}
+		network_recv_event(network_recv_event &&other)
+			:sock(std::move(other.sock))
+			, buffer(other.buffer)
+			, size(other.size)
+		{}
+		network_recv_event &operator=(const network_recv_event &other)
+		{
+			sock = other.sock;
+			buffer = other.buffer;
+			size = other.size;
+			return *this;
+		}
+		network_recv_event(network_io_context *ptr)
+			:sock(ptr->target_socket)
+			, buffer(ptr->size,ptr->buffer)
+			, size(ptr->size)
+		{}
+		int sock;
+		stdx::buffer buffer;
+		size_t size;
+	};
+
+	struct network_io_context_finder
+	{
+		static int find(epoll_event *ev);
+	};
+
+	class _NetworkIOService
+	{
+	public:
+		_NetworkIOService()
+			:m_reactor()
+			,m_alive(std::make_shared<bool>(true))
+		{
+			init_threadpoll();
+		}
+		~_NetworkIOService()
+		{
+			*m_alive = false;
+		}
+		int create_socket(const int &addr_family, const int &sock_type, const int &protocol);
+
+		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
+
+		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
+
+		void connect(int sock, stdx::network_addr &addr);
+
+		int accept(int sock, network_addr &addr);
+
+		int accept(int sock);
+
+		void listen(int sock, int backlog);
+
+		void bind(int sock, network_addr &addr);
+
+		void send_to(int sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback);
+
+		void recv_from(int sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
+
+		void close(int sock);
+
+		network_addr get_local_addr(int sock) const;
+
+		network_addr get_remote_addr(int sock) const;
+	private:
+		stdx::reactor m_reactor;
+		std::shared_ptr<bool> m_alive;
+		void init_threadpoll() noexcept;
+	};
+
+	class network_io_service
+	{
+		using impl_t = std::shared_ptr<_NetworkIOService>;
+	public:
+		network_io_service()
+			:m_impl(std::make_shared<_NetworkIOService>())
+		{}
+
+		network_io_service(const network_io_service &other)
+			:m_impl(other.m_impl)
+		{}
+
+		network_io_service(network_io_service &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+
+		network_io_service &operator=(const network_io_service &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		~network_io_service() = default;
+
+		int create_socket(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			return m_impl->create_socket(addr_family, sock_type, protocol);
+		}
+
+		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->send(sock, data, size, std::move(callback));
+		}
+
+		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->recv(sock, size,std::move(callback));
+		}
+
+		void connect(int sock, stdx::network_addr &addr)
+		{
+			m_impl->connect(sock, addr);
+		}
+
+		int accept(int sock, network_addr &addr)
+		{
+			return m_impl->accept(sock, addr);
+		}
+
+		int accept(int sock)
+		{
+			return m_impl->accept(sock);
+		}
+
+		void listen(int sock, int backlog)
+		{
+			m_impl->listen(sock, backlog);
+		}
+
+		void bind(int sock, network_addr &addr)
+		{
+			m_impl->bind(sock, addr);
+		}
+
+		void send_to(int sock, const network_addr &addr, const char *data, const size_t &size, std::function<void(stdx::network_send_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->send_to(sock, addr, data, size, std::move(callback));
+		}
+
+		void recv_from(int sock, const network_addr &addr, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
+		{
+			m_impl->recv_from(sock, addr, size, std::move(callback));
+		}
+
+		void close(int sock)
+		{
+			m_impl->close(sock);
+		}
+
+		network_addr get_local_addr(int sock) const
+		{
+			return m_impl->get_local_addr(sock);
+		}
+
+		network_addr get_remote_addr(int sock) const
+		{
+			return m_impl->get_remote_addr(sock);
+		}
+		operator bool() const
+		{
+			return (bool)m_impl;
+		}
+	private:
+		impl_t m_impl;
+	};
+	class _Socket
+	{
+		using io_service_t = network_io_service;
+	public:
+		explicit _Socket(const io_service_t &io_service, int s);
+
+		explicit _Socket(const io_service_t &io_service);
+
+		delete_copy(_Socket);
+
+		~_Socket();
+
+		void init(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			m_handle = m_io_service.create_socket(addr_family, sock_type, protocol);
+		}
+
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size, stdx::task_complete_event<stdx::network_send_event> ce);
+
+		stdx::task<stdx::network_send_event> &send(const char *data, const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send(data, size, ce);
+		}
+
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size, stdx::task_complete_event<stdx::network_send_event> ce);
+
+		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_send_event> ce;
+			return send_to(addr, data, size, ce);
+		}
+
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size, stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv(const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv(size, ce);
+		}
+
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr, const size_t &size, stdx::task_complete_event<stdx::network_recv_event> ce);
+
+		stdx::task<stdx::network_recv_event> &recv_from(const network_addr &addr, const size_t &size)
+		{
+			stdx::task_complete_event<stdx::network_recv_event> ce;
+			return recv_from(addr, size, ce);
+		}
+
+		void bind(network_addr &addr)
+		{
+			m_io_service.bind(m_handle, addr);
+		}
+
+		void listen(int backlog)
+		{
+			m_io_service.listen(m_handle, backlog);
+		}
+
+		int accept(network_addr &addr)
+		{
+			return m_io_service.accept(m_handle, addr);
+		}
+
+		int accept()
+		{
+			return m_io_service.accept(m_handle);
+		}
+
+		void close();
+
+		void connect(network_addr &addr)
+		{
+			m_io_service.connect(m_handle, addr);
+		}
+
+		io_service_t io_service() const
+		{
+			return m_io_service;
+		}
+
+		network_addr local_addr() const
+		{
+			return m_io_service.get_local_addr(m_handle);
+		}
+
+		network_addr remote_addr() const
+		{
+			return m_io_service.get_remote_addr(m_handle);
+		}
+
+		//返回true则继续
+		template<typename _Fn>
+		void recv_utill(const size_t &size, _Fn &&call)
+		{
+			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
+			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
+			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
+			{
+				if (stdx::invoke(call, r))
+				{
+					recv_utill(size, call);
+				}
+			});
+		}
+
+		template<typename _Fn, typename _ErrHandler>
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
+		{
+			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
+			{
+				try
+				{
+					auto e = r.get();
+					stdx::invoke(call, e);
+				}
+				catch (const std::exception&)
+				{
+					stdx::invoke(err_handler, std::current_exception());
+					return false;
+				}
+				return true;
+			});
+		}
+	private:
+		io_service_t m_io_service;
+		int m_handle;
+	};
+
+	class socket;
+
+	class socket
+	{
+		using impl_t = std::shared_ptr<_Socket>;
+		using self_t = socket;
+		using io_service_t = network_io_service;
+	public:
+		//已弃用
+		//socket(const io_service_t &io_service, const int &addr_family, const int &sock_type, const int &protocol)
+		//	:m_impl(std::make_shared<_Socket>(io_service, addr_family, sock_type, protocol))
+		//{}
+
+		socket(const io_service_t &io_service)
+			:m_impl(std::make_shared<_Socket>(io_service))
+		{}
+		socket(const self_t &other)
+			:m_impl(other.m_impl)
+		{}
+		socket(self_t &&other)
+			:m_impl(std::move(other.m_impl))
+		{}
+		self_t &operator=(const self_t &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		void init(const int &addr_family, const int &sock_type, const int &protocol)
+		{
+			return m_impl->init(addr_family, sock_type, protocol);
+		}
+
+		void bind(network_addr &addr)
+		{
+			m_impl->bind(addr);
+		}
+
+		void listen(int backlog)
+		{
+			m_impl->listen(backlog);
+		}
+
+		self_t accept(network_addr &addr)
+		{
+			int s = m_impl->accept(addr);
+			return socket(m_impl->io_service(), s);
+		}
+
+		self_t accept()
+		{
+			int s = m_impl->accept();
+			return socket(m_impl->io_service(), s);
+		}
+
+		void close()
+		{
+			m_impl->close();
+		}
+
+		void connect(network_addr &addr)
+		{
+			m_impl->connect(addr);
+		}
+
+		network_addr local_addr() const
+		{
+			return m_impl->local_addr();
+		}
+
+		network_addr remote_addr() const
+		{
+			return m_impl->remote_addr();
+		}
+
+		stdx::task<network_send_event> &send(const char *data, const size_t &size)
+		{
+			return m_impl->send(data, size);
+		}
+
+		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
+		{
+			return m_impl->send_to(addr, data, size);
+		}
+
+		stdx::task<network_recv_event> &recv(const size_t &size)
+		{
+			return m_impl->recv(size);
+		}
+
+		stdx::task<network_recv_event> &recv_from(const network_addr &addr, const size_t &size)
+		{
+			return m_impl->recv_from(addr, size);
+		}
+
+		template<typename _Fn>
+		void recv_utill(const size_t &size, _Fn &&call)
+		{
+			return m_impl->recv_utill(size, std::move(call));
+		}
+
+		template<typename _Fn, typename _ErrHandler>
+		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
+		{
+			return m_impl->recv_utill_error(size, std::move(call), std::move(err_handler));
+		}
+	private:
+		impl_t m_impl;
+
+		socket(const io_service_t &io_service, int s)
+			:m_impl(std::make_shared<_Socket>(io_service, s))
+		{}
+	};
+}
+
+namespace stdx
+{
+	extern stdx::socket open_socket(const stdx::network_io_service &io_service, const int &addr_family, const int &sock_type, const int &protocol);
+	extern stdx::socket open_tcpsocket(const stdx::network_io_service &io_service);
+	extern stdx::socket open_udpsocket(const stdx::network_io_service &io_service);
+}
+#undef _ThrowLinuxError
 #endif //LINUX
