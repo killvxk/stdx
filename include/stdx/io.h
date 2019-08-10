@@ -343,16 +343,16 @@ namespace stdx
 	}
 #define invalid_eventfd -1
 	template<typename _Data>
-	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
+	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int_64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
 		(cbs[0]).aio_lio_opcode = IOCB_CMD_PREAD;
 		(cbs[0]).aio_fildes = fd;
-		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_buf = (uint_64)buf;
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
-		(cbs[0]).aio_data =(uint64)ptr;
+		(cbs[0]).aio_data =(uint_64)ptr;
 		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
@@ -366,16 +366,16 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
+	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int_64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));
 		(cbs[0]).aio_lio_opcode = IOCB_CMD_PWRITE;
 		(cbs[0]).aio_fildes = fd;
-		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_buf = (uint_64)buf;
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
-		(cbs[0]).aio_data = (uint64)ptr;
+		(cbs[0]).aio_data = (uint_64)ptr;
 		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
@@ -403,7 +403,7 @@ namespace stdx
 			io_destroy(m_ctxid);
 		}
 
-		_IOContext *get(int64 &res)
+		_IOContext *get(int_64 &res)
 		{
 			io_event ev;
 			io_getevents(m_ctxid, 1, 1,&ev,NULL);
@@ -441,7 +441,7 @@ namespace stdx
 		{
 			return m_impl->get_context();
 		}
-		_IOContext *get(int64 &res)
+		_IOContext *get(int_64 &res)
 		{
 			return m_impl->get(res);
 		}

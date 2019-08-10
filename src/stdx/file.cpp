@@ -44,7 +44,7 @@ HANDLE stdx::_FileIOService::create_file(const std::string &path, DWORD access_t
 	return file;
 }
 
-void stdx::_FileIOService::read_file(HANDLE file, const DWORD &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+void stdx::_FileIOService::read_file(HANDLE file, const DWORD &size, const int_64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 {
 	file_io_context *context = new file_io_context;
 	int64_union li;
@@ -114,7 +114,7 @@ void stdx::_FileIOService::read_file(HANDLE file, const DWORD &size, const int64
 	return;
 }
 
-void stdx::_FileIOService::write_file(HANDLE file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+void stdx::_FileIOService::write_file(HANDLE file, const char *buffer, const size_t &size, const int_64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
 {
 	file_io_context *context_ptr = new file_io_context;
 	int64_union li;
@@ -153,7 +153,7 @@ void stdx::_FileIOService::write_file(HANDLE file, const char *buffer, const siz
 	}
 }
 
-int64 stdx::_FileIOService::get_file_size(HANDLE file) const
+int_64 stdx::_FileIOService::get_file_size(HANDLE file) const
 {
 	LARGE_INTEGER li;
 	::GetFileSizeEx(file, &li);
@@ -234,7 +234,7 @@ stdx::_FileStream::~_FileStream()
 	}
 }
 
-stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int64 & offset, stdx::task_complete_event<stdx::file_read_event> ce)
+stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int_64 & offset, stdx::task_complete_event<stdx::file_read_event> ce)
 {
 	if (!m_io_service)
 	{
@@ -255,7 +255,7 @@ stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, 
 	return ce.get_task();
 }
 
-stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset, stdx::task_complete_event<stdx::file_write_event> ce)
+stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int_64 &offset, stdx::task_complete_event<stdx::file_write_event> ce)
 {
 	if (!m_io_service)
 	{
@@ -285,7 +285,7 @@ void stdx::_FileStream::close()
 	}
 }
 
-stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
+stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type)
 {
 	stdx::file_stream file(io_service);
 	file.init(path, access_type, open_type, stdx::file_shared_model::shared_read | stdx::file_shared_model::shared_write);
@@ -304,7 +304,7 @@ stdx::_FileIOService::_FileIOService()
 	init_thread();
 }
 
-stdx::_FileIOService::_FileIOService(uint32 nr_events)
+stdx::_FileIOService::_FileIOService(uint_32 nr_events)
 	:m_aiocp(nr_events)
 	, m_alive(std::make_shared<bool>(true))
 {
@@ -317,17 +317,17 @@ stdx::_FileIOService::~_FileIOService()
 }
 
 
-int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type, mode_t mode)
+int stdx::_FileIOService::create_file(const std::string & path, int_32 access_type, int_32 open_type, mode_t mode)
 {
 	return open(path.c_str(), access_type | open_type|O_DIRECT, mode);
 }
 
-int stdx::_FileIOService::create_file(const std::string & path, int32 access_type, int32 open_type)
+int stdx::_FileIOService::create_file(const std::string & path, int_32 access_type, int_32 open_type)
 {
 	return open(path.c_str(), access_type | open_type|O_DIRECT);
 }
 
-void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 & offset, std::function<void(file_read_event, std::exception_ptr)>&& callback)
+void stdx::_FileIOService::read_file(int file, const size_t & size, const int_64 & offset, std::function<void(file_read_event, std::exception_ptr)>&& callback)
 {
 	auto  r_size = size;
 	auto tmp = size % 512;
@@ -377,7 +377,7 @@ void stdx::_FileIOService::read_file(int file, const size_t & size, const int64 
 	}
 }
 
-void stdx::_FileIOService::write_file(int file, const char * buffer, const size_t & size, const int64 & offset, std::function<void(file_write_event, std::exception_ptr)>&& callback)
+void stdx::_FileIOService::write_file(int file, const char * buffer, const size_t & size, const int_64 & offset, std::function<void(file_write_event, std::exception_ptr)>&& callback)
 {
 	auto  r_size = size;
 	auto tmp = size % 512;
@@ -432,7 +432,7 @@ void stdx::_FileIOService::write_file(int file, const char * buffer, const size_
 
 }
 
-int64 stdx::_FileIOService::get_file_size(int file) const
+int_64 stdx::_FileIOService::get_file_size(int file) const
 {
 	struct stat state;
 	if (fstat(file, &state) == -1)
@@ -456,7 +456,7 @@ void stdx::_FileIOService::init_thread()
 			while (*alive)
 			{
 				std::exception_ptr error(nullptr);
-				int64 res = 0;
+				int_64 res = 0;
 				auto *context_ptr = aiocp.get(res);
 				auto *call = context_ptr->callback;
 				try
@@ -497,7 +497,7 @@ stdx::_FileStream::~_FileStream()
 	}
 }
 
-stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int64 & offset,stdx::task_complete_event<stdx::file_read_event> ce)
+stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, const int_64 & offset,stdx::task_complete_event<stdx::file_read_event> ce)
 {
 	if (!m_io_service)
 	{
@@ -519,7 +519,7 @@ stdx::task<stdx::file_read_event> &stdx::_FileStream::read(const size_t & size, 
 }
 
 
-stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce)
+stdx::task<stdx::file_write_event> &stdx::_FileStream::write(const char* buffer, const size_t &size, const int_64 &offset,stdx::task_complete_event<stdx::file_write_event> ce)
 {
 	if (!m_io_service)
 	{
@@ -549,7 +549,7 @@ void stdx::_FileStream::close()
 	}
 }
 
-stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type)
+stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type)
 {
 	stdx::file_stream file(io_service);
 	file.init(path, access_type, open_type);

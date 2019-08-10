@@ -94,13 +94,13 @@ namespace stdx
 	{
 	public:
 		network_addr() = default;
-		network_addr(unsigned long ip, const uint16 &port)
+		network_addr(unsigned long ip, const uint_16 &port)
 		{
 			m_handle.sin_family = addr_family::ip;
 			m_handle.sin_addr.S_un.S_addr = ip;
 			m_handle.sin_port = htons(port);
 		}
-		network_addr(const char *ip, const uint16 &port)
+		network_addr(const char *ip, const uint_16 &port)
 			:network_addr(inet_addr(ip), port)
 		{}
 		network_addr(const network_addr &other)
@@ -130,12 +130,12 @@ namespace stdx
 		}
 
 		const static int addr_len = sizeof(sockaddr);
-		network_addr &port(const uint16 &port)
+		network_addr &port(const uint_16 &port)
 		{
 			m_handle.sin_port = htons(port);
 			return *this;
 		}
-		uint16 port() const
+		uint_16 port() const
 		{
 			return ntohs(m_handle.sin_port);
 		}
@@ -801,13 +801,13 @@ namespace stdx
 	{
 	public:
 		network_addr() = default;
-		network_addr(unsigned long ip, const uint16 &port)
+		network_addr(unsigned long ip, const uint_16 &port)
 		{
 			m_handle.sin_family = addr_family::ip;
 			m_handle.sin_addr.s_addr = ip;
 			m_handle.sin_port = htons(port);
 		}
-		network_addr(const char *ip, const uint16 &port)
+		network_addr(const char *ip, const uint_16 &port)
 			:network_addr(inet_addr(ip), port)
 		{}
 		network_addr(const network_addr &other)
@@ -837,12 +837,12 @@ namespace stdx
 		}
 
 		const static int addr_len = sizeof(sockaddr);
-		network_addr &port(const uint16 &port)
+		network_addr &port(const uint_16 &port)
 		{
 			m_handle.sin_port = htons(port);
 			return *this;
 		}
-		uint16 port() const
+		uint_16 port() const
 		{
 			return ntohs(m_handle.sin_port);
 		}

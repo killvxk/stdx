@@ -201,7 +201,7 @@ namespace stdx
 
 #include <iconv.h>
 
-	using unicode_string = std::basic_string<int16>;
+	using unicode_string = std::basic_string<int_16>;
 	template<typename _String = std::string, typename _UnicodeString>
 	inline _String unicode_to_utf8(const _UnicodeString &src)
 	{

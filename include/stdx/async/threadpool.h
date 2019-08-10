@@ -40,7 +40,7 @@ namespace stdx
 		}
 
 	private:
-		std::shared_ptr<uint32> m_free_count;
+		std::shared_ptr<uint_32> m_free_count;
 		stdx::spin_lock m_count_lock;
 		std::shared_ptr<bool> m_alive;
 		std::shared_ptr<std::queue<runable_ptr>> m_task_queue;
