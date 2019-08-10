@@ -261,7 +261,7 @@ namespace stdx
 		void read_utill(const size_t &size, const int_64 &offset,_Fn &&call)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>,stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				if (stdx::invoke(call,r))
@@ -276,7 +276,7 @@ namespace stdx
 		void read_utill_eof(const size_t &size, const int_64 &offset,_Fn &&call,_ErrHandler &&err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::file_read_event>::value, "the input function not be allowed");
 			return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try
@@ -637,7 +637,7 @@ namespace stdx
 		void read_utill(const size_t &size, const int_64 &offset, _Fn &&call)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<typename args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				if (stdx::invoke(call, r))
@@ -652,7 +652,7 @@ namespace stdx
 		void read_utill_eof(const size_t &size, const int_64 &offset, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<typename args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::file_read_event>::value, "the input function not be allowed");
 			return read_utill(size, offset, [call, err_handler](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try

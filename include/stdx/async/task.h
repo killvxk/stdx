@@ -333,7 +333,7 @@ namespace stdx
 		{
 			auto t = stdx::make_task_ptr<Result>([](Fn &&fn, std::shared_future<Input> &future)
 			{
-				future.lock();
+				future.wait();
 				return fn();
 			}, fn, future);
 			lock.lock();
