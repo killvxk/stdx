@@ -250,11 +250,11 @@ int main(int argc, char **argv)
 #endif // LINUX
 
 #endif // ENABLE_TCP
-	stdx::logger log = stdx::make_default_logger();
-	log.debug("debug");
-	log.info("info");
-	log.warn("warn");
-	log.error("error");
+	stdx::logger logger = stdx::make_default_logger();
+	logger.debug("debug");
+	logger.info("info");
+	logger.warn("warn");
+	logger.error("error");
 	system("pause");
 	return 0;
 }

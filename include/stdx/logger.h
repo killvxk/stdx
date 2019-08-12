@@ -89,6 +89,12 @@ namespace stdx
 		{
 			m_impl->error(str);
 		}
+
+		bool operator==(const logger &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};

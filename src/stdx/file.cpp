@@ -288,7 +288,43 @@ void stdx::_FileStream::close()
 stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type)
 {
 	stdx::file_stream file(io_service);
-	file.init(path, access_type, open_type, stdx::file_shared_model::shared_read | stdx::file_shared_model::shared_write);
+	DWORD shared = 0;
+	if (access_type  == stdx::file_access_type::read)
+	{
+		shared = stdx::file_shared_model::shared_read;
+	}
+	if (access_type == stdx::file_access_type::write)
+	{
+		shared = stdx::file_shared_model::shared_write;
+	}
+	if (access_type == stdx::file_access_type::all)
+	{
+		shared = stdx::file_shared_model::shared_read | stdx::file_shared_model::shared_write;
+	}
+	file.init(path, access_type, open_type,shared);
+	return file;
+}
+
+stdx::file_handle stdx::open_file_with_cache(const std::string &path, const int_32 & access_type, const int_32 & open_type)
+{
+	DWORD shared = 0;
+	if (access_type == stdx::file_access_type::read)
+	{
+		shared = stdx::file_shared_model::shared_read;
+	}
+	if (access_type == stdx::file_access_type::write)
+	{
+		shared = stdx::file_shared_model::shared_write;
+	}
+	if (access_type == stdx::file_access_type::all)
+	{
+		shared = stdx::file_shared_model::shared_read | stdx::file_shared_model::shared_write;
+	}
+	HANDLE file = CreateFile(path.c_str(), access_type, shared, 0, open_type, FILE_FLAG_SEQUENTIAL_SCAN, 0);
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		_ThrowWinError
+	}
 	return file;
 }
 #undef _ThrowWinError
@@ -554,6 +590,11 @@ stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const
 	stdx::file_stream file(io_service);
 	file.init(path, access_type, open_type);
 	return file;
+}
+
+stdx::file_handle stdx::open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type)
+{
+	return open(path.c_str(),access_type|open_type);
 }
 #undef _ThrowLinuxError
 #endif // LINUX

@@ -44,6 +44,11 @@ namespace stdx
 		{
 			m_impl->unlock();
 		}
+
+		bool operator==(const spin_lock &other)
+		{
+			return m_impl == other.m_impl;
+		}
 	private:
 		impl_t m_impl;
 	};

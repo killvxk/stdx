@@ -29,6 +29,8 @@ namespace stdx
 		}
 
 		void copy_from(const _Buffer &other);
+
+		char *to_raw();
 	private:
 		size_t m_size;
 		char *m_data;
@@ -76,6 +78,15 @@ namespace stdx
 		void copy_from(const buffer &other)
 		{
 			m_impl->copy_from(*other.m_impl);
+		}
+
+		bool operator==(const buffer &other)
+		{
+			return m_impl == other.m_impl;
+		}
+		char *to_raw()
+		{
+			return m_impl->to_raw();
 		}
 	private:
 		impl_t m_impl;
@@ -208,6 +219,12 @@ namespace stdx
 		{
 			m_impl->post(size, context_ptr, ol_ptr);
 		}
+
+		bool operator==(const iocp &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -445,6 +462,12 @@ namespace stdx
 		{
 			return m_impl->get(res);
 		}
+
+		bool operator==(const aiocp &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -560,6 +583,12 @@ namespace stdx
 		{
 			return m_impl->push(fd,ev);
 		}
+
+		bool operator==(const reactor &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};

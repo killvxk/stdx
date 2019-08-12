@@ -194,6 +194,11 @@ namespace stdx
 		{
 			return (bool)m_impl;
 		}
+
+		bool operator==(const stdx::task<_R> &other)
+		{
+			return m_impl == other.m_impl;
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -686,6 +691,43 @@ namespace stdx
 		stdx::task<_R> m_task;
 	};
 
+	template<>
+	class _TaskCompleteEvent<void>
+	{
+	public:
+		_TaskCompleteEvent()
+			:m_promise(stdx::make_promise_ptr<void>())
+			, m_task([](promise_ptr<void> promise)
+		{
+			return promise->get_future().get();
+		}, m_promise)
+		{}
+		~_TaskCompleteEvent() = default;
+		void set_value()
+		{
+			m_promise->set_value();
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_promise->set_exception(error);
+		}
+		stdx::task<void> &get_task()
+		{
+			return m_task;
+		}
+		void run()
+		{
+			m_task.run();
+		}
+		void run_on_this_thread()
+		{
+			m_task.run_on_this_thread();
+		}
+	private:
+		promise_ptr<void> m_promise;
+		stdx::task<void> m_task;
+	};
+
 	template<typename _R>
 	class task_complete_event
 	{
@@ -712,6 +754,47 @@ namespace stdx
 			m_impl->set_exception(error);
 		}
 		stdx::task<_R> &get_task()
+		{
+			return m_impl->get_task();
+		}
+		void run()
+		{
+			m_impl->run();
+		}
+		void run_on_this_thread()
+		{
+			m_impl->run_on_this_thread();
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	template<>
+	class task_complete_event<void>
+	{
+		using impl_t = std::shared_ptr<_TaskCompleteEvent<void>>;
+	public:
+		task_complete_event()
+			:m_impl(std::make_shared<_TaskCompleteEvent<void>>())
+		{}
+		task_complete_event(const task_complete_event<void> &other)
+			:m_impl(other.m_impl)
+		{}
+		~task_complete_event() = default;
+		task_complete_event<void> &operator=(const task_complete_event<void> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		void set_value()
+		{
+			m_impl->set_value();
+		}
+		void set_exception(const std::exception_ptr &error)
+		{
+			m_impl->set_exception(error);
+		}
+		stdx::task<void> &get_task()
 		{
 			return m_impl->get_task();
 		}

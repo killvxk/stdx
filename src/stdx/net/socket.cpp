@@ -103,6 +103,35 @@ void stdx::_NetworkIOService::send(SOCKET sock, const char* data, const size_t &
 	}
 }
 
+void stdx::_NetworkIOService::send_file(SOCKET sock, HANDLE file_with_cache,std::function<void(std::exception_ptr)> &&callback)
+{
+	stdx::network_io_context *context_ptr = new network_io_context;
+	context_ptr->buffer.buf = NULL;
+	context_ptr->buffer.len = 0;
+	auto *call = new std::function <void(network_io_context*, std::exception_ptr)>;
+	*call = [callback](network_io_context *context_ptr, std::exception_ptr error)
+	{
+		delete context_ptr;
+		callback(error);
+	};
+	context_ptr->callback = call;
+	if (!(::TransmitFile(sock, file_with_cache, 0, 0, &context_ptr->m_ol, NULL, 0)))
+	{
+		try
+		{
+			_ThrowWSAError
+		}
+		catch (const std::exception&)
+		{
+			delete call;
+			delete context_ptr;
+			callback(std::current_exception());
+			return;
+		}
+	}
+}
+
+
 void stdx::_NetworkIOService::recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
 {
 	auto *context_ptr = new network_io_context;
@@ -119,6 +148,26 @@ void stdx::_NetworkIOService::recv(SOCKET sock, const size_t &size, std::functio
 			std::free(context_ptr->buffer.buf);
 			delete context_ptr;
 			callback(network_recv_event(), error);
+			return;
+		}
+		if (context_ptr->size == 0)
+		{
+			try
+			{
+				auto _ERROR_CODE = 10054;
+				if (_ERROR_CODE != WSA_IO_PENDING)
+				{
+					std::string _ERROR_STR("windows WSA error:");
+					_ERROR_STR.append(std::to_string(_ERROR_CODE));
+					throw std::system_error(std::error_code(_ERROR_CODE, std::system_category()), _ERROR_STR.c_str());
+				}
+			}
+			catch (const std::exception&)
+			{
+				std::free(context_ptr->buffer.buf);
+				delete context_ptr;
+				callback(network_recv_event(), std::current_exception());
+			}
 			return;
 		}
 		network_recv_event context(context_ptr);
@@ -245,6 +294,26 @@ void stdx::_NetworkIOService::recv_from(SOCKET sock, const network_addr & addr, 
 			callback(network_recv_event(), error);
 			return;
 		}
+		if (context_ptr->size == 0)
+		{
+			try
+			{
+				auto _ERROR_CODE = 10054; 
+				if (_ERROR_CODE != WSA_IO_PENDING)
+				{
+					std::string _ERROR_STR("windows WSA error:"); 
+					_ERROR_STR.append(std::to_string(_ERROR_CODE)); 
+					throw std::system_error(std::error_code(_ERROR_CODE, std::system_category()), _ERROR_STR.c_str()); 
+				}
+			}
+			catch (const std::exception&)
+			{
+				std::free(context_ptr->buffer.buf);
+				delete context_ptr;
+				callback(network_recv_event(), std::current_exception());
+			}
+			return;
+		}
 		network_recv_event context(context_ptr);
 		delete context_ptr;
 		callback(context, std::exception_ptr(nullptr));
@@ -318,7 +387,6 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 					 DWORD flag = 0;
 					 if (!WSAGetOverlappedResult(context_ptr->this_socket, &(context_ptr->m_ol), &(context_ptr->size), false, &flag))
 					 {
-						 //ÔÚÕâÀï³ö´í
 						 _ThrowWSAError
 					 }
 				 }
@@ -375,6 +443,27 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 else
 		 {
 			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ stdx::task<void>& stdx::_Socket::send_file(HANDLE file_with_cache,stdx::task_complete_event<void> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.send_file(m_handle, file_with_cache, [ce](std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value();
 		 }
 		 ce.run_on_this_thread();
 	 });
@@ -593,6 +682,29 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 });
  }
 
+ void stdx::_NetworkIOService::send_file(int sock, int file_with_cache,std::function<void(std::exception_ptr)> &&callback)
+ {
+	 stdx::threadpool::run([sock,file_with_cache,callback]()
+	 {
+		 struct stat stat_buf;
+		 fstat(file_with_cache, &stat_buf);
+		 int r = ::sendfile(sock, file_with_cache, 0,stat_buf.st_size);
+		 std::exception_ptr err(nullptr);
+		 try
+		 {
+			 if (r < 1)
+			 {
+				 _ThrowLinuxError
+			 }
+		 }
+		 catch (const std::exception&)
+		 {
+			 err = std::current_exception();
+		 }
+		 callback(err);
+	 });
+ }
+
  void stdx::_NetworkIOService::recv(int sock, const size_t &size, std::function<void(network_recv_event,std::exception_ptr)>&& callback)
  {
 	 epoll_event ev;
@@ -602,6 +714,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 context->size = size;
 	 char *buf = (char*)calloc(size, sizeof(char));
 	 context->buffer = buf;
+	 context->buffer_size = size;
 	 std::function<void(stdx::network_io_context*,std::exception_ptr)> *call = new std::function<void(stdx::network_io_context*, std::exception_ptr)>;
 	 *call = [callback](stdx::network_io_context* context, std::exception_ptr err) mutable
 	 {
@@ -730,7 +843,7 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 						 delete callback;
 					 });
 				 }
-				 catch (const std::exception&e)
+				 catch (const std::exception&)
 				 {
 				 }
 			 }
@@ -778,6 +891,27 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 		 else
 		 {
 			 ce.set_value(context);
+		 }
+		 ce.run_on_this_thread();
+	 });
+	 return ce.get_task();
+ }
+
+ stdx::task<void>& stdx::_Socket::send_file(int file_with_cache, stdx::task_complete_event<void> ce)
+ {
+	 if (!m_io_service)
+	 {
+		 throw std::logic_error("this io service has been free");
+	 }
+	 m_io_service.send_file(m_handle,file_with_cache,[ce](std::exception_ptr error) mutable
+	 {
+		 if (error)
+		 {
+			 ce.set_exception(error);
+		 }
+		 else
+		 {
+			 ce.set_value();
 		 }
 		 ce.run_on_this_thread();
 	 });

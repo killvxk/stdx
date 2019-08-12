@@ -230,6 +230,12 @@ namespace stdx
 		{
 			return m_impl->get_file_size(file);
 		}
+
+		bool operator==(const file_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -320,6 +326,11 @@ namespace stdx
 		{
 			return m_io_service.get_file_size(m_file);
 		}
+
+		HANDLE get_handle() const
+		{
+			return m_file;
+		}
 	private:
 		io_service_t m_io_service;
 		HANDLE m_file;
@@ -396,6 +407,71 @@ namespace stdx
 		{
 			return m_impl->close();
 		}
+
+		HANDLE get_handle() const
+		{
+			return m_impl->get_handle();
+		}
+
+		bool operator==(const file_stream &other)
+		{
+			return m_impl == other.m_impl;
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	class _FileHandle
+	{
+	public:
+		_FileHandle(const HANDLE &file)
+			:m_file(file)
+		{}
+		~_FileHandle()
+		{
+			::CloseHandle(m_file);
+		}
+		operator HANDLE() const
+		{
+			return m_file;
+		}
+		HANDLE get_file_handle() const
+		{
+			return m_file;
+		}
+		delete_copy(_FileHandle);
+	private:
+		HANDLE m_file;
+	};
+
+	class file_handle
+	{
+		using impl_t = std::shared_ptr<_FileHandle>;
+	public:
+		file_handle(const HANDLE &file)
+			:m_impl(std::make_shared<_FileHandle>(file))
+		{}
+		file_handle(const file_handle &other)
+			:m_impl(other.m_impl)
+		{}
+		~file_handle() = default;
+		file_handle &operator=(const file_handle &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator HANDLE() const
+		{
+			return (HANDLE)(*m_impl);
+		}
+		HANDLE get_file_handle() const
+		{
+			return m_impl->get_file_handle();
+		}
+		bool operator==(const file_handle &other)
+		{
+			return (m_impl == other.m_impl) || (m_impl->get_file_handle() == m_impl->get_file_handle());
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -404,6 +480,8 @@ namespace stdx
 namespace stdx
 {
 	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
+
+	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowWinError
 #endif // WIN32
@@ -602,6 +680,12 @@ namespace stdx
 		{
 			return m_impl->get_file_size(file);
 		}
+
+		bool operator==(const file_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -696,6 +780,11 @@ namespace stdx
 		{
 			return m_io_service.get_file_size(m_file);
 		}
+
+		int get_handle() const
+		{
+			return m_file;
+		}
 	private:
 		io_service_t m_io_service;
 		int m_file;
@@ -778,6 +867,72 @@ namespace stdx
 		{
 			return m_impl->close();
 		}
+
+		int get_handle() const
+		{
+			return m_impl->get_handle();
+		}
+
+		bool operator==(const file_stream &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
+	private:
+		impl_t m_impl;
+	};
+
+	class _FileHandle
+	{
+	public:
+		_FileHandle(const int &file)
+			:m_file(file)
+		{}
+		~_FileHandle()
+		{
+			::close(m_file);
+		}
+		operator int() const
+		{
+			return m_file;
+		}
+		int get_file_handle() const
+		{
+			return m_file;
+		}
+		delete_copy(_FileHandle);
+	private:
+		int m_file;
+	};
+
+	class file_handle
+	{
+		using impl_t = std::shared_ptr<_FileHandle>;
+	public:
+		file_handle(const int &file)
+			:m_impl(std::make_shared<_FileHandle>(file))
+		{}
+		file_handle(const file_handle &other)
+			:m_impl(other.m_impl)
+		{}
+		~file_handle() = default;
+		file_handle &operator=(const file_handle &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator int() const
+		{
+			return (int)(*m_impl);
+		}
+		int get_file_handle() const
+		{
+			return m_impl->get_file_handle();
+		}
+		bool operator==(const file_handle &other)
+		{
+			return (m_impl == other.m_impl)||(m_impl->get_file_handle() == m_impl->get_file_handle());
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -785,6 +940,8 @@ namespace stdx
 namespace stdx
 {
 	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
+
+	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowLinuxError
 #endif //LINUX
