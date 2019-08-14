@@ -657,10 +657,11 @@ void stdx::_NetworkIOService::close(SOCKET sock)
  {
 	 stdx::threadpool::run([sock,data,size,callback]() 
 	 {
-		 int r = ::send(sock, data, size, 0);
+		 ssize_t r = 0;
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
+			 r = ::send(sock, data, size, 0);
 			 if (r < 1)
 			 {
 				 _ThrowLinuxError
@@ -739,10 +740,11 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 stdx::threadpool::run([sock,addr,data,size,callback]() 
 	 {
 		 socklen_t len = stdx::network_addr::addr_len;
-		 ssize_t r = ::sendto(sock, data, size, 0, (const sockaddr*)addr,len);
+		 ssize_t r = 0;
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
+			 r = ::sendto(sock, data, size, 0, (const sockaddr*)addr, len);
 			 if (r < 1)
 			 {
 				 _ThrowLinuxError
@@ -770,10 +772,11 @@ void stdx::_NetworkIOService::close(SOCKET sock)
 	 {
 		 char *buf = (char*)calloc(size, sizeof(char));
 		 socklen_t len = stdx::network_addr::addr_len;
-		 ssize_t r = ::recvfrom(sock, buf, size, 0, addr, &len);
+		 ssize_t r = 0;
 		 std::exception_ptr err(nullptr);
 		 try
 		 {
+			 r = ::recvfrom(sock, buf, size, 0, addr, &len);
 			 if (r < 1)
 			 {
 				 _ThrowLinuxError
