@@ -83,14 +83,6 @@ namespace stdx
 		};
 	};
 
-	struct poll_mode
-	{
-		enum
-		{
-			read = POLLIN,
-			write = POLLOUT
-		};
-	};
 
 	class network_addr
 	{
