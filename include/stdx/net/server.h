@@ -11,74 +11,81 @@ namespace stdx
 		error
 	};
 
-	template<typename _Request>
+	enum class package_status
+	{
+		normal,
+		error
+	}
+
+	template<typename _Payload>
 	class _Package
 	{
 	public:
 		template<typename ..._Args>
-		_Package(const parse_process &process,_Args &&...args)
-			:m_process(process)
-			,m_req(args...)
+		_Package(const package_status &status,_Args &&...args)
+			:m_status(status)
+			,m_payload(args...)
 		{}
 		~_Package()=default;
-		const parse_process &get_process() const
+		const package_status &get_status() const
 		{
-			return m_process;
+			return m_status;
 		}
 
-		_Request &get_request()
+		_Payload &get_payload()
 		{
 			return m_req;
 		}
 	private:
-		parse_process m_process;
-		_Request m_req;
+		package_status m_status;
+		_Payload m_payload;
 	};
 
-	template<typename _Request>
+	template<typename _Payload>
 	class package
 	{
-		using impl_t = std::shared_ptr<_Package<_Request>>;
+		using impl_t = std::shared_ptr<_Package<_Payload>>;
 	public:
 		template<typename ..._Args>
-		package(const parse_process &process, _Args &&...args)
-			:m_impl(std::make_shared<_Package<_Request>>(process,args...))
+		package(const package_status &status, _Args &&...args)
+			:m_impl(std::make_shared<_Package<_Payload>>(status,args...))
 		{}
-		package(const package<_Request> &other)
+		package(const package<_Payload> &other)
 			:m_impl(other.m_impl)
 		{}
 		~package() = default;
-		package<_Request> &operator=(const package<_Request> &other)
+		package<_Payload> &operator=(const package<_Payload> &other)
 		{
 			m_impl = other.m_impl;
 			return *this;
 		}
-		bool operator==(const package<_Request> &other) const
+		bool operator==(const package<_Payload> &other) const
 		{
 			return m_impl == other.m_impl;
 		}
-		const parse_process &get_process() const
+		const package_status &get_status() const
 		{
-			return m_impl->get_process();
+			return m_impl->get_status();
 		}
-		_Request &get_request()
+		_Payload &get_payload()
 		{
-			return m_impl->get_request();
+			return m_impl->get_payload();
 		}
 	private:
 		impl_t m_impl;
 	};
 
-	template<typename _Request>
+	template<typename _Payload>
 	interface_class parser
 	{
 	public:
 		parser() = default;
 		virtual ~parser() = default;
-		//正常解析
-		virtual package<_Request> parse(stdx::buffer) = 0;
-		//强制完成
-		virtual package<_Request> complete() = 0;
+		//脮媒鲁拢陆芒脦枚
+		virtual parse_process parse(stdx::buffer) = 0;
+		//脟驴脰脝脥锚鲁脡
+		virtual package<_Payload> complete() = 0;
+		virtual package<_Payload> get_package() = 0;
 	};
 
 	template<typename _Request>
