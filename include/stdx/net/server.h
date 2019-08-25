@@ -76,11 +76,11 @@ namespace stdx
 	};
 
 	template<typename _Payload>
-	interface_class parser
+	interface_class basic_parser
 	{
 	public:
-		parser() = default;
-		virtual ~parser() = default;
+		basic_parser() = default;
+		virtual ~basic_parser() = default;
 		
 		virtual parse_process parse(stdx::buffer) = 0;
 		
@@ -91,6 +91,6 @@ namespace stdx
 		virtual size_t get_package_count()=0;
 	};
 
-	template<typename _Request>
-	using parser_ptr = std::shared_ptr<parser<_Request>>;
+	template<typename _Payload>
+	using parser_ptr = std::shared_ptr<basic_parser<_Payload>>;
 }
