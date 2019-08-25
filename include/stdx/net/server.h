@@ -15,7 +15,7 @@ namespace stdx
 	{
 		normal,
 		error
-	}
+	};
 
 	template<typename _Payload>
 	class _Package
@@ -81,11 +81,14 @@ namespace stdx
 	public:
 		parser() = default;
 		virtual ~parser() = default;
-		//Õý³£½âÎö
+		
 		virtual parse_process parse(stdx::buffer) = 0;
-		//Ç¿ÖÆÍê³É
+		
 		virtual package<_Payload> complete() = 0;
+
 		virtual package<_Payload> get_package() = 0;
+
+		virtual size_t get_package_count()=0;
 	};
 
 	template<typename _Request>
