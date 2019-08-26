@@ -77,7 +77,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	//Ò»¸ö±ØĞëµÄ°ü½âÎöÆ÷
+	//ä¸€ä¸ªå¿…é¡»çš„åŒ…è§£æå™¨
 	template<typename _Payload>
 	interface_class basic_parser
 	{
@@ -99,7 +99,7 @@ namespace stdx
 	using parser_ptr = std::shared_ptr<basic_parser<_Payload>>;
 
 
-	//Ò»¸ö¿ÉÑ¡µÄClient¹ÜÀíÆ÷
+	//ä¸€ä¸ªå¯é€‰çš„Clientç®¡ç†å™¨
 	class basic_client_manager
 	{
 	public:
@@ -228,7 +228,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
-	//Ò»¸ö±ØĞëµÄÊÂ¼ş·´Ó¦Æ÷
+	//ä¸€ä¸ªå¿…é¡»çš„äº‹ä»¶ååº”å™¨
 	template<typename _Payload>
 	class basic_event_reactor
 	{
@@ -306,6 +306,10 @@ namespace stdx
 		virtual void on_error(stdx::socket client, std::exception_ptr err) = 0;
 
 		virtual void on_recv(stdx::socket client, stdx::package<_Payload> package) noexcept = 0;
+
+		virtual void on_disconnect(stdx::socket client);
+
+		virtual void on_connect(stdx::socket client);
 	};
 
 	template<typename _Payload>
