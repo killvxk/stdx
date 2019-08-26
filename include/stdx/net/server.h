@@ -86,7 +86,7 @@ namespace stdx
 
 		virtual ~basic_parser() = default;
 
-		virtual parse_process parse(stdx::buffer) = 0;
+		virtual parse_process parse(stdx::buffer buffer,const size_t &size) = 0;
 
 		virtual package<_Payload> complete() = 0;
 
@@ -255,7 +255,7 @@ namespace stdx
 			client.recv_utill_error(4096, [client,this,parser](stdx::network_recv_event &&ev) mutable
 			{
 				//handle data
-				stdx::parse_process process = parser->parse(ev.buffer);
+				stdx::parse_process process = parser->parse(ev.buffer,ev.size);
 				if (process == stdx::parse_process::complete)
 				{
 					on_recv(client,parser->get_package());
