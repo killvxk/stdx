@@ -97,15 +97,15 @@ namespace stdx
 	template<typename _Payload>
 	using parser_ptr = std::shared_ptr<basic_parser<_Payload>>;
 
-	class _ClientManager
+	class basic_client_manager
 	{
 	public:
 
 		using client_collection_t = std::list<stdx::socket>;
 
-		_ClientManager();
+		basic_client_manager();
 
-		virtual ~_ClientManager() noexcept;
+		virtual ~basic_client_manager() noexcept;
 
 		virtual void add_client(const stdx::socket &client);
 
@@ -132,10 +132,79 @@ namespace stdx
 		client_collection_t m_clients;
 	};
 
+	using client_manager_ptr = std::shared_ptr<basic_client_manager>;
+
+	class client_manager
+	{
+		using impl_t = std::shared_ptr<basic_client_manager>;
+		using client_collection_t = typename basic_client_manager::client_collection_t;
+	public:
+		client_manager(const client_manager_ptr &manager)
+			:m_impl(manager)
+		{}
+
+		void add_client(const stdx::socket &client)
+		{
+			m_impl->add_client(client);
+		}
+
+		void del_client(const stdx::socket &client)
+		{
+			m_impl->del_client(client);
+		}
+
+		client_collection_t::iterator begin()
+		{
+			return m_impl->begin();
+		}
+
+		client_collection_t::iterator end()
+		{
+			return m_impl->end();
+		}
+
+		client_collection_t::const_iterator cbegin() const
+		{
+			return m_impl->cbegin();
+		}
+
+		client_collection_t::const_iterator cend() const
+		{
+			return m_impl->cend();
+		}
+
+		client_collection_t::reverse_iterator rbegin()
+		{
+			return m_impl->rbegin();
+		}
+
+		client_collection_t::reverse_iterator rend()
+		{
+			return m_impl->rend();
+		}
+
+		client_collection_t::const_reverse_iterator crbegin() const
+		{
+			return m_impl->crbegin();
+		}
+
+		client_collection_t::const_reverse_iterator crend() const
+		{
+			return m_impl->crend();
+		}
+
+		client_collection_t::iterator find(const stdx::socket &client)
+		{
+			return m_impl->find(client);
+		}
+	private:
+		impl_t m_impl;
+	};
+
 	template<typename _Payload>
 	class basic_event_reactor
 	{
-		using parser_map =  std::unordered_map<stdx::socket,stdx::parser_ptr>;
+		using parser_map_t =  std::unordered_map<stdx::socket,stdx::parser_ptr>;
 	public:
 		basic_event_reactor()=default;
 		virtual ~basic_event_reactor()=default;
@@ -183,10 +252,24 @@ namespace stdx
 			{
 				//handle error
 				on_error(client, err);
+				unregiter_client(client);
 			});
 		}
 
+		virtual void unregiter_client(const stdx::socket &client)
+		{
+			auto iterator = m_parser_table.find(client);
+			auto end = m_parser_table.end();
+			if (iterator != end)
+			{
+				m_parser_table.erase(client);
+			}
+		}
+
 	private:
-		parser_map m_parser_table;
+		parser_map_t m_parser_table;
 	};
+
+	template<typename _Payload>
+	using event_reactor_ptr = std::shared_ptr<basic_event_reactor<_Payload>>;
 }
