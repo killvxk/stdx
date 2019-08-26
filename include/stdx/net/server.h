@@ -86,7 +86,7 @@ namespace stdx
 
 		virtual ~basic_parser() = default;
 
-		virtual parse_process parse(stdx::buffer buffer,const size_t &size) = 0;
+		virtual parse_process parse(stdx::buffer buf,const size_t &size) = 0;
 
 		virtual package<_Payload> complete() = 0;
 
@@ -98,6 +98,60 @@ namespace stdx
 	template<typename _Payload>
 	using parser_ptr = std::shared_ptr<basic_parser<_Payload>>;
 
+	template<typename _Payload>
+	class parser
+	{
+		using impl_t = parser_ptr<_Payload>;
+	public:
+		parser(const parser_ptr<_Payload> &parser_p)
+			:m_impl(parser_p)
+		{}
+
+		parser(const parser<_Payload> &other)
+			:m_impl(other.m_impl)
+		{}
+
+		~parser() = default;
+
+		parser<_Payload> &operator=(const parser<_Payload> &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		bool operator==(const parser<_Payload> &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
+		parse_process parser(stdx::buffer buf, const size_t &size)
+		{
+			return m_impl->parser(buffer, size);
+		}
+
+		package<_Payload> complete()
+		{
+			return m_impl->complete();
+		}
+
+		package<_Payload> get_package()
+		{
+			return m_impl->get_package();
+		}
+
+		size_t get_packages_count()
+		{
+			return m_impl->get_package_count();
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	template<typename _Parser,typename _Payload,typename ..._Args>
+	inline stdx::parser<_Payload> make_parser(_Args &&...args)
+	{
+		return stdx::parser<_Payload>(std::make_shared<_Parser>(args...));
+	}
 
 	//一个可选的Client管理器
 	class basic_client_manager
@@ -228,11 +282,17 @@ namespace stdx
 		impl_t m_impl;
 	};
 
+	template<typename _ClientManager,typename ..._Args>
+	inline stdx::client_manager make_client_manager(_Args &&...args)
+	{
+		return stdx::client_manager(std::make_shared<_ClientManager>(args...));
+	}
+
 	//一个必须的事件反应器
 	template<typename _Payload>
 	class basic_event_reactor
 	{
-		using parser_map_t =  std::unordered_map<stdx::socket,stdx::parser_ptr>;
+		using parser_map_t =  std::unordered_map<stdx::socket,stdx::parser>;
 	public:
 
 		basic_event_reactor()
@@ -240,6 +300,16 @@ namespace stdx
 		{}
 
 		virtual ~basic_event_reactor()=default;
+
+		virtual stdx::parser make_parser() = 0;
+
+		virtual void on_error(stdx::socket client, std::exception_ptr err) = 0;
+
+		virtual void on_recv(stdx::socket client, stdx::package<_Payload> package) noexcept = 0;
+
+		virtual void on_disconnect(stdx::socket client) = 0;
+
+		virtual void on_connect(stdx::socket client) = 0;
 
 		virtual void register_client(stdx::socket &&client)
 		{
@@ -249,29 +319,30 @@ namespace stdx
 			{
 				return;
 			}
-			auto parser = make_parser();
+			auto parser = this->make_parser();
 			m_client_manager.add_client(client);
 			m_parser_table->emplace(client,parser);
+			on_connect(client);
 			client.recv_utill_error(4096, [client,this,parser](stdx::network_recv_event &&ev) mutable
 			{
 				//handle data
-				stdx::parse_process process = parser->parse(ev.buffer,ev.size);
+				stdx::parse_process process = parser.parse(ev.buffer,ev.size);
 				if (process == stdx::parse_process::complete)
 				{
-					on_recv(client,parser->get_package());
+					on_recv(client,parser.get_package());
 					return;
 				}
 				if (process == stdx::parse_process::over)
 				{
 					for (size_t i = 0,count = parser->get_packages_count(); i < count; i++)
 					{
-						on_recv(client, parser->get_package());
+						on_recv(client, parser.get_package());
 					}
 					return;
 				}
 				if (process == stdx::parse_process::error)
 				{
-					on_recv(client,parser->complete());
+					on_recv(client,parser.complete());
 					return;
 				}
 
@@ -280,6 +351,7 @@ namespace stdx
 				//handle error
 				on_error(client, err);
 				unregiter_client(client);
+				on_disconnect(client);
 			});
 		}
 
@@ -300,16 +372,6 @@ namespace stdx
 
 	protected:
 		parser_map_t m_parser_table;
-
-		virtual stdx::parser_ptr make_parser() = 0;
-
-		virtual void on_error(stdx::socket client, std::exception_ptr err) = 0;
-
-		virtual void on_recv(stdx::socket client, stdx::package<_Payload> package) noexcept = 0;
-
-		virtual void on_disconnect(stdx::socket client);
-
-		virtual void on_connect(stdx::socket client);
 	};
 
 	template<typename _Payload>
@@ -336,7 +398,7 @@ namespace stdx
 			return *this;
 		}
 
-		bool operator==(const event_reactor &other)
+		bool operator==(const event_reactor &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -358,6 +420,12 @@ namespace stdx
 	private:
 		impl_t m_impl;
 	};
+
+	template<typename _EventReactor,typename _Payload,typename ..._Args>
+	inline stdx::event_reactor<_Payload> make_event_reactor(_Args &&...args)
+	{
+		return stdx::event_reactor<_Payload>(std::make_shared<_EventReactor>(args...));
+	}
 
 	template<typename _Payload>
 	class _TcpServer
