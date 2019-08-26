@@ -108,10 +108,10 @@ namespace stdx
 		return callable(args...);
 	}
 	template<typename _R = void>
-	class _BasicRunable
+	interface_class basic_runable
 	{
 	public:
-		virtual ~_BasicRunable() = default;
+		virtual ~basic_runable() = default;
 		virtual _R run() = 0;
 	};
 
@@ -146,14 +146,14 @@ namespace stdx
 	};
 
 	template<typename _R,typename _Fn>
-	class _Runable:public _BasicRunable<_R>
+	class _Runable:public basic_runable<_R>
 	{
 	public:
 		_Runable()
-			:_BasicRunable<_R>()
+			:basic_runable<_R>()
 		{}
 		_Runable(const _Fn &fn)
-			:_BasicRunable<_R>()
+			:basic_runable<_R>()
 			, m_func(fn)
 		{}
 		~_Runable()=default;
@@ -172,7 +172,7 @@ namespace stdx
 	};
 
 	template<typename T>
-	using runable_ptr = std::shared_ptr<_BasicRunable<T>>;
+	using runable_ptr = std::shared_ptr<basic_runable<T>>;
 	
 	template<typename T, typename _Fn>
 	inline runable_ptr<T> make_runable(_Fn &&fn)

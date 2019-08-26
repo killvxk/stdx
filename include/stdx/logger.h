@@ -11,27 +11,27 @@
 
 namespace stdx
 {
-	interface_class _BasicLogger
+	interface_class basic_logger
 	{
 	public:
-		virtual ~_BasicLogger() = default;
+		virtual ~basic_logger() = default;
 		virtual void debug(cstring str)=0;
 		virtual void info(cstring str) = 0;
 		virtual void warn(cstring str) = 0;
 		virtual void error(cstring str) = 0;
 	};
-	class _Logger:public _BasicLogger
+	class _Logger:public basic_logger
 	{
 	public:
 #ifdef WIN32
 		_Logger()
-			:_BasicLogger()
+			:basic_logger()
 			,m_stdout(GetStdHandle(STD_OUTPUT_HANDLE))
 			,m_stderr(GetStdHandle(STD_ERROR_HANDLE))
 		{}
 #else
 		_Logger()
-			:_BasicLogger()
+			:basic_logger()
 		{}
 #endif
 		~_Logger()=default;
@@ -54,7 +54,7 @@ namespace stdx
 	
 	class logger
 	{
-		using impl_t = std::shared_ptr<_BasicLogger>;
+		using impl_t = std::shared_ptr<basic_logger>;
 	public:
 		
 		logger(impl_t impl)

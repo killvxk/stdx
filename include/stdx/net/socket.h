@@ -635,7 +635,7 @@ namespace stdx
 				try
 				{
 					auto e = r.get();
-					stdx::invoke(call, e);
+					stdx::invoke(call,e);
 				}
 				catch (const std::exception&)
 				{
