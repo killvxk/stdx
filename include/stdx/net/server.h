@@ -77,6 +77,7 @@ namespace stdx
 		impl_t m_impl;
 	};
 
+	//一个必须的包解析器
 	template<typename _Payload>
 	interface_class basic_parser
 	{
@@ -97,6 +98,8 @@ namespace stdx
 	template<typename _Payload>
 	using parser_ptr = std::shared_ptr<basic_parser<_Payload>>;
 
+
+	//一个可选的Client管理器
 	class basic_client_manager
 	{
 	public:
@@ -128,7 +131,9 @@ namespace stdx
 		virtual client_collection_t::const_reverse_iterator crend() const;
 
 		virtual client_collection_t::iterator find(const stdx::socket &client);
-	private:
+
+		virtual void clear();
+	protected:
 		client_collection_t m_clients;
 	};
 
@@ -142,6 +147,23 @@ namespace stdx
 		client_manager(const client_manager_ptr &manager)
 			:m_impl(manager)
 		{}
+
+		client_manager(const client_manager &other)
+			:m_impl(other.m_impl)
+		{}
+
+		~client_manager() = default;
+
+		client_manager &operator=(const client_manager &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		bool operator==(const client_manager &other) const
+		{
+			return m_impl == other.m_impl;
+		}
 
 		void add_client(const stdx::socket &client)
 		{
@@ -197,23 +219,27 @@ namespace stdx
 		{
 			return m_impl->find(client);
 		}
+
+		void clear()
+		{
+			m_impl->clear();
+		}
 	private:
 		impl_t m_impl;
 	};
 
+	//一个必须的事件反应器
 	template<typename _Payload>
 	class basic_event_reactor
 	{
 		using parser_map_t =  std::unordered_map<stdx::socket,stdx::parser_ptr>;
 	public:
-		basic_event_reactor()=default;
+
+		basic_event_reactor()
+			,m_parser_table()
+		{}
+
 		virtual ~basic_event_reactor()=default;
-
-		virtual stdx::parser_ptr make_parser() = 0;
-
-		virtual void on_error(stdx::socket client,std::exception_ptr err) = 0;
-
-		virtual void on_recv(stdx::socket client,stdx::package<_Payload> package) noexcept = 0;
 
 		virtual void register_client(stdx::socket &&client)
 		{
@@ -224,6 +250,7 @@ namespace stdx
 				return;
 			}
 			auto parser = make_parser();
+			m_client_manager.add_client(client);
 			m_parser_table->emplace(client,parser);
 			client.recv_utill_error(4096, [client,this,parser](stdx::network_recv_event &&ev) mutable
 			{
@@ -266,10 +293,115 @@ namespace stdx
 			}
 		}
 
-	private:
+		virtual void clear()
+		{
+			m_parser_table.clear();
+		}
+
+	protected:
 		parser_map_t m_parser_table;
+
+		virtual stdx::parser_ptr make_parser() = 0;
+
+		virtual void on_error(stdx::socket client, std::exception_ptr err) = 0;
+
+		virtual void on_recv(stdx::socket client, stdx::package<_Payload> package) noexcept = 0;
 	};
 
 	template<typename _Payload>
 	using event_reactor_ptr = std::shared_ptr<basic_event_reactor<_Payload>>;
+
+	template<typename _Payload>
+	class event_reactor
+	{
+		using impl_t = event_reactor_ptr<_Payload>;
+	public:
+		event_reactor(const event_reactor_ptr &reactor)
+			:m_impl(reactor)
+		{}
+
+		event_reactor(const event_reactor &other)
+			:m_impl(other.m_impl)
+		{}
+
+		~event_reactor() = default;
+
+		event_reactor &operator=(const event_reactor &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+
+		bool operator==(const event_reactor &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
+		void register_client(stdx::socket &&client)
+		{
+			m_impl->register_client(std::move(client));
+		}
+
+		void unregiter_client(const stdx::socket &client)
+		{
+			m_impl->unregister_client(client);
+		}
+
+		void clear()
+		{
+			m_impl->clear();
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	template<typename _Payload>
+	class _TcpServer
+	{
+	public:
+		_TcpServer(const stdx::network_io_service &io_service,const event_reactor &reactor)
+			:m_running(false)
+			,m_server_socket(io_service)
+			,m_reactor(reactor)
+		{}
+		~_TcpServer() noexcept
+		{
+			close();
+		}
+
+		void run(cstring ip,const uint_16 &port)
+		{
+			if (m_running)
+			{
+				m_server_socket.close();
+			}
+			else
+			{
+				m_running = true;
+			}
+			m_server_socket.init(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+			stdx::network_addr addr(ip,port);
+			m_server_socket.bind(addr);
+			m_server_socket.listen(5);
+			while (m_running)
+			{
+				auto client = m_server_socket.accept();
+				m_reactor.register_client(client);
+			}
+		}
+
+		void close() noexcept
+		{
+			if (m_running)
+			{
+				m_running = false;
+				m_reactor.clear();
+				m_server_socket.close();
+			}
+		}
+	private:
+		bool m_running;
+		stdx::socket m_server_socket;
+		event_reactor m_reactor;
+	};
 }

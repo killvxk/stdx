@@ -71,3 +71,8 @@ stdx::basic_client_manager::client_collection_t::iterator stdx::basic_client_man
 {
 	return std::find(std::begin(m_clients),std::end(m_clients),client);
 }
+
+void stdx::basic_client_manager::clear()
+{
+	m_clients.clear();
+}
