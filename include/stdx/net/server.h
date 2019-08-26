@@ -390,6 +390,24 @@ namespace stdx
 			}
 		}
 
+		void run(const uint_16 &port)
+		{
+			run("0.0.0.0", port);
+		}
+
+		stdx::task<void> start(cstring ip, const uint_16 &port)
+		{
+			return stdx::async([this,ip,port]()mutable 
+			{
+				run(ip,port);
+			});
+		}
+
+		stdx::task<void> start(const uint_16 &port)
+		{
+			return start("0.0.0.0", port);
+		}
+
 		void close() noexcept
 		{
 			if (m_running)
