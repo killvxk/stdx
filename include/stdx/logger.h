@@ -90,7 +90,7 @@ namespace stdx
 			m_impl->error(str);
 		}
 
-		bool operator==(const logger &other)
+		bool operator==(const logger &other) const
 		{
 			return m_impl == other.m_impl;
 		}

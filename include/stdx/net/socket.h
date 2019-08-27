@@ -763,7 +763,7 @@ namespace stdx
 			return m_impl->recv_utill_error(size,std::move(call),std::move(err_handler));
 		}
 
-		bool operator==(const stdx::socket &other)
+		bool operator==(const stdx::socket &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -1367,7 +1367,7 @@ namespace stdx
 			return m_impl->recv_utill_error(size, std::move(call), std::move(err_handler));
 		}
 
-		bool operator==(const socket &other)
+		bool operator==(const socket &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -1389,3 +1389,32 @@ namespace stdx
 }
 #undef _ThrowLinuxError
 #endif //LINUX
+
+#ifdef WIN32
+namespace std
+{
+	template<>
+	struct hash<stdx::socket>
+	{
+		size_t operator()(const stdx::socket &arg) const
+		{
+			stdx::network_addr addr = arg.local_addr();
+			return addr.port();
+		}
+	};
+}
+#endif // WIN32
+#ifdef Linux
+namespace std
+{
+	template<>
+	struct hash<stdx::socket>
+	{
+		size_t operator()(const stdx::socket &arg) const
+		{
+			stdx::network_addr addr = arg.local_addr();
+			return addr.port();
+		}
+	};
+}
+#endif

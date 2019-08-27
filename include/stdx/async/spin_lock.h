@@ -45,7 +45,7 @@ namespace stdx
 			m_impl->unlock();
 		}
 
-		bool operator==(const spin_lock &other)
+		bool operator==(const spin_lock &other) const
 		{
 			return m_impl == other.m_impl;
 		}

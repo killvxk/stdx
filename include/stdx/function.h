@@ -105,8 +105,15 @@ namespace stdx
 	template<typename _Fn,typename ..._Args>
 	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args &&...args)
 	{
-		return callable(args...);
+		return callable(std::move(args)...);
 	}
+
+	//template<typename _Fn, typename ..._Args>
+	//inline typename stdx::function_info<_Fn>::result invoke(_Fn &&callable, _Args &...args)
+	//{
+	//	return callable(args...);
+	//}
+
 	template<typename _R = void>
 	interface_class basic_runable
 	{

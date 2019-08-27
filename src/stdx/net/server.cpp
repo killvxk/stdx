@@ -76,3 +76,94 @@ void stdx::basic_client_manager::clear()
 {
 	m_clients.clear();
 }
+
+void stdx::basic_event_reactor::register_client(stdx::socket && client)
+{
+	auto iterator = m_parser_table.find(client);
+	auto end = m_parser_table.end();
+	if (iterator != end)
+	{
+		return;
+	}
+	if (!on_connect(client))
+	{
+		return;
+	}
+	auto parser = this->make_parser();
+	m_parser_table.emplace(client, parser);
+	auto f= [client, this, parser](stdx::network_recv_event &&ev) mutable
+	{
+		//handle data
+		stdx::parse_process process = parser.parse(ev.buffer, ev.size);
+		if (process == stdx::parse_process::complete)
+		{
+			on_recv(client, parser.get_package());
+			return;
+		}
+		if (process == stdx::parse_process::over)
+		{
+			for (size_t i = 0, count = parser.get_packages_count(); i < count; i++)
+			{
+				on_recv(client, parser.get_package());
+			}
+			return;
+		}
+		if (process == stdx::parse_process::error)
+		{
+			on_recv(client, parser.complete());
+			return;
+		}
+
+	};
+	auto er = [client, this](std::exception_ptr err) mutable
+	{
+		//handle error
+		if (on_error(client, err))
+		{
+			unregister_client(client);
+			on_disconnect(client);
+		}
+	};;
+	client.recv_utill_error(4096,std::move(f),std::move(er));
+}
+
+void stdx::basic_event_reactor::unregister_client(const stdx::socket & client)
+{
+	auto iterator = m_parser_table.find(client);
+	auto end = m_parser_table.end();
+	if (iterator != end)
+	{
+		m_parser_table.erase(client);
+	}
+}
+
+void stdx::_TcpServer::run(cstring ip, const uint_16 & port)
+{
+	if (m_running)
+	{
+		m_server_socket.close();
+	}
+	else
+	{
+		m_running = true;
+	}
+	m_server_socket.init(stdx::addr_family::ip, stdx::socket_type::stream, stdx::protocol::tcp);
+	stdx::network_addr addr(ip, port);
+	m_server_socket.bind(addr);
+	m_server_socket.listen(5);
+	while (m_running)
+	{
+		auto client = m_server_socket.accept();
+		m_reactor.register_client(std::move(client));
+	}
+}
+
+void stdx::_TcpServer::close() noexcept
+{
+	if (m_running)
+	{
+		m_running = false;
+		m_reactor.clear();
+		m_server_socket.close();
+	}
+}

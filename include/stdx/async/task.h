@@ -195,7 +195,7 @@ namespace stdx
 			return (bool)m_impl;
 		}
 
-		bool operator==(const stdx::task<_R> &other)
+		bool operator==(const stdx::task<_R> &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -746,6 +746,12 @@ namespace stdx
 			m_impl = other.m_impl;
 			return *this;
 		}
+
+		bool operator==(const task_complete_event<_R> &other) const
+		{
+			return other.m_impl == m_impl;
+		}
+
 		void set_value(const _R &value)
 		{
 			m_impl->set_value(value);
@@ -786,6 +792,10 @@ namespace stdx
 		{
 			m_impl = other.m_impl;
 			return *this;
+		}
+		bool operator==(const task_complete_event<void> &other) const
+		{
+			return other.m_impl == m_impl;
 		}
 		void set_value()
 		{

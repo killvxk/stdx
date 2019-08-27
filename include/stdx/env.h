@@ -55,6 +55,14 @@
 #define next_line "\n"
 #endif
 
+#ifdef WIN32
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#endif // WIN32
+
+
 namespace stdx
 {
 	union int64_union

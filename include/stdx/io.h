@@ -93,8 +93,6 @@ namespace stdx
 	};
 }
 #ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
 
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
@@ -220,7 +218,7 @@ namespace stdx
 			m_impl->post(size, context_ptr, ol_ptr);
 		}
 
-		bool operator==(const iocp &other)
+		bool operator==(const iocp &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -463,7 +461,7 @@ namespace stdx
 			return m_impl->get(res);
 		}
 
-		bool operator==(const aiocp &other)
+		bool operator==(const aiocp &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -584,7 +582,7 @@ namespace stdx
 			return m_impl->push(fd,ev);
 		}
 
-		bool operator==(const reactor &other)
+		bool operator==(const reactor &other) const
 		{
 			return m_impl == other.m_impl;
 		}

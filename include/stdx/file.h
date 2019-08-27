@@ -413,7 +413,7 @@ namespace stdx
 			return m_impl->get_handle();
 		}
 
-		bool operator==(const file_stream &other)
+		bool operator==(const file_stream &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -468,7 +468,7 @@ namespace stdx
 		{
 			return m_impl->get_file_handle();
 		}
-		bool operator==(const file_handle &other)
+		bool operator==(const file_handle &other) const
 		{
 			return (m_impl == other.m_impl) || (m_impl->get_file_handle() == m_impl->get_file_handle());
 		}
@@ -873,7 +873,7 @@ namespace stdx
 			return m_impl->get_handle();
 		}
 
-		bool operator==(const file_stream &other)
+		bool operator==(const file_stream &other) const
 		{
 			return m_impl == other.m_impl;
 		}
@@ -929,7 +929,7 @@ namespace stdx
 		{
 			return m_impl->get_file_handle();
 		}
-		bool operator==(const file_handle &other)
+		bool operator==(const file_handle &other) const
 		{
 			return (m_impl == other.m_impl)||(m_impl->get_file_handle() == m_impl->get_file_handle());
 		}
