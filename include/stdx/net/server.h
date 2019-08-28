@@ -123,7 +123,7 @@ namespace stdx
 			return m_impl->parse(buf, size);
 		}
 
-		package complete()
+		void complete()
 		{
 			return m_impl->complete();
 		}

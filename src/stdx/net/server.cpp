@@ -110,7 +110,11 @@ void stdx::basic_event_reactor::register_client(stdx::socket && client)
 		}
 		if (process == stdx::parse_process::error)
 		{
-			on_recv(client, parser.complete());
+			parser.complete();
+			if (parser.get_packages_count())
+			{
+				on_recv(client,parser.get_package());
+			}
 			return;
 		}
 
