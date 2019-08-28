@@ -22,10 +22,9 @@ namespace stdx
 	class _Package
 	{
 	public:
-		template<typename ..._Args>
-		_Package(const package_status &status, _Args &&...args)
+		_Package(const package_status &status,const stdx::buffer &buf)
 			:m_status(status)
-			, m_payload(args...)
+			, m_payload(buf)
 		{}
 		~_Package() = default;
 		const package_status &get_status() const
@@ -47,8 +46,8 @@ namespace stdx
 		using impl_t = std::shared_ptr<_Package>;
 	public:
 		template<typename ..._Args>
-		package(const package_status &status, _Args &&...args)
-			:m_impl(std::make_shared<_Package>(status, args...))
+		package(const package_status &status, const stdx::buffer &buf)
+			:m_impl(std::make_shared<_Package>(status, buf))
 		{}
 		package(const package &other)
 			:m_impl(other.m_impl)
@@ -85,7 +84,7 @@ namespace stdx
 
 		virtual parse_process parse(stdx::buffer buf,const size_t &size) = 0;
 
-		virtual package complete() = 0;
+		virtual void complete() = 0;
 
 		virtual package get_package() = 0;
 
