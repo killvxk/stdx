@@ -3,6 +3,7 @@
 #include <stdx/net/socket.h>
 #include <sstream>
 #include <stdx/string.h>
+#include <stdx/logger.h>
 int main(int argc, char **argv)
 {
 //#define ENABLE_WEB
@@ -198,7 +199,7 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
-#define ENABLE_TCP
+//#define ENABLE_TCP
 #ifdef ENABLE_TCP
 #ifdef WIN32
 	//client
@@ -249,6 +250,11 @@ int main(int argc, char **argv)
 #endif // LINUX
 
 #endif // ENABLE_TCP
-
+	stdx::logger logger = stdx::make_default_logger();
+	logger.debug("debug");
+	logger.info("info");
+	logger.warn("warn");
+	logger.error("error");
+	system("pause");
 	return 0;
 }

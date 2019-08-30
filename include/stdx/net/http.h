@@ -315,6 +315,11 @@ namespace stdx
 		{
 			return m_impl->to_string();
 		}
+
+		bool operator==(const http_request &other) const
+		{
+			return m_impl == other.m_impl;
+		}
 	private:
 		impl_t m_impl;
 	};

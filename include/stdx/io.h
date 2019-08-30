@@ -29,6 +29,8 @@ namespace stdx
 		}
 
 		void copy_from(const _Buffer &other);
+
+		char *to_raw();
 	private:
 		size_t m_size;
 		char *m_data;
@@ -77,13 +79,20 @@ namespace stdx
 		{
 			m_impl->copy_from(*other.m_impl);
 		}
+
+		bool operator==(const buffer &other)
+		{
+			return m_impl == other.m_impl;
+		}
+		char *to_raw()
+		{
+			return m_impl->to_raw();
+		}
 	private:
 		impl_t m_impl;
 	};
 }
 #ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
 
 //定义抛出Windows错误宏
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
@@ -208,6 +217,12 @@ namespace stdx
 		{
 			m_impl->post(size, context_ptr, ol_ptr);
 		}
+
+		bool operator==(const iocp &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -343,16 +358,16 @@ namespace stdx
 	}
 #define invalid_eventfd -1
 	template<typename _Data>
-	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int64 offset,int resfd,_Data *ptr)
+	inline void aio_read(aio_context_t context,int fd,char *buf,size_t size,int_64 offset,int resfd,_Data *ptr)
 	{
 		iocb cbs[1],*p[1] = {&cbs[0]};
 		memset(&(cbs[0]), 0,sizeof(iocb));
 		(cbs[0]).aio_lio_opcode = IOCB_CMD_PREAD;
 		(cbs[0]).aio_fildes = fd;
-		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_buf = (uint_64)buf;
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
-		(cbs[0]).aio_data =(uint64)ptr;
+		(cbs[0]).aio_data =(uint_64)ptr;
 		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
@@ -366,16 +381,16 @@ namespace stdx
 	}
 	
 	template<typename _Data>
-	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int64 offset, int resfd, _Data *ptr)
+	inline void aio_write(aio_context_t context, int fd, char *buf, size_t size, int_64 offset, int resfd, _Data *ptr)
 	{
 		iocb cbs[1], *p[1] = { &cbs[0] };
 		memset(&(cbs[0]), 0, sizeof(iocb));
 		(cbs[0]).aio_lio_opcode = IOCB_CMD_PWRITE;
 		(cbs[0]).aio_fildes = fd;
-		(cbs[0]).aio_buf = (uint64)buf;
+		(cbs[0]).aio_buf = (uint_64)buf;
 		(cbs[0]).aio_nbytes = size;
 		(cbs[0]).aio_offset = offset;
-		(cbs[0]).aio_data = (uint64)ptr;
+		(cbs[0]).aio_data = (uint_64)ptr;
 		if (resfd != invalid_eventfd)
 		{
 			(cbs[0]).aio_flags = IOCB_FLAG_RESFD;
@@ -403,7 +418,7 @@ namespace stdx
 			io_destroy(m_ctxid);
 		}
 
-		_IOContext *get(int64 &res)
+		_IOContext *get(int_64 &res)
 		{
 			io_event ev;
 			io_getevents(m_ctxid, 1, 1,&ev,NULL);
@@ -441,10 +456,16 @@ namespace stdx
 		{
 			return m_impl->get_context();
 		}
-		_IOContext *get(int64 &res)
+		_IOContext *get(int_64 &res)
 		{
 			return m_impl->get(res);
 		}
+
+		bool operator==(const aiocp &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -560,6 +581,12 @@ namespace stdx
 		{
 			return m_impl->push(fd,ev);
 		}
+
+		bool operator==(const reactor &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};

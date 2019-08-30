@@ -5,7 +5,7 @@ const stdx::threadpool::impl_t stdx::threadpool::m_impl = std::make_shared <stdx
 //构造函数
 
 stdx::_Threadpool::_Threadpool() noexcept
-	:m_free_count(std::make_shared<uint32>())
+	:m_free_count(std::make_shared<uint_32>())
 	, m_count_lock()
 	, m_alive(std::make_shared<bool>(true))
 	, m_task_queue(std::make_shared<std::queue<runable_ptr>>())
@@ -29,13 +29,13 @@ stdx::_Threadpool::~_Threadpool() noexcept
 void stdx::_Threadpool::add_thread() noexcept
 {
 	//创建线程
-	std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::barrier barrier, stdx::spin_lock lock, std::shared_ptr<uint32> count, stdx::spin_lock count_lock, std::shared_ptr<bool> alive)
+	std::thread t([](std::shared_ptr<std::queue<runable_ptr>> tasks, stdx::semaphore semaphore, stdx::spin_lock lock, std::shared_ptr<uint_32> count, stdx::spin_lock count_lock, std::shared_ptr<bool> alive)
 	{
 		//如果存活
 		while (*alive)
 		{
 			//等待通知
-			if (!barrier.wait_for(std::chrono::minutes(10)))
+			if (!semaphore.wait_for(std::chrono::minutes(10)))
 			{
 				//如果10分钟后未通知
 				//退出线程

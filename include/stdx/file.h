@@ -31,7 +31,7 @@ namespace stdx
 		HANDLE file;
 		char *buffer;
 		DWORD size;
-		int64 offset;
+		int_64 offset;
 		bool eof;
 		std::function<void(file_io_context*, std::exception_ptr)> *callback;
 	};
@@ -74,7 +74,7 @@ namespace stdx
 		}
 		HANDLE file;
 		stdx::buffer buffer;
-		int64 offset;
+		int_64 offset;
 		bool eof;
 	};
 
@@ -165,12 +165,12 @@ namespace stdx
 
 		HANDLE create_file(const std::string &path, DWORD access_type, DWORD file_open_type, DWORD shared_model);
 
-		void read_file(HANDLE file, const DWORD &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback);
+		void read_file(HANDLE file, const DWORD &size, const int_64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback);
 		
-		void write_file(HANDLE file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback);
+		void write_file(HANDLE file, const char *buffer, const size_t &size, const int_64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback);
 
 
-		int64 get_file_size(HANDLE file) const;
+		int_64 get_file_size(HANDLE file) const;
 
 		void close_file(HANDLE file)
 		{
@@ -214,11 +214,11 @@ namespace stdx
 		{
 			return m_impl->create_file(path, access_type, file_open_type, shared_model);
 		}
-		void read_file(HANDLE file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+		void read_file(HANDLE file, const size_t &size, const int_64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 		{
 			return m_impl->read_file(file, size, offset, std::move(callback));
 		}
-		void write_file(HANDLE file, const char *buffer, const size_t &size,const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+		void write_file(HANDLE file, const char *buffer, const size_t &size,const int_64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
 		{
 			return m_impl->write_file(file, buffer, size,offset, std::move(callback));
 		}
@@ -226,10 +226,16 @@ namespace stdx
 		{
 			return m_impl->close_file(file);
 		}
-		int64 get_file_size(HANDLE file) const
+		int_64 get_file_size(HANDLE file) const
 		{
 			return m_impl->get_file_size(file);
 		}
+
+		bool operator==(const file_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -248,9 +254,9 @@ namespace stdx
 			m_file = m_io_service.create_file(path, access_type, open_type, shared_model);
 		}
 
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset, stdx::task_complete_event<stdx::file_read_event> ce);
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset, stdx::task_complete_event<stdx::file_read_event> ce);
 		
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset)
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset)
 		{
 			stdx::task_complete_event<stdx::file_read_event> ce;
 			return read(size, offset,ce);
@@ -258,10 +264,10 @@ namespace stdx
 
 		//返回true则继续
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset,_Fn &&call)
+		void read_utill(const size_t &size, const int_64 &offset,_Fn &&call)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>,stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				if (stdx::invoke(call,r))
@@ -273,10 +279,10 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset,_Fn &&call,_ErrHandler &&err_handler)
+		void read_utill_eof(const size_t &size, const int_64 &offset,_Fn &&call,_ErrHandler &&err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::file_read_event>::value, "the input function not be allowed");
 			return read_utill(size, offset, [call](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try
@@ -300,15 +306,15 @@ namespace stdx
 			});
 		}
 
-		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
+		stdx::task<stdx::file_read_event> &read_to_end(const int_64 &offset)
 		{
 			return read(size()-offset,offset);
 		}
 		
 
-		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
+		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int_64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
 
-		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset)
+		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int_64 &offset)
 		{
 			stdx::task_complete_event<stdx::file_write_event> ce;
 			return write(buffer, size,offset,ce);
@@ -316,9 +322,14 @@ namespace stdx
 
 		void close();
 
-		int64 size() const
+		int_64 size() const
 		{
 			return m_io_service.get_file_size(m_file);
+		}
+
+		HANDLE get_handle() const
+		{
+			return m_file;
 		}
 	private:
 		io_service_t m_io_service;
@@ -356,38 +367,38 @@ namespace stdx
 			return *this;
 		}
 
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset)
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset)
 		{
 			return m_impl->read(size, offset);
 		}
 
-		stdx::task<file_write_event> &write(const char* buffer,const size_t &size,const int64 &offset)
+		stdx::task<file_write_event> &write(const char* buffer,const size_t &size,const int_64 &offset)
 		{
 			return m_impl->write(buffer, size,offset);
 		}
-		stdx::task<file_write_event> &write(const std::string &str,const int64 &offset)
+		stdx::task<file_write_event> &write(const std::string &str,const int_64 &offset)
 		{
 			return m_impl->write(str.c_str(), str.size(),offset);
 		}
 
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset,_Fn &&call)
+		void read_utill(const size_t &size, const int_64 &offset,_Fn &&call)
 		{
 			return m_impl->read_utill(size, offset, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call,_ErrHandler &&err_handler)
+		void read_utill_eof(const size_t &size, const int_64 &offset, _Fn &&call,_ErrHandler &&err_handler)
 		{
 			return m_impl->read_utill_eof(size, offset,std::move(call),std::move(err_handler));
 		}
 
-		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
+		stdx::task<stdx::file_read_event> &read_to_end(const int_64 &offset)
 		{
 			return m_impl->read_to_end(offset);
 		}
 
-		int64 size() const
+		int_64 size() const
 		{
 			return m_impl->size();
 		}
@@ -396,6 +407,71 @@ namespace stdx
 		{
 			return m_impl->close();
 		}
+
+		HANDLE get_handle() const
+		{
+			return m_impl->get_handle();
+		}
+
+		bool operator==(const file_stream &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+	private:
+		impl_t m_impl;
+	};
+
+	class _FileHandle
+	{
+	public:
+		_FileHandle(const HANDLE &file)
+			:m_file(file)
+		{}
+		~_FileHandle()
+		{
+			::CloseHandle(m_file);
+		}
+		operator HANDLE() const
+		{
+			return m_file;
+		}
+		HANDLE get_file_handle() const
+		{
+			return m_file;
+		}
+		delete_copy(_FileHandle);
+	private:
+		HANDLE m_file;
+	};
+
+	class file_handle
+	{
+		using impl_t = std::shared_ptr<_FileHandle>;
+	public:
+		file_handle(const HANDLE &file)
+			:m_impl(std::make_shared<_FileHandle>(file))
+		{}
+		file_handle(const file_handle &other)
+			:m_impl(other.m_impl)
+		{}
+		~file_handle() = default;
+		file_handle &operator=(const file_handle &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator HANDLE() const
+		{
+			return (HANDLE)(*m_impl);
+		}
+		HANDLE get_file_handle() const
+		{
+			return m_impl->get_file_handle();
+		}
+		bool operator==(const file_handle &other) const
+		{
+			return (m_impl == other.m_impl) || (m_impl->get_file_handle() == m_impl->get_file_handle());
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -403,7 +479,9 @@ namespace stdx
 
 namespace stdx
 {
-	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type);
+	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
+
+	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowWinError
 #endif // WIN32
@@ -421,7 +499,7 @@ namespace stdx
 		int file;
 		size_t size;
 		char* buffer;
-		int64 offset;
+		int_64 offset;
 		bool eof;
 		std::function<void(file_io_context*,std::exception_ptr)> *callback;
 	};
@@ -464,7 +542,7 @@ namespace stdx
 		}
 		int file;
 		stdx::buffer buffer;
-		int64 offset;
+		int_64 offset;
 		bool eof;
 	};
 
@@ -525,21 +603,21 @@ namespace stdx
 		
 		_FileIOService();
 
-		_FileIOService(uint32 nr_events);
+		_FileIOService(uint_32 nr_events);
 
 		delete_copy(_FileIOService);
 
 		~_FileIOService();
 
-		int create_file(const std::string &path, int32 access_type, int32 open_type, mode_t mode);
+		int create_file(const std::string &path, int_32 access_type, int_32 open_type, mode_t mode);
 
-		int create_file(const std::string &path, int32 access_type, int32 open_type);
+		int create_file(const std::string &path, int_32 access_type, int_32 open_type);
 
-		void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback);
+		void read_file(int file, const size_t &size, const int_64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback);
 
-		void write_file(int file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback);
+		void write_file(int file, const char *buffer, const size_t &size, const int_64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback);
 
-		int64 get_file_size(int file) const;
+		int_64 get_file_size(int file) const;
 
 		void close_file(int file);
 	private:
@@ -557,7 +635,7 @@ namespace stdx
 		file_io_service()
 			:m_impl(std::make_shared<_FileIOService>())
 		{}
-		file_io_service(uint32 nr_events)
+		file_io_service(uint_32 nr_events)
 			:m_impl(std::make_shared<_FileIOService>(nr_events))
 		{}
 		file_io_service(const file_io_service &other)
@@ -576,21 +654,21 @@ namespace stdx
 			return (bool)m_impl;
 		}
 
-		int create_file(const std::string &path, int32 access_type, int32 file_open_type, mode_t model)
+		int create_file(const std::string &path, int_32 access_type, int_32 file_open_type, mode_t model)
 		{
 			return m_impl->create_file(path, access_type, file_open_type, model);
 		}
 
-		int create_file(const std::string &path, int32 access_type, int32 file_open_type)
+		int create_file(const std::string &path, int_32 access_type, int_32 file_open_type)
 		{
 			return m_impl->create_file(path, access_type, file_open_type);
 		}
 
-		void read_file(int file, const size_t &size, const int64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
+		void read_file(int file, const size_t &size, const int_64 &offset, std::function<void(file_read_event, std::exception_ptr)> &&callback)
 		{
 			return m_impl->read_file(file, size, offset, std::move(callback));
 		}
-		void write_file(int file, const char *buffer, const size_t &size, const int64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
+		void write_file(int file, const char *buffer, const size_t &size, const int_64 &offset, std::function<void(file_write_event, std::exception_ptr)> &&callback)
 		{
 			return m_impl->write_file(file, buffer, size, offset, std::move(callback));
 		}
@@ -598,10 +676,16 @@ namespace stdx
 		{
 			return m_impl->close_file(file);
 		}
-		int64 get_file_size(int file) const
+		int_64 get_file_size(int file) const
 		{
 			return m_impl->get_file_size(file);
 		}
+
+		bool operator==(const file_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -614,19 +698,19 @@ namespace stdx
 
 		~_FileStream();
 
-		void init(const std::string &path, const int32 &access_type, const int32 &open_type, const mode_t &model)
+		void init(const std::string &path, const int_32 &access_type, const int_32 &open_type, const mode_t &model)
 		{
 			m_file = m_io_service.create_file(path, access_type, open_type, model);
 		}
 
-		void init(const std::string &path, const int32 &access_type, const int32 &open_type)
+		void init(const std::string &path, const int_32 &access_type, const int_32 &open_type)
 		{
 			m_file = m_io_service.create_file(path, access_type, open_type);
 		}
 
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_read_event> ce);
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset,stdx::task_complete_event<stdx::file_read_event> ce);
 
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset)
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset)
 		{
 			stdx::task_complete_event<stdx::file_read_event> ce;
 			return read(size, offset,ce);
@@ -634,10 +718,10 @@ namespace stdx
 
 		//返回true则继续
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset, _Fn &&call)
+		void read_utill(const size_t &size, const int_64 &offset, _Fn &&call)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<typename args_t::First, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::task_result<stdx::file_read_event>>::value, "the input function not be allowed");
 			this->read(size, offset).then([call, offset, size, this](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				if (stdx::invoke(call, r))
@@ -649,10 +733,10 @@ namespace stdx
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler)
+		void read_utill_eof(const size_t &size, const int_64 &offset, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			using args_t = typename stdx::function_info<_Fn>::arguments;
-			static_assert(std::is_same<typename args_t::First, stdx::file_read_event>::value, "the input function not be allowed");
+			static_assert(std::is_same<std::remove_const<std::remove_reference<typename args_t::First>>, stdx::file_read_event>::value, "the input function not be allowed");
 			return read_utill(size, offset, [call, err_handler](stdx::task_result<stdx::file_read_event> r) mutable
 			{
 				try
@@ -676,15 +760,15 @@ namespace stdx
 			});
 		}
 
-		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
+		stdx::task<stdx::file_read_event> &read_to_end(const int_64 &offset)
 		{
 			return read(size() - offset, offset);
 		}
 
 
-		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
+		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int_64 &offset,stdx::task_complete_event<stdx::file_write_event> ce);
 
-		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset)
+		stdx::task<stdx::file_write_event> &write(const char* buffer, const size_t &size, const int_64 &offset)
 		{
 			stdx::task_complete_event<stdx::file_write_event> ce;
 			return write(buffer, size, offset, ce);
@@ -692,9 +776,14 @@ namespace stdx
 
 		void close();
 
-		int64 size() const
+		int_64 size() const
 		{
 			return m_io_service.get_file_size(m_file);
+		}
+
+		int get_handle() const
+		{
+			return m_file;
 		}
 	private:
 		io_service_t m_io_service;
@@ -722,12 +811,12 @@ namespace stdx
 
 		~file_stream() = default;
 
-		void init(const std::string &path, int32 access_type, int32 open_type,const mode_t &model)
+		void init(const std::string &path, int_32 access_type, int_32 open_type,const mode_t &model)
 		{
 			return m_impl->init(path, access_type, open_type, model);
 		}
 
-		void init(const std::string &path, int32 access_type, int32 open_type)
+		void init(const std::string &path, int_32 access_type, int_32 open_type)
 		{
 			return m_impl->init(path, access_type, open_type);
 		}
@@ -738,38 +827,38 @@ namespace stdx
 			return *this;
 		}
 
-		stdx::task<file_read_event> &read(const size_t &size, const int64 &offset)
+		stdx::task<file_read_event> &read(const size_t &size, const int_64 &offset)
 		{
 			m_impl->read(size, offset);
 		}
 
-		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int64 &offset)
+		stdx::task<file_write_event> &write(const char* buffer, const size_t &size, const int_64 &offset)
 		{
 			return m_impl->write(buffer, size, offset);
 		}
-		stdx::task<file_write_event> &write(const std::string &str, const int64 &offset)
+		stdx::task<file_write_event> &write(const std::string &str, const int_64 &offset)
 		{
 			return m_impl->write(str.c_str(), str.size(), offset);
 		}
 
 		template<typename _Fn>
-		void read_utill(const size_t &size, const int64 &offset, _Fn &&call)
+		void read_utill(const size_t &size, const int_64 &offset, _Fn &&call)
 		{
 			return m_impl->read_utill(size, offset, std::move(call));
 		}
 
 		template<typename _Fn, typename _ErrHandler>
-		void read_utill_eof(const size_t &size, const int64 &offset, _Fn &&call, _ErrHandler &&err_handler)
+		void read_utill_eof(const size_t &size, const int_64 &offset, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			return m_impl->read_utill_eof(size, offset, std::move(call), std::move(err_handler));
 		}
 
-		stdx::task<stdx::file_read_event> &read_to_end(const int64 &offset)
+		stdx::task<stdx::file_read_event> &read_to_end(const int_64 &offset)
 		{
 			return m_impl->read_to_end(offset);
 		}
 
-		int64 size() const
+		int_64 size() const
 		{
 			return m_impl->size();
 		}
@@ -778,13 +867,81 @@ namespace stdx
 		{
 			return m_impl->close();
 		}
+
+		int get_handle() const
+		{
+			return m_impl->get_handle();
+		}
+
+		bool operator==(const file_stream &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
+	private:
+		impl_t m_impl;
+	};
+
+	class _FileHandle
+	{
+	public:
+		_FileHandle(const int &file)
+			:m_file(file)
+		{}
+		~_FileHandle()
+		{
+			::close(m_file);
+		}
+		operator int() const
+		{
+			return m_file;
+		}
+		int get_file_handle() const
+		{
+			return m_file;
+		}
+		delete_copy(_FileHandle);
+	private:
+		int m_file;
+	};
+
+	class file_handle
+	{
+		using impl_t = std::shared_ptr<_FileHandle>;
+	public:
+		file_handle(const int &file)
+			:m_impl(std::make_shared<_FileHandle>(file))
+		{}
+		file_handle(const file_handle &other)
+			:m_impl(other.m_impl)
+		{}
+		~file_handle() = default;
+		file_handle &operator=(const file_handle &other)
+		{
+			m_impl = other.m_impl;
+			return *this;
+		}
+		operator int() const
+		{
+			return (int)(*m_impl);
+		}
+		int get_file_handle() const
+		{
+			return m_impl->get_file_handle();
+		}
+		bool operator==(const file_handle &other) const
+		{
+			return (m_impl == other.m_impl)||(m_impl->get_file_handle() == m_impl->get_file_handle());
+		}
 	private:
 		impl_t m_impl;
 	};
 }
 namespace stdx
 {
-	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int32 &access_type, const int32 &open_type);
+	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
+
+	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowLinuxError
 #endif //LINUX

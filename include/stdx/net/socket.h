@@ -5,7 +5,9 @@
 #include <stdx/env.h>
 #ifdef WIN32
 #include <WinSock2.h>
-#pragma comment(lib,"Ws2_32.lib ")
+#include <MSWSock.h>
+#pragma comment(lib,"Ws2_32.lib")
+#pragma comment(lib, "Mswsock.lib")
 #endif 
 
 #ifdef WIN32
@@ -81,26 +83,18 @@ namespace stdx
 		};
 	};
 
-	struct poll_mode
-	{
-		enum
-		{
-			read = POLLIN,
-			write = POLLOUT
-		};
-	};
 
 	class network_addr
 	{
 	public:
 		network_addr() = default;
-		network_addr(unsigned long ip, const uint16 &port)
+		network_addr(unsigned long ip, const uint_16 &port)
 		{
 			m_handle.sin_family = addr_family::ip;
 			m_handle.sin_addr.S_un.S_addr = ip;
 			m_handle.sin_port = htons(port);
 		}
-		network_addr(const char *ip, const uint16 &port)
+		network_addr(const char *ip, const uint_16 &port)
 			:network_addr(inet_addr(ip), port)
 		{}
 		network_addr(const network_addr &other)
@@ -130,12 +124,12 @@ namespace stdx
 		}
 
 		const static int addr_len = sizeof(sockaddr);
-		network_addr &port(const uint16 &port)
+		network_addr &port(const uint_16 &port)
 		{
 			m_handle.sin_port = htons(port);
 			return *this;
 		}
-		uint16 port() const
+		uint_16 port() const
 		{
 			return ntohs(m_handle.sin_port);
 		}
@@ -277,6 +271,8 @@ namespace stdx
 
 		//发送数据
 		void send(SOCKET sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
+
+		void send_file(SOCKET sock,HANDLE file_with_cache,std::function<void(std::exception_ptr)> &&callback);
 
 		//接收数据
 		void recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
@@ -439,6 +435,11 @@ namespace stdx
 			m_impl->send(sock, data, size, std::move(callback));
 		}
 
+		void send_file(SOCKET sock, HANDLE file_with_cache, std::function<void(std::exception_ptr)> &&callback)
+		{
+			m_impl->send_file(sock, file_with_cache, std::move(callback));
+		}
+
 		void recv(SOCKET sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
 		{
 			m_impl->recv(sock, size, std::move(callback));
@@ -497,6 +498,11 @@ namespace stdx
 		{
 			return (bool)m_impl;
 		}
+
+		bool operator==(const network_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
 	private:
 		impl_t m_impl;
 	};
@@ -529,6 +535,14 @@ namespace stdx
 		{
 			stdx::task_complete_event<stdx::network_send_event> ce;
 			return send(data, size, ce);
+		}
+
+		stdx::task<void> &send_file(HANDLE file_with_cache,stdx::task_complete_event<void> ce);
+
+		stdx::task<void> &send_file(HANDLE file_with_cache)
+		{
+			stdx::task_complete_event<void> ce;
+			return send_file(file_with_cache, ce);
 		}
 
 		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
@@ -601,7 +615,7 @@ namespace stdx
 		template<typename _Fn>
 		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
+			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>) | is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>&) | is_arguments_type(_Fn, const stdx::task_result<stdx::network_recv_event>&) | is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event> &&), "the input function not be allowed");
 			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
 			{
@@ -615,13 +629,13 @@ namespace stdx
 		template<typename _Fn, typename _ErrHandler>
 		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
+			static_assert(is_arguments_type(_Fn, stdx::network_recv_event) | is_arguments_type(_Fn, stdx::network_recv_event&) | is_arguments_type(_Fn, const stdx::network_recv_event&) | is_arguments_type(_Fn, stdx::network_recv_event&&), "the input function not be allowed");
 			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
 			{
 				try
 				{
 					auto e = r.get();
-					stdx::invoke(call, e);
+					stdx::invoke(call,e);
 				}
 				catch (const std::exception&)
 				{
@@ -717,6 +731,11 @@ namespace stdx
 			return m_impl->send(data, size);
 		}
 
+		stdx::task<void> &send_file(HANDLE file_with_cache)
+		{
+			return m_impl->send_file(file_with_cache);
+		}
+
 		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
 		{
 			return m_impl->send_to(addr, data, size);
@@ -743,6 +762,11 @@ namespace stdx
 		{
 			return m_impl->recv_utill_error(size,std::move(call),std::move(err_handler));
 		}
+
+		bool operator==(const stdx::socket &other) const
+		{
+			return m_impl == other.m_impl;
+		}
 	private:
 		impl_t m_impl;
 
@@ -765,6 +789,7 @@ namespace stdx
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include<sys/sendfile.h>
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 
@@ -801,13 +826,13 @@ namespace stdx
 	{
 	public:
 		network_addr() = default;
-		network_addr(unsigned long ip, const uint16 &port)
+		network_addr(unsigned long ip, const uint_16 &port)
 		{
 			m_handle.sin_family = addr_family::ip;
 			m_handle.sin_addr.s_addr = ip;
 			m_handle.sin_port = htons(port);
 		}
-		network_addr(const char *ip, const uint16 &port)
+		network_addr(const char *ip, const uint_16 &port)
 			:network_addr(inet_addr(ip), port)
 		{}
 		network_addr(const network_addr &other)
@@ -837,12 +862,12 @@ namespace stdx
 		}
 
 		const static int addr_len = sizeof(sockaddr);
-		network_addr &port(const uint16 &port)
+		network_addr &port(const uint_16 &port)
 		{
 			m_handle.sin_port = htons(port);
 			return *this;
 		}
-		uint16 port() const
+		uint_16 port() const
 		{
 			return ntohs(m_handle.sin_port);
 		}
@@ -866,6 +891,7 @@ namespace stdx
 		int this_socket;
 		network_addr addr;
 		char *buffer;
+		size_t buffer_size;
 		size_t size;
 		int target_socket;
 		std::function <void(network_io_context*, std::exception_ptr)> *callback;
@@ -926,7 +952,7 @@ namespace stdx
 		}
 		network_recv_event(network_io_context *ptr)
 			:sock(ptr->target_socket)
-			, buffer(ptr->size,ptr->buffer)
+			, buffer(ptr->buffer_size,ptr->buffer)
 			, size(ptr->size)
 		{}
 		int sock;
@@ -955,6 +981,8 @@ namespace stdx
 		int create_socket(const int &addr_family, const int &sock_type, const int &protocol);
 
 		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
+
+		void send_file(int sock, int file_with_cache,std::function<void(std::exception_ptr)> &&callback);
 
 		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
 
@@ -1017,6 +1045,11 @@ namespace stdx
 			m_impl->send(sock, data, size, std::move(callback));
 		}
 
+		void send_file(int sock, int file_with_cache, std::function<void(std::exception_ptr)> &&callback)
+		{
+			m_impl->send_file(sock, file_with_cache, std::move(callback));
+		}
+
 		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
 		{
 			m_impl->recv(sock, size,std::move(callback));
@@ -1075,6 +1108,12 @@ namespace stdx
 		{
 			return (bool)m_impl;
 		}
+
+		bool operator==(const network_io_service &other)
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 	};
@@ -1101,6 +1140,14 @@ namespace stdx
 		{
 			stdx::task_complete_event<stdx::network_send_event> ce;
 			return send(data, size, ce);
+		}
+
+		stdx::task<void> &send_file(int file_with_cache, stdx::task_complete_event<void> ce);
+
+		stdx::task<void> &send_file(int file_with_cache)
+		{
+			stdx::task_complete_event<void> ce;
+			return send_file(file_with_cache, ce);
 		}
 
 		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size, stdx::task_complete_event<stdx::network_send_event> ce);
@@ -1173,7 +1220,7 @@ namespace stdx
 		template<typename _Fn>
 		void recv_utill(const size_t &size, _Fn &&call)
 		{
-			static_assert(is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>), "the input function not be allowed");
+			static_assert(is_arguments_type(_Fn,stdx::task_result<stdx::network_recv_event>)| is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event>&)| is_arguments_type(_Fn,const stdx::task_result<stdx::network_recv_event>&)| is_arguments_type(_Fn, stdx::task_result<stdx::network_recv_event> &&), "the input function not be allowed");
 			static_assert(is_result_type(_Fn, bool), "the input function not be allowed");
 			this->recv(size).then([this, size, call](stdx::task_result<network_recv_event> r) mutable
 			{
@@ -1187,7 +1234,7 @@ namespace stdx
 		template<typename _Fn, typename _ErrHandler>
 		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
-			static_assert(is_arguments_type(_Fn, stdx::network_recv_event), "the input function not be allowed");
+			static_assert(is_arguments_type(_Fn,stdx::network_recv_event)| is_arguments_type(_Fn, stdx::network_recv_event&)|is_arguments_type(_Fn,const stdx::network_recv_event&)| is_arguments_type(_Fn, stdx::network_recv_event&&), "the input function not be allowed");
 			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
 			{
 				try
@@ -1288,6 +1335,11 @@ namespace stdx
 			return m_impl->send(data, size);
 		}
 
+		stdx::task<void> &send_file(int file_with_cache)
+		{
+			return m_impl->send_file(file_with_cache);
+		}
+
 		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)
 		{
 			return m_impl->send_to(addr, data, size);
@@ -1314,6 +1366,12 @@ namespace stdx
 		{
 			return m_impl->recv_utill_error(size, std::move(call), std::move(err_handler));
 		}
+
+		bool operator==(const socket &other) const
+		{
+			return m_impl == other.m_impl;
+		}
+
 	private:
 		impl_t m_impl;
 
@@ -1331,3 +1389,32 @@ namespace stdx
 }
 #undef _ThrowLinuxError
 #endif //LINUX
+
+#ifdef WIN32
+namespace std
+{
+	template<>
+	struct hash<stdx::socket>
+	{
+		size_t operator()(const stdx::socket &arg) const
+		{
+			stdx::network_addr addr = arg.local_addr();
+			return addr.port();
+		}
+	};
+}
+#endif // WIN32
+#ifdef Linux
+namespace std
+{
+	template<>
+	struct hash<stdx::socket>
+	{
+		size_t operator()(const stdx::socket &arg) const
+		{
+			stdx::network_addr addr = arg.local_addr();
+			return addr.port();
+		}
+	};
+}
+#endif

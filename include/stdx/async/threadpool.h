@@ -3,7 +3,7 @@
 #include <stdx/async/spin_lock.h>
 #include <thread>
 #include <queue>
-#include <stdx/async/barrier.h>
+#include <stdx/async/semaphore.h>
 #include <stdx/function.h>
 #include <memory>
 
@@ -13,7 +13,7 @@ namespace stdx
 	//线程池
 	class _Threadpool
 	{
-		using runable_ptr = std::shared_ptr<stdx::_BasicRunable<void>>;
+		using runable_ptr = std::shared_ptr<stdx::basic_runable<void>>;
 	public:
 		//构造函数
 		_Threadpool() noexcept;
@@ -36,15 +36,15 @@ namespace stdx
 			}
 			m_count_lock.unlock();
 			m_task_queue->emplace(stdx::make_runable<void>(std::move(task), args...));
-			m_barrier.pass();
+			m_barrier.notify();
 		}
 
 	private:
-		std::shared_ptr<uint32> m_free_count;
+		std::shared_ptr<uint_32> m_free_count;
 		stdx::spin_lock m_count_lock;
 		std::shared_ptr<bool> m_alive;
 		std::shared_ptr<std::queue<runable_ptr>> m_task_queue;
-		stdx::barrier m_barrier;
+		stdx::semaphore m_barrier;
 		stdx::spin_lock m_lock;
 
 		//添加线程

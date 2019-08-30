@@ -52,6 +52,13 @@ void stdx::_Buffer::copy_from(const stdx::_Buffer &other)
 	memcpy(m_data, other, new_size);
 }
 
+char *stdx::_Buffer::to_raw()
+{
+	char *buf = m_data;
+	m_data = nullptr;
+	return buf;
+}
+
 #ifdef LINUX
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
