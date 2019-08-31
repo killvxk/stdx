@@ -91,7 +91,7 @@ void stdx::basic_event_reactor::register_client(stdx::socket && client)
 	}
 	auto parser = this->make_parser();
 	m_parser_table.emplace(client, parser);
-	auto f= [client, this, parser](stdx::network_recv_event &&ev) mutable
+	client.recv_utill_error(4096, [client, this, parser](stdx::network_recv_event &&ev) mutable
 	{
 		//handle data
 		stdx::parse_process process = parser.parse(ev.buffer, ev.size);
@@ -113,13 +113,12 @@ void stdx::basic_event_reactor::register_client(stdx::socket && client)
 			parser.complete();
 			if (parser.get_packages_count())
 			{
-				on_recv(client,parser.get_package());
+				on_recv(client, parser.get_package());
 			}
 			return;
 		}
 
-	};
-	auto er = [client, this](std::exception_ptr err) mutable
+	}, [client, this](std::exception_ptr err) mutable
 	{
 		//handle error
 		if (on_error(client, err))
@@ -127,8 +126,7 @@ void stdx::basic_event_reactor::register_client(stdx::socket && client)
 			unregister_client(client);
 			on_disconnect(client);
 		}
-	};;
-	client.recv_utill_error(4096,std::move(f),std::move(er));
+	});
 }
 
 void stdx::basic_event_reactor::unregister_client(const stdx::socket & client)

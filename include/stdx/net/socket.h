@@ -1398,8 +1398,11 @@ namespace std
 	{
 		size_t operator()(const stdx::socket &arg) const
 		{
-			stdx::network_addr addr = arg.local_addr();
-			return addr.port();
+			stdx::network_addr addr = arg.remote_addr();
+			std::string hex_string = addr.ip();
+			hex_string.push_back(':');
+			hex_string.append(std::to_string(addr.port()));
+			return std::hash<std::string>()(hex_string);
 		}
 	};
 }
@@ -1412,8 +1415,11 @@ namespace std
 	{
 		size_t operator()(const stdx::socket &arg) const
 		{
-			stdx::network_addr addr = arg.local_addr();
-			return addr.port();
+			stdx::network_addr addr = arg.remote_addr();
+			std::string hex_string = addr.ip();
+			hex_string.push_back(':');
+			hex_string.append(std::to_string(addr.port()));
+			return std::hash<std::string>()(hex_string);
 		}
 	};
 }
