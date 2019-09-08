@@ -68,6 +68,7 @@ namespace stdx
 
 		result_t get()
 		{
+			
 			return m_future.get();
 		}
 	private:
@@ -233,6 +234,9 @@ namespace stdx
 			{
 				//加锁
 				lock.lock();
+				//设置状态为错误
+				*state = task_state::error;
+				promise->set_exception(std::current_exception());
 				//如果有callback
 				if (*next)
 				{
@@ -241,9 +245,6 @@ namespace stdx
 					//运行callback
 					(*next)->run_on_this_thread();
 				}
-				//设置状态为错误
-				*state = task_state::error;
-				promise->set_exception(std::current_exception());
 				//解锁
 				lock.unlock();
 				return;
@@ -284,6 +285,9 @@ namespace stdx
 			{
 				//加锁
 				lock.lock();
+				//设置状态为错误
+				*state = task_state::error;
+				promise->set_exception(std::current_exception());
 				//如果有callback
 				if (*next)
 				{
@@ -292,9 +296,6 @@ namespace stdx
 					//运行callback
 					(*next)->run_on_this_thread();
 				}
-				//设置状态为错误
-				*state = task_state::error;
-				promise->set_exception(std::current_exception());
 				//解锁
 				lock.unlock();
 				return;

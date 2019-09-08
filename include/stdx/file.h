@@ -481,7 +481,7 @@ namespace stdx
 {
 	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
 
-	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
+	extern stdx::file_handle open_for_senfile(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowWinError
 #endif // WIN32
@@ -941,7 +941,7 @@ namespace stdx
 {
 	extern stdx::file_stream open_file(const stdx::file_io_service &io_service, const std::string &path, const int_32 &access_type, const int_32 &open_type);
 
-	extern stdx::file_handle open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type);
+	extern stdx::file_handle open_for_senfile(const std::string &path, const int_32 &access_type, const int_32 &open_type);
 }
 #undef _ThrowLinuxError
 #endif //LINUX

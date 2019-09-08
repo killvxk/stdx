@@ -181,3 +181,39 @@ namespace stdx
 		};
 	};
 }
+
+namespace stdx
+{
+	template<typename _T>
+	struct _Forwarder
+	{
+		static _T forward(_T arg)
+		{
+			return arg;
+		}
+	};
+
+	template<typename _T>
+	struct _Forwarder<_T&>
+	{
+		static _T& forward(_T &arg)
+		{
+			return arg;
+		}
+	};
+
+	template<typename _T>
+	struct _Forwarder<_T&&>
+	{
+		static _T&& forward(_T &&arg)
+		{
+			return std::move(arg);
+		}
+	};
+
+	template<typename _T>
+	_T forward(_T arg)
+	{
+		return (_T&&)stdx::_Forwarder<_T>::forward(arg);
+	}
+}

@@ -103,15 +103,15 @@ namespace stdx
 	};
 #define is_result_type(_Fn,_Result) stdx::_IsResult<_Fn, _Result>::value
 	template<typename _Fn,typename ..._Args>
-	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args &&...args)
+	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args ...args)
 	{
-		return callable(std::move(args)...);
+		return callable(stdx::forward(args)...);
 	}
 
 	//template<typename _Fn, typename ..._Args>
 	//inline typename stdx::function_info<_Fn>::result invoke(_Fn &&callable, _Args &...args)
 	//{
-	//	return callable(args...);
+	//	return callable(stdx::forward(args)...);
 	//}
 
 	template<typename _R = void>

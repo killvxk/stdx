@@ -199,62 +199,79 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
-//#define ENABLE_TCP
+#define ENABLE_TCP
 #ifdef ENABLE_TCP
-#ifdef WIN32
-	//client
-	stdx::network_io_service service;
-	stdx::socket client = stdx::open_socket(service,stdx::addr_family::ip,stdx::socket_type::stream,stdx::protocol::tcp);
-	stdx::network_addr addr("103.91.209.203",1232);
-	client.connect(addr);
-	std::string str = U("NMSL,GCC");
-	client.send(str.c_str(), str.size()).then([](stdx::network_send_event ev) 
-	{
-		std::cout << ev.size << next_line;
-	}).wait();
-#endif // WIN32
-#ifdef LINUX
-	//server
-	stdx::network_io_service service;
-	stdx::socket ser = stdx::open_tcpsocket(service);
-	stdx::network_addr addr("0.0.0.0", 25566);
-	std::cout << "bind..."<<next_line;
-	ser.bind(addr);
-	std::cout << "done!" << next_line;
-	std::cout << "listen" << next_line;
-	ser.listen(1024);
-	std::cout << "done!" << next_line;
+	stdx::network_io_service io_ser;
+	stdx::socket server = stdx::open_tcpsocket(io_ser);
+	stdx::network_addr addr("0.0.0.0", 5000);
+	server.bind(addr);
+	server.listen(5);
 	while (true)
 	{
-		std::cout << "accept" << next_line;
-		stdx::socket c = ser.accept();
-		std::cout << "done!" << next_line;
-		std::cout << "recv" << next_line;
-		stdx::task<void> t = c.recv(1024).then([c](stdx::task_result<stdx::network_recv_event> r) mutable
+		auto c = server.accept();
+		/*c.recv_utill(4096,[c](stdx::task_result<stdx::network_recv_event> r) mutable
 		{
-			std::cout << "done!" <<next_line;
 			try
 			{
 				auto ev = r.get();
-				std::cout << U("size:") << ev.buffer.size() << next_line << ev.buffer << next_line;
+				std::cout << ev.buffer << std::endl;
+				std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:175\r\n\r\n";
+				c.send(str.c_str(), str.size()).then([c](stdx::network_send_event &ev) mutable
+				{
+					c.send_file(stdx::open_for_senfile("E://test.txt", stdx::file_access_type::read, stdx::file_open_type::open));
+				});
 			}
-			catch (const std::exception&e)
+			catch (const std::exception &err)
 			{
-				std::cerr << e.what();
+				std::cerr << err.what() << std::endl;
+				c.close();
+				return false;
 			}
-			c.close();
+			return true;
+		});*/
+		//c.recv(1024).then([c](stdx::task_result<stdx::network_recv_event> r) mutable
+		//{
+		//	try
+		//	{
+		//		auto ev = r.get();
+		//		std::cout << ev.size << std::endl;
+		//		std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:175\r\n\r\n";
+		//		c.send(str.c_str(), str.size()).then([c](stdx::network_send_event &ev) mutable
+		//		{
+		//			c.send_file(stdx::open_for_senfile("E://test.txt", stdx::file_access_type::read, stdx::file_open_type::open));
+		//		});
+		//	}
+		//	catch (const std::exception &err)
+		//	{
+		//		printf("err");
+		//		std::cerr << err.what() << std::endl;
+		//		c.close();
+		//	}
+		//});
+		c.recv_utill_error(4096, [c](stdx::network_recv_event &&ev) mutable
+		{
+			std::cout << ev.buffer << std::endl;
+			std::string str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8;\r\nContent-Length:175\r\n\r\n";
+			c.send(str.c_str(), str.size()).then([c](stdx::network_send_event &ev) mutable 
+			{
+				c.send_file(stdx::open_for_senfile("E://test.txt", stdx::file_access_type::read, stdx::file_open_type::open));
+			});
+		}, [c](std::exception_ptr err) mutable
+		{
+			try
+			{
+				std::rethrow_exception(err);
+			}
+			catch (const std::exception &e)
+			{
+				std::cerr << e.what() << std::endl;
+				c.close();
+			}
+			
 		});
-		std::cout <<"complete:" << t.is_complete() <<next_line;
-		std::cout << "go on!" <<next_line;
 	}
-#endif // LINUX
-
 #endif // ENABLE_TCP
-	stdx::logger logger = stdx::make_default_logger();
-	logger.debug("debug");
-	logger.info("info");
-	logger.warn("warn");
-	logger.error("error");
+
 	system("pause");
 	return 0;
 }

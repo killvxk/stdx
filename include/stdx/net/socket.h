@@ -44,14 +44,16 @@ namespace stdx
 		{
 			if (WSAStartup(MAKEWORD(2, 2), &wsa))
 			{
-				_ThrowWinError
+				//致命错误
+				std::terminate();
 			}
 		}
 		~_WSAStarter() noexcept
 		{
 			if (WSACleanup())
 			{
-				_ThrowWinError
+				//致命错误
+				std::terminate();
 			}
 		}
 	};
@@ -139,6 +141,7 @@ namespace stdx
 		}
 		network_addr &ip(const char *ip)
 		{
+			
 			m_handle.sin_addr.S_un.S_addr = inet_addr(ip);
 			return *this;
 		}
@@ -539,10 +542,10 @@ namespace stdx
 
 		stdx::task<void> &send_file(HANDLE file_with_cache,stdx::task_complete_event<void> ce);
 
-		stdx::task<void> &send_file(HANDLE file_with_cache)
+		stdx::task<void> &send_file(HANDLE file_handle)
 		{
 			stdx::task_complete_event<void> ce;
-			return send_file(file_with_cache, ce);
+			return send_file(file_handle, ce);
 		}
 
 		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size,stdx::task_complete_event<stdx::network_send_event> ce);
@@ -630,14 +633,14 @@ namespace stdx
 		void recv_utill_error(const size_t &size, _Fn &&call, _ErrHandler &&err_handler)
 		{
 			static_assert(is_arguments_type(_Fn, stdx::network_recv_event) | is_arguments_type(_Fn, stdx::network_recv_event&) | is_arguments_type(_Fn, const stdx::network_recv_event&) | is_arguments_type(_Fn, stdx::network_recv_event&&), "the input function not be allowed");
-			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> r) mutable
+			return this->recv_utill(size, [call, err_handler](stdx::task_result<network_recv_event> &r) mutable
 			{
 				try
 				{
-					auto e = r.get();
-					stdx::invoke(call,e);
+					stdx::network_recv_event e = r.get();
+					stdx::invoke(call,std::move(e));
 				}
-				catch (const std::exception&)
+				catch (const std::exception &)
 				{
 					stdx::invoke(err_handler, std::current_exception());
 					return false;
@@ -982,7 +985,7 @@ namespace stdx
 
 		void send(int sock, const char* data, const size_t &size, std::function<void(network_send_event, std::exception_ptr)> &&callback);
 
-		void send_file(int sock, int file_with_cache,std::function<void(std::exception_ptr)> &&callback);
+		void send_file(int sock, int file_handle,std::function<void(std::exception_ptr)> &&callback);
 
 		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback);
 
@@ -1045,9 +1048,9 @@ namespace stdx
 			m_impl->send(sock, data, size, std::move(callback));
 		}
 
-		void send_file(int sock, int file_with_cache, std::function<void(std::exception_ptr)> &&callback)
+		void send_file(int sock, int file_handle, std::function<void(std::exception_ptr)> &&callback)
 		{
-			m_impl->send_file(sock, file_with_cache, std::move(callback));
+			m_impl->send_file(sock, file_handle, std::move(callback));
 		}
 
 		void recv(int sock, const size_t &size, std::function<void(network_recv_event, std::exception_ptr)> &&callback)
@@ -1142,12 +1145,12 @@ namespace stdx
 			return send(data, size, ce);
 		}
 
-		stdx::task<void> &send_file(int file_with_cache, stdx::task_complete_event<void> ce);
+		stdx::task<void> &send_file(int file_handle, stdx::task_complete_event<void> ce);
 
-		stdx::task<void> &send_file(int file_with_cache)
+		stdx::task<void> &send_file(int file_handle)
 		{
 			stdx::task_complete_event<void> ce;
-			return send_file(file_with_cache, ce);
+			return send_file(file_handle, ce);
 		}
 
 		stdx::task<stdx::network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size, stdx::task_complete_event<stdx::network_send_event> ce);
@@ -1335,9 +1338,9 @@ namespace stdx
 			return m_impl->send(data, size);
 		}
 
-		stdx::task<void> &send_file(int file_with_cache)
+		stdx::task<void> &send_file(int file_handle)
 		{
-			return m_impl->send_file(file_with_cache);
+			return m_impl->send_file(file_handle);
 		}
 
 		stdx::task<network_send_event> &send_to(const network_addr &addr, const char *data, const size_t &size)

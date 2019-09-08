@@ -65,7 +65,7 @@ void stdx::_Threadpool::add_thread() noexcept
 						t->run();
 					}
 				}
-				catch (const std::exception &e)
+				catch (...)
 				{
 					//ºöÂÔ³öÏÖµÄ´íÎó
 				}
