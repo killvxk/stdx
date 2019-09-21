@@ -1392,38 +1392,3 @@ namespace stdx
 }
 #undef _ThrowLinuxError
 #endif //LINUX
-
-#ifdef WIN32
-namespace std
-{
-	template<>
-	struct hash<stdx::socket>
-	{
-		size_t operator()(const stdx::socket &arg) const
-		{
-			stdx::network_addr addr = arg.remote_addr();
-			std::string hex_string = addr.ip();
-			hex_string.push_back(':');
-			hex_string.append(std::to_string(addr.port()));
-			return std::hash<std::string>()(hex_string);
-		}
-	};
-}
-#endif // WIN32
-#ifdef Linux
-namespace std
-{
-	template<>
-	struct hash<stdx::socket>
-	{
-		size_t operator()(const stdx::socket &arg) const
-		{
-			stdx::network_addr addr = arg.remote_addr();
-			std::string hex_string = addr.ip();
-			hex_string.push_back(':');
-			hex_string.append(std::to_string(addr.port()));
-			return std::hash<std::string>()(hex_string);
-		}
-	};
-}
-#endif
