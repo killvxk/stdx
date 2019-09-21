@@ -2,6 +2,7 @@
 #include <stdx/net/socket.h>
 #include <list>
 #include <unordered_map>
+#include <algorithm>
 
 namespace stdx
 {
