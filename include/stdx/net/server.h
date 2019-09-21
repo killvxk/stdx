@@ -3,7 +3,21 @@
 #include <list>
 #include <unordered_map>
 #include <algorithm>
-
+#include <string>
+namespace std
+{
+        template<>
+        struct hash<stdx::socket>
+        {
+                using argument_type = stdx::socket;
+                using result_type = std::size_t;
+                result_type operator()(const argument_type &arg) const                  {
+                        stdx::network_addr addr = arg.remote_addr();                            std::string hex_string = addr.ip();
+                        hex_string.push_back(':');                                              hex_string.append(std::to_string(addr.port()));
+                        return std::hash<std::string>()(hex_string);
+                }
+        };
+}
 namespace stdx
 {
 	enum class parse_process
