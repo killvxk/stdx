@@ -11,6 +11,7 @@
 #endif 
 
 #ifdef WIN32
+#define _STDX_HAS_SOCKET
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\
 						if(_ERROR_CODE != ERROR_IO_PENDING) \
@@ -793,6 +794,7 @@ namespace stdx
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include<sys/sendfile.h>
+#define _STDX_HAS_SOCKET
 #define _ThrowLinuxError auto _ERROR_CODE = errno;\
 						 throw std::system_error(std::error_code(_ERROR_CODE,std::system_category()),strerror(_ERROR_CODE)); \
 

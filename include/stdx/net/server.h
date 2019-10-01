@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <string>
+#ifdef _STDX_HAS_SOCKET
 namespace std
 {
         template<>
@@ -12,9 +13,11 @@ namespace std
                 using argument_type = stdx::socket;
                 using result_type = std::size_t;
                 result_type operator()(const argument_type &arg) const                  {
-                        stdx::network_addr addr = arg.remote_addr();                            std::string hex_string = addr.ip();
-                        hex_string.push_back(':');                                              hex_string.append(std::to_string(addr.port()));
-                        return std::hash<std::string>()(hex_string);
+					stdx::network_addr addr = arg.remote_addr();
+					std::string hex_string = addr.ip();
+					hex_string.push_back(':');
+					hex_string.append(std::to_string(addr.port()));
+					return std::hash<std::string>()(hex_string);
                 }
         };
 }
@@ -477,3 +480,4 @@ namespace stdx
 		impl_t m_impl;
 	};
 }
+#endif
