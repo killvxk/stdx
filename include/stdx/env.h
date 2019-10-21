@@ -35,8 +35,8 @@
 #endif
 
 #ifdef LINUX
-#define int_64 long long
-#define uint_64 unsigned long long
+#define int_64 long long int
+#define uint_64 unsigned long long int
 #endif
 
 #define interface_class class
@@ -180,4 +180,40 @@ namespace stdx
 			value = 0
 		};
 	};
+}
+
+namespace stdx
+{
+	template<typename _T>
+	struct _Forwarder
+	{
+		static _T forward(_T arg)
+		{
+			return arg;
+		}
+	};
+
+	template<typename _T>
+	struct _Forwarder<_T&>
+	{
+		static _T& forward(_T &arg)
+		{
+			return arg;
+		}
+	};
+
+	template<typename _T>
+	struct _Forwarder<_T&&>
+	{
+		static _T&& forward(_T &&arg)
+		{
+			return std::move(arg);
+		}
+	};
+
+	template<typename _T>
+	_T forward(_T arg)
+	{
+		return (_T&&)stdx::_Forwarder<_T>::forward(arg);
+	}
 }

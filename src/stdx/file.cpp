@@ -305,7 +305,7 @@ stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const
 	return file;
 }
 
-stdx::file_handle stdx::open_file_with_cache(const std::string &path, const int_32 & access_type, const int_32 & open_type)
+stdx::file_handle stdx::open_for_senfile(const std::string &path, const int_32 & access_type, const int_32 & open_type)
 {
 	DWORD shared = 0;
 	if (access_type == stdx::file_access_type::read)
@@ -592,7 +592,7 @@ stdx::file_stream stdx::open_file(const stdx::file_io_service &io_service, const
 	return file;
 }
 
-stdx::file_handle stdx::open_file_with_cache(const std::string &path, const int_32 &access_type, const int_32 &open_type)
+stdx::file_handle stdx::open_for_senfile(const std::string &path, const int_32 &access_type, const int_32 &open_type)
 {
 	return open(path.c_str(),access_type|open_type);
 }
