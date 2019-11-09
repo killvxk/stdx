@@ -184,17 +184,9 @@ namespace stdx
 
 namespace stdx
 {
-	template<typename _T>
-	struct _Forwarder
-	{
-		static _T forward(_T arg)
-		{
-			return arg;
-		}
-	};
 
 	template<typename _T>
-	struct _Forwarder<_T&>
+	struct _Forwarder
 	{
 		static _T& forward(_T &arg)
 		{
@@ -212,8 +204,42 @@ namespace stdx
 	};
 
 	template<typename _T>
-	_T forward(_T arg)
+	_T &&forward(_T arg)
 	{
 		return (_T&&)stdx::_Forwarder<_T>::forward(arg);
 	}
+}
+
+namespace stdx
+{
+	template<uint bytes_count>
+	struct sys_bit;
+
+	template<>
+	struct sys_bit<4>
+	{
+		using uint_ptr_t = uint_32;
+		enum
+		{
+			bit = 32
+		};
+	};
+
+	template<>
+	struct sys_bit<8>
+	{
+		using uint_ptr_t = uint_64;
+		enum
+		{
+			bit = 64
+		};
+	};
+
+	using current_sys_bit = stdx::sys_bit<sizeof(void*)>;
+}
+
+namespace stdx
+{
+	void *malloc(const size_t &size);
+	void free(void *ptr);
 }
