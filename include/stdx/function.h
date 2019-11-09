@@ -107,11 +107,7 @@ namespace stdx
 			value = is_same(result, _Result)
 		};
 	};
-#ifdef WIN32
-#define is_result_type(_Fn,...) stdx::_IsResult<_Fn,__VA_ARGS__>::value
-#else
-#define is_result_type(_Fn,args...) stdx::_IsResult<_Fn,##args>::value
-#endif
+#define is_result_type(_Fn,_Result) stdx::_IsResult<_Fn,_Result>::value
 
 	template<typename _Fn,typename ..._Args>
 	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args ...args)
