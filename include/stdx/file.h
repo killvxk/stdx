@@ -2,6 +2,9 @@
 #include <stdx/env.h>
 #include <stdx/io.h>
 #include <stdx/async/task.h>
+#ifndef WIN32
+#define MAX_PATH 4096
+#endif
 #ifdef WIN32
 #define _ThrowWinError auto _ERROR_CODE = GetLastError(); \
 						LPVOID _MSG;\

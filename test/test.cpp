@@ -6,7 +6,7 @@
 #include <stdx/logger.h>
 int main(int argc, char **argv)
 {
-//#define ENABLE_WEB
+#define ENABLE_WEB
 #ifdef ENABLE_WEB
 #pragma region web_test
 	stdx::network_io_service service;
@@ -199,7 +199,7 @@ int main(int argc, char **argv)
 	t.run_on_this_thread();
 	std::cin.get();
 #endif // ENABLE_TASK
-#define ENABLE_TCP
+//#define ENABLE_TCP
 #ifdef ENABLE_TCP
 	stdx::network_io_service io_ser;
 	stdx::socket server = stdx::open_tcpsocket(io_ser);
@@ -271,7 +271,6 @@ int main(int argc, char **argv)
 		});
 	}
 #endif // ENABLE_TCP
-
 	system("pause");
 	return 0;
 }
