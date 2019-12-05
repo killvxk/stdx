@@ -184,19 +184,12 @@ namespace stdx
 
 namespace stdx
 {
+
 	template<typename _T>
 	struct _Forwarder
 	{
-		static _T forward(_T arg)
-		{
-			return arg;
-		}
-	};
-
-	template<typename _T>
-	struct _Forwarder<_T&>
-	{
-		static _T& forward(_T &arg)
+		using forward_type = _T&;
+		static forward_type forward(_T &arg)
 		{
 			return arg;
 		}
@@ -205,15 +198,54 @@ namespace stdx
 	template<typename _T>
 	struct _Forwarder<_T&&>
 	{
-		static _T&& forward(_T &&arg)
+		using forward_type = _T&&;
+		static forward_type forward(_T &&arg)
 		{
 			return std::move(arg);
 		}
 	};
 
 	template<typename _T>
-	_T forward(_T arg)
+	struct _Forwarder<_T&>
+	{
+		using forward_type = _T& ;
+		static forward_type forward(_T &arg)
+		{
+			return arg;
+		}
+	};
+
+	template<typename _T>
+	typename _Forwarder<_T>::forward_type forward(_T arg)
 	{
 		return (_T&&)stdx::_Forwarder<_T>::forward(arg);
 	}
+}
+
+namespace stdx
+{
+	template<uint bytes_count>
+	struct sys_bit;
+
+	template<>
+	struct sys_bit<4>
+	{
+		using uint_ptr_t = uint_32;
+		enum
+		{
+			bit = 32
+		};
+	};
+
+	template<>
+	struct sys_bit<8>
+	{
+		using uint_ptr_t = uint_64;
+		enum
+		{
+			bit = 64
+		};
+	};
+
+	using current_sys_bit = stdx::sys_bit<sizeof(void*)>;
 }

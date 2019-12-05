@@ -87,7 +87,13 @@ namespace stdx
 			value = is_same(arguments, stdx::type_list<_Args...>)
 		};
 	};
-#define is_arguments_type(_Fn,_Args) stdx::_IsArgs<_Fn,_Args>::value
+#ifdef WIN32
+#define is_arguments_type(_Fn,...) stdx::_IsArgs<_Fn,__VA_ARGS__>::value
+#else
+#define is_arguments_type(_Fn,args...) stdx::_IsArgs<_Fn,##args>::value
+#endif
+
+
 
 	template<typename _Fn, typename _Result>
 	struct _IsResult
@@ -101,7 +107,8 @@ namespace stdx
 			value = is_same(result, _Result)
 		};
 	};
-#define is_result_type(_Fn,_Result) stdx::_IsResult<_Fn, _Result>::value
+#define is_result_type(_Fn,_Result) stdx::_IsResult<_Fn,_Result>::value
+
 	template<typename _Fn,typename ..._Args>
 	inline typename stdx::function_info<_Fn>::result invoke( _Fn &&callable,_Args ...args)
 	{
